@@ -23,7 +23,7 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
     (paymentType !== "PAID" && paymentType !== "UNPAID") ||
     typeof daysAllowed !== "number" || !Number.isSafeInteger(daysAllowed) || daysAllowed < 1 ||
     typeof description !== "string" ||
-    (status !== "Active" && status !== "Inactive")
+    (status !== "ACTIVE" && status !== "INACTIVE" && status !== "Active" && status !== "Inactive")
   ) {
     return null;
   }
@@ -35,7 +35,7 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
     paymentType,
     daysAllowed,
     description: description.trim().toUpperCase(),
-    status: status === "Inactive" ? "INACTIVE" : "ACTIVE",
+    status: status.toUpperCase() as LeaveTypeInput["status"],
   };
 }
 
@@ -58,7 +58,7 @@ export function serializeLeaveType<T extends {
     paymentType: leaveType.paymentType,
     daysAllowed: leaveType.daysAllowed,
     description: leaveType.description,
-    status: leaveType.status.toUpperCase() === "INACTIVE" ? "Inactive" : "Active",
+    status: leaveType.status.toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     isUsed: leaveType.isUsed,
   };
 }

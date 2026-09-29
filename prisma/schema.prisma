@@ -21,8 +21,4 @@ model LeaveType {
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("leave_types")
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> c54686f (leave type added)

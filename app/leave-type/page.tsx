@@ -109,7 +109,7 @@ export default function LeaveTypePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL STATUS");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<LeaveTypeForm>({
     code: "",
@@ -123,13 +123,16 @@ export default function LeaveTypePage() {
 
   useEffect(() => {
     let isMounted = true;
-    fetch("/api/leave-types")
+    setIsLoading(true);
+    setError("");
+    fetch(`/api/leave-types?status=${statusFilter}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error((await response.json()).error ?? "Unable to load leave types.");
-        return response.json() as Promise<LeaveType[]>;
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Unable to load leave types.");
+        return result as LeaveType[];
       })
-      .then((data) => {
-        if (isMounted) setLeaveTypes(data);
+      .then((result) => {
+        if (isMounted) setLeaveTypes(result);
       })
       .catch((loadError: unknown) => {
         if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load leave types.");
@@ -140,7 +143,7 @@ export default function LeaveTypePage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [statusFilter]);
 
   const filteredLeaveTypes = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -152,8 +155,7 @@ export default function LeaveTypePage() {
         leaveType.name.toLowerCase().includes(query) ||
         leaveType.leaveGroup.toLowerCase().includes(query);
 
-      const matchesStatus = statusFilter === "ALL STATUS" || leaveType.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
   }, [leaveTypes, search, statusFilter]);
 
@@ -287,7 +289,7 @@ export default function LeaveTypePage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300"
             >
-              <option value="ALL STATUS">ALL STATUS</option>
+              <option value="ALL">ALL STATUS</option>
               <option value="ACTIVE">ACTIVE</option>
               <option value="INACTIVE">INACTIVE</option>
             </select>

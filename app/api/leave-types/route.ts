@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-// import { parseLeaveTypeInput } from "@/lib/leave-types";
 import { parseLeaveTypeInput, serializeLeaveType } from "@/lib/leave-types";
 
 export const runtime = "nodejs";
