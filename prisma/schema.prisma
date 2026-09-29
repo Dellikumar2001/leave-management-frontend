@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model LeaveType {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  name          String
+  leaveGroup    String   @map("leave_group")
+  paymentType   String   @map("payment_type")
+  daysAllowed   Int      @default(1) @map("days_allowed")
+  description   String   @default("")
+  status        String
+  isUsed        Boolean  @default(false) @map("is_used")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("leave_types")
+}

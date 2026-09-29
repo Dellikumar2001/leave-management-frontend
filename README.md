@@ -1,5 +1,26 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## PostgreSQL and Prisma Setup
+
+1. In pgAdmin, create a database named `leave_management` (or choose another name).
+2. Copy `.env.example` to `.env.local` and set `DATABASE_URL` to your local PostgreSQL connection string. Replace `your_password` with the PostgreSQL password for the `postgres` user. The default local port is `5432`.
+3. Install the project dependencies and generate Prisma Client:
+
+	```bash
+	npm install
+	npm run db:generate
+	```
+
+4. Create the `leave_types` table and insert the starter leave types:
+
+	```bash
+	npm run db:migrate
+	```
+
+5. Start the app with `npm run dev`. The Leave Type list, create, edit, view, and delete actions use Prisma and the PostgreSQL database.
+
+The initial migration inserts the four sample leave types. Existing browser `localStorage` entries are not automatically imported; recreate any custom entries in the page after the database is set up.
+
 ## Getting Started
 
 First, run the development server:

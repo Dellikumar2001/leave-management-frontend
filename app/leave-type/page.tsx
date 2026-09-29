@@ -1,29 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, MoreVertical } from "lucide-react";
-
-const STORAGE_KEY = "leave-type-list";
 
 type LeaveType = {
   id: number;
   code: string;
   name: string;
-  category: "Annual" | "Medical" | "Casual" | "Emergency" | "Special";
-  days: number;
+  leaveGroup: string;
+  paymentType: "PAID" | "UNPAID";
+  daysAllowed: number;
   description: string;
-  status: "Active" | "Inactive";
+  status: "ACTIVE" | "INACTIVE";
   isUsed?: boolean;
 };
 
 type LeaveTypeForm = {
   code: string;
-  name: string
-  category: LeaveType["category"];
-  days: number;
+  name: string;
+  leaveGroup: string;
+  paymentType: LeaveType["paymentType"];
+  daysAllowed: number;
   description: string;
-  status: "Active" | "Inactive";
+  status: LeaveType["status"];
 };
 
 type RowActionsProps = {
@@ -33,73 +33,30 @@ type RowActionsProps = {
   isDeleteDisabled?: boolean;
 };
 
-const categoryOptions: LeaveType["category"][] = [
-  "Annual",
-  "Medical",
-  "Casual",
-  "Emergency",
-  "Special",
-];
-
-const initialLeaveTypes: LeaveType[] = [
-  {
-    id: 1,
-    code: "CL",
-    name: "Casual Leave",
-    category: "Casual",
-    days: 7,
-    description: "Short-duration leave for personal and emergency needs.",
-    status: "Active",
-    isUsed: true,
-  },
-  {
-    id: 2,
-    code: "AL",
-    name: "Annual Leave",
-    category: "Annual",
-    days: 15,
-    description: "Paid annual leave accrued as part of the yearly leave cycle.",
-    status: "Active",
-    isUsed: true,
-  },
-  {
-    id: 3,
-    code: "ML",
-    name: "Medical Leave",
-    category: "Medical",
-    days: 10,
-    description: "Leave provided for illness and treatment-related absences.",
-    status: "Active",
-    isUsed: false,
-  },
-  {
-    id: 4,
-    code: "EL",
-    name: "Earned Leave",
-    category: "Annual",
-    days: 12,
-    description: "Leave accumulated based on service duration and eligibility.",
-    status: "Inactive",
-    isUsed: false,
-  },
-];
-
-const getStoredLeaveTypes = (): LeaveType[] => {
-  if (typeof window === "undefined") return initialLeaveTypes;
-
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) return initialLeaveTypes;
-
-    const parsed = JSON.parse(saved) as LeaveType[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialLeaveTypes;
-  } catch {
-    return initialLeaveTypes;
-  }
-};
-
 function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowActionsProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const button = actionsButtonRef.current;
+    if (!button) return;
+
+    const bounds = button.getBoundingClientRect();
+    const menuHeight = 40;
+    const menuWidth = 128;
+    const openAbove = window.innerHeight - bounds.bottom < menuHeight + 8;
+    setMenuPosition({
+      top: openAbove ? bounds.top - menuHeight - 8 : bounds.bottom + 8,
+      left: Math.min(Math.max(8, bounds.right - menuWidth), window.innerWidth - menuWidth - 8),
+    });
+    setOpen(true);
+  };
 
   return (
     <div className="relative flex items-center justify-end gap-1">
@@ -110,17 +67,21 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
         <Pencil size={16} />
       </button>
       <button
-        onClick={() => setOpen((value) => !value)}
+        ref={actionsButtonRef}
+        onClick={toggleMenu}
         className="p-1.5 text-slate-400 hover:text-slate-700"
         aria-label="More actions"
       >
-        <MoreVertical size={16} />
+        <Trash2 size={16} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-32 rounded-md border border-slate-200 bg-white shadow-lg">
+          <div
+            className="fixed z-40 w-32 rounded-md border border-slate-200 bg-white shadow-lg"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
             <button
               type="button"
               disabled={isDeleteDisabled}
@@ -129,10 +90,8 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
-                isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-              }`}
-              title={isDeleteDisabled ? "This leave type is already in use and cannot be deleted." : "Delete"}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"}`}
+              title={isDeleteDisabled ? "Inactive leave types cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
               <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
@@ -146,24 +105,42 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 
 export default function LeaveTypePage() {
   const router = useRouter();
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>(getStoredLeaveTypes);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [statusFilter, setStatusFilter] = useState("ALL STATUS");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<LeaveTypeForm>({
     code: "",
     name: "",
-    category: "Annual",
-    days: 1,
+    leaveGroup: "",
+    paymentType: "PAID",
+    daysAllowed: 1,
     description: "",
-    status: "Active",
+    status: "ACTIVE",
   });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(leaveTypes));
-    }
-  }, [leaveTypes]);
+    let isMounted = true;
+    fetch("/api/leave-types")
+      .then(async (response) => {
+        if (!response.ok) throw new Error((await response.json()).error ?? "Unable to load leave types.");
+        return response.json() as Promise<LeaveType[]>;
+      })
+      .then((data) => {
+        if (isMounted) setLeaveTypes(data);
+      })
+      .catch((loadError: unknown) => {
+        if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load leave types.");
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredLeaveTypes = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -173,45 +150,76 @@ export default function LeaveTypePage() {
         !query ||
         leaveType.code.toLowerCase().includes(query) ||
         leaveType.name.toLowerCase().includes(query) ||
-        leaveType.category.toLowerCase().includes(query);
+        leaveType.leaveGroup.toLowerCase().includes(query);
 
-      const matchesStatus = statusFilter === "All Status" || leaveType.status === statusFilter;
+      const matchesStatus = statusFilter === "ALL STATUS" || leaveType.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [leaveTypes, search, statusFilter]);
 
-  const handleSaveType = () => {
+  const handleSaveType = async () => {
     const nextCode = form.code.trim().toUpperCase();
-    const nextName = form.name.trim();
+    const nextName = form.name.trim().toUpperCase();
+    const nextLeaveGroup = form.leaveGroup.trim().toUpperCase();
 
-    if (!nextCode || !nextName || !form.description.trim() || form.days <= 0) {
+    if (
+      !nextCode ||
+      !nextName ||
+      !nextLeaveGroup ||
+      !Number.isSafeInteger(form.daysAllowed) ||
+      form.daysAllowed < 1
+    ) {
       return;
     }
 
-    const newLeaveType: LeaveType = {
-      id: leaveTypes.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1,
+    const newLeaveType = {
       code: nextCode,
       name: nextName,
-      category: form.category,
-      days: form.days,
-      description: form.description.trim(),
+      leaveGroup: nextLeaveGroup,
+      paymentType: form.paymentType,
+      daysAllowed: form.daysAllowed,
+      description: form.description.trim().toUpperCase(),
       status: form.status,
     };
 
-    setLeaveTypes((prev) => [newLeaveType, ...prev]);
+    setError("");
+    try {
+      const response = await fetch("/api/leave-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newLeaveType),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Unable to save the leave type.");
+      setLeaveTypes((prev) => [result as LeaveType, ...prev]);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save the leave type.");
+      return;
+    }
     setForm({
       code: "",
       name: "",
-      category: "Annual",
-      days: 1,
+      leaveGroup: "",
+      paymentType: "PAID",
+      daysAllowed: 1,
       description: "",
-      status: "Active",
+      status: "ACTIVE",
     });
     setIsModalOpen(false);
   };
 
-  const handleDeleteType = (leaveId: number) => {
-    setLeaveTypes((prev) => prev.filter((leaveType) => leaveType.id !== leaveId));
+  const handleDeleteType = async (leaveId: number) => {
+    setError("");
+    try {
+      const response = await fetch(`/api/leave-types/${leaveId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error ?? "Unable to delete the leave type.");
+      }
+      setLeaveTypes((prev) => prev.filter((leaveType) => leaveType.id !== leaveId));
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete the leave type.");
+    }
   };
 
   const handleViewType = (leaveType: LeaveType) => {
@@ -225,19 +233,10 @@ export default function LeaveTypePage() {
   return (
     <div className="min-h-screen bg-[#e9edf3] p-4 text-slate-800">
       <div className="mx-auto max-w-[1400px]">
-          <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="relative w-[360px]">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-              </span>
-              <input
-                value={search}
-                // onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search menu, employee, reports..."
-                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
-              />
-            </div>
+        <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm">
+          <div className="flex flex-col justify-start px-5 py-5">
+            <h1 className="text-[42px] font-bold tracking-[-0.05em] text-slate-800">Leave Type</h1>
+            {/* <p className="mt-1 text-lg text-slate-500">Create and manage leave types to categorize leave types.</p> */}
           </div>
 
           <div className="flex items-center gap-3">
@@ -271,7 +270,7 @@ export default function LeaveTypePage() {
         </header>
         <header className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative w-full md:w-[360px]">
+            <div className="relative w-full md:w-[1020px]">
               <Search className="pointer-events-none absolute left-3 top-2.5 text-slate-400" size={16} />
               <input
                 value={search}
@@ -288,9 +287,9 @@ export default function LeaveTypePage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-300"
             >
-              <option>All Status</option>
-              <option>Active</option>
-              <option>Inactive</option>
+              <option value="ALL STATUS">ALL STATUS</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
             </select>
 
             <button
@@ -298,28 +297,32 @@ export default function LeaveTypePage() {
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
             >
               <Plus size={16} />
-              Add Leave Type
+              ADD LEAVE TYPE
             </button>
           </div>
         </header>
 
         <main className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          {error && <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">{error}</p>}
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-5 py-3 font-medium">Code</th>
-                  <th className="px-5 py-3 font-medium">Leave Type</th>
-                  <th className="px-5 py-3 font-medium">Category</th>
-                  <th className="px-5 py-3 font-medium">Days</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium text-right">Actions</th>
+                  <th className="px-5 py-3 font-medium">S.NO</th>
+                  <th className="px-5 py-3 font-medium">CODE</th>
+                  <th className="px-5 py-3 font-medium">LEAVE TYPE</th>
+                  <th className="px-5 py-3 font-medium">LEAVE GROUP</th>
+                  <th className="px-5 py-3 font-medium">PAID / UNPAID</th>
+                  <th className="px-5 py-3 font-medium">DAYS ALLOWED</th>
+                  <th className="px-5 py-3 font-medium">STATUS</th>
+                  <th className="px-5 py-3 font-medium text-right">ACTIONS</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredLeaveTypes.map((leaveType) => (
+                {!isLoading && filteredLeaveTypes.map((leaveType, index) => (
                   <tr key={leaveType.id} className="border-t border-slate-200 hover:bg-slate-50">
+                    <td className="px-5 py-4 text-slate-500">{index + 1}</td>
                     <td className="px-5 py-4 font-semibold text-slate-800">{leaveType.code}</td>
                     <td className="px-5 py-4">
                       <div>
@@ -327,19 +330,15 @@ export default function LeaveTypePage() {
                         <p className="mt-1 text-xs text-slate-500">{leaveType.description}</p>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                        {leaveType.category}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-slate-700">{leaveType.days} days</td>
+                    <td className="px-5 py-4 text-slate-700">{leaveType.leaveGroup}</td>
+                    <td className="px-5 py-4 text-slate-700">{leaveType.paymentType}</td>
+                    <td className="px-5 py-4 text-slate-700">{leaveType.daysAllowed}</td>
                     <td className="px-5 py-4">
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          leaveType.status === "Active"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-200 text-slate-600"
-                        }`}
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${leaveType.status === "ACTIVE"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-200 text-slate-600"
+                          }`}
                       >
                         {leaveType.status}
                       </span>
@@ -349,7 +348,7 @@ export default function LeaveTypePage() {
                         onView={() => handleViewType(leaveType)}
                         onEdit={() => handleEditType(leaveType)}
                         onDelete={() => handleDeleteType(leaveType.id)}
-                        isDeleteDisabled={Boolean(leaveType.isUsed)}
+                        isDeleteDisabled={leaveType.status !== "ACTIVE"}
                       />
                     </td>
                   </tr>
@@ -358,7 +357,8 @@ export default function LeaveTypePage() {
             </table>
           </div>
 
-          {filteredLeaveTypes.length === 0 && (
+          {isLoading && <div className="flex items-center justify-center px-6 py-12 text-slate-500">Loading leave types...</div>}
+          {!isLoading && filteredLeaveTypes.length === 0 && (
             <div className="flex items-center justify-center px-6 py-12 text-slate-500">
               No leave types match your current search.
             </div>
@@ -368,104 +368,128 @@ export default function LeaveTypePage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/30 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-slate-800">Add Leave Type</h2>
-              <button onClick={() => setIsModalOpen(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleSaveType();
+            }}
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                {/* <p className="text-sm font-medium uppercase tracking-wide text-slate-500">CREATE LEAVE TYPE</p> */}
+                <h2 className="mt-1 text-3xl font-bold text-slate-800">CREATE NEW LEAVE TYPE</h2>
+              </div>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
                 <X size={18} />
               </button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-6 p-6 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Leave Code</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">LEAVE TYPE CODE <span className="text-red-600">*</span></label>
                 <input
+                  required
                   value={form.code}
-                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))}
                   placeholder="CL"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-300"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Leave Category</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">LEAVE TYPE NAME <span className="text-red-600">*</span></label>
+                <input
+                  required
+                  value={form.name}
+                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
+                  placeholder="CASUAL LEAVE"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">LEAVE GROUP <span className="text-red-600">*</span></label>
+                <input
+                  required
+                  value={form.leaveGroup}
+                  onChange={(event) => setForm((prev) => ({ ...prev, leaveGroup: event.target.value.toUpperCase() }))}
+                  placeholder="GENERAL LEAVE"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">PAID OR UNPAID LEAVE <span className="text-red-600">*</span></label>
                 <select
-                  value={form.category}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, category: event.target.value as LeaveType["category"] }))
-                  }
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-300"
+                  required
+                  value={form.paymentType}
+                  onChange={(event) => setForm((prev) => ({ ...prev, paymentType: event.target.value as LeaveType["paymentType"] }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 >
-                  {categoryOptions.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
+                  <option value="PAID">PAID</option>
+                  <option value="UNPAID">UNPAID</option>
                 </select>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700">Leave Name</label>
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Casual Leave"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-300"
-                />
-              </div>
-
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Days Allowed</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">DAYS ALLOWED <span className="text-red-600">*</span></label>
                 <input
                   type="number"
+                  required
                   min={1}
-                  value={form.days}
-                  onChange={(event) => setForm((prev) => ({ ...prev, days: Number(event.target.value) || 0 }))}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-300"
+                  step={1}
+                  value={form.daysAllowed || ""}
+                  onChange={(event) => setForm((prev) => ({ ...prev, daysAllowed: event.target.value === "" ? 0 : Number(event.target.value) }))}
+                  onKeyDown={(event) => {
+                    if (["ArrowUp", "ArrowDown", "e", "E", "+", "-", ".", ","].includes(event.key)) event.preventDefault();
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400"
+                  style={{ appearance: "textfield" }}
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">STATUS <span className="text-red-600">*</span></label>
                 <select
+                  required
                   value={form.status}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, status: event.target.value as "Active" | "Inactive" }))
-                  }
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-300"
+                  onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as LeaveType["status"] }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
                 </select>
               </div>
 
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700">Description</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">DESCRIPTION</label>
                 <textarea
                   value={form.description}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="Describe when this leave type can be used."
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
+                  placeholder="DESCRIBE WHEN THIS LEAVE TYPE CAN BE USED."
                   rows={4}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-300"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 />
               </div>
             </div>
 
-            <div className="mt-5 flex justify-end gap-3">
+            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                Cancel
+                CANCEL
               </button>
               <button
-                onClick={handleSaveType}
+                type="submit"
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                Save Leave Type
+                CREATE
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>
