@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeaveCategory {
+  ANNUAL
+  MEDICAL
+  CASUAL
+  EMERGENCY
+  SPECIAL
+}
+
+enum LeaveStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EmployeeCategory {
+  STUDENT
+  TEACHING_STAFF
+  NON_TEACHING_STAFF
+}
+
+model LeaveType {
+  id          Int             @id @default(autoincrement())
+  code        String          @unique
+  name        String
+  category    LeaveCategory
+  days        Int
+  description String?
+  status      LeaveStatus     @default(ACTIVE)
+  applicableTo EmployeeCategory[] @default([STUDENT])
+
+  groupItems LeaveGroupItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeaveGroup {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique
+  name          String
+  description   String?
+  effectiveFrom DateTime
+  status        LeaveStatus    @default(ACTIVE)
+
+  items LeaveGroupItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeaveGroupItem {
+  id          Int        @id @default(autoincrement())
+  leaveGroupId Int
+  leaveGroup   LeaveGroup @relation(fields: [leaveGroupId], references: [id], onDelete: Cascade)
+  leaveTypeId  Int
+  leaveType    LeaveType  @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([leaveGroupId, leaveTypeId])
+}

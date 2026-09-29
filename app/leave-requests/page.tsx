@@ -4,9 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, MoreVertical } from "lucide-react";
 
-const LEAVE_TYPE_STORAGE_KEY = "leave-type-list";
-const LEAVE_GROUP_STORAGE_KEY = "leave-group-list";
-
 type SavedLeaveType = {
   id: number;
   code: string;
@@ -57,7 +54,7 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
         <Pencil size={16} />
       </button>
       <button onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
-        <MoreVertical size={16} />
+        <Trash2 size={14} />
       </button>
 
       {open && (
@@ -72,9 +69,8 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
-                isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-              }`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
+                }`}
               title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
@@ -88,77 +84,90 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 }
 
 // ---- Seed data (replace with API data) -------------------------------------
-const initialGroups: LeaveGroup[] = [
-  {
-    id: 1,
-    code: "GEN",
-    name: "General Leave",
-    leaveTypes: ["CL", "AL", "EL"],
-    effectiveFrom: "2024-01-01",
-    status: "Active",
-    isUsed: true,
-  },
-  {
-    id: 2,
-    code: "MED",
-    name: "Medical Leave",
-    leaveTypes: ["ML", "SL"],
-    effectiveFrom: "2024-01-01",
-    status: "Active",
-    isUsed: false,
-  },
-  {
-    id: 3,
-    code: "UNP",
-    name: "Unpaid Leave",
-    leaveTypes: ["LOP"],
-    effectiveFrom: "2024-01-01",
-    status: "Active",
-    isUsed: true,
-  },
-  {
-    id: 4,
-    code: "SPE",
-    name: "Special Leave",
-    leaveTypes: ["PL", "CO"],
-    effectiveFrom: "2024-01-01",
-    status: "Active",
-    isUsed: false,
-  },
-];
+// const initialGroups: LeaveGroup[] = [
+//   {
+//     id: 1,
+//     code: "GEN",
+//     name: "General Leave",
+//     leaveTypes: ["CL", "AL", "EL"],
+//     effectiveFrom: "2024-01-01",
+//     status: "Active",
+//     isUsed: true,
+//   },
+//   {
+//     id: 2,
+//     code: "MED",
+//     name: "Medical Leave",
+//     leaveTypes: ["ML", "SL"],
+//     effectiveFrom: "2024-01-01",
+//     status: "Active",
+//     isUsed: false,
+//   },
+//   {
+//     id: 3,
+//     code: "UNP",
+//     name: "Unpaid Leave",
+//     leaveTypes: ["LOP"],
+//     effectiveFrom: "2024-01-01",
+//     status: "Active",
+//     isUsed: true,
+//   },
+//   {
+//     id: 4,
+//     code: "SPE",
+//     name: "Special Leave",
+//     leaveTypes: ["PL", "CO"],
+//     effectiveFrom: "2024-01-01",
+//     status: "Active",
+//     isUsed: false,
+//   },
+// ];
 
-const getStoredGroups = (): LeaveGroup[] => {
-  if (typeof window === "undefined") return initialGroups;
+const mapApiLeaveType = (item: any): SavedLeaveType => ({
+  id: Number(item.id),
+  code: String(item.code),
+  name: String(item.name),
+  category: item.category === "ANNUAL" ? "Annual" : item.category === "MEDICAL" ? "Medical" : item.category === "CASUAL" ? "Casual" : item.category === "EMERGENCY" ? "Emergency" : "Special",
+  days: Number(item.days),
+  description: String(item.description ?? ""),
+  status: item.status === "ACTIVE" ? "Active" : "Inactive",
+  isUsed: false,
+});
 
-  try {
-    const saved = window.localStorage.getItem(LEAVE_GROUP_STORAGE_KEY);
-    if (!saved) return initialGroups;
+const mapApiLeaveGroup = (group: any): LeaveGroup => ({
+  id: Number(group.id),
+  code: String(group.code),
+  name: String(group.name),
+  leaveTypes: Array.isArray(group.items)
+    ? group.items.map((item: { leaveType?: { code?: string | null } | null }) => item.leaveType?.code ?? "")
+    : [],
+  effectiveFrom: new Date(group.effectiveFrom).toISOString().split("T")[0],
+  status: group.status === "ACTIVE" ? "Active" : "Inactive",
+  isUsed: false,
+});
 
-    const parsed = JSON.parse(saved) as LeaveGroup[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialGroups;
-  } catch {
-    return initialGroups;
+const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }[]> => {
+  const response = await fetch("/api/leave-types");
+  if (!response.ok) {
+    throw new Error("Failed to load leave types");
   }
+
+  const json = await response.json();
+  const items = Array.isArray(json?.data) ? json.data : [];
+  return items.map((item: { code?: string | null; name?: string | null }) => ({
+    value: String(item.code ?? ""),
+    label: `${item.code ?? ""} - ${item.name ?? ""}`,
+  }));
 };
 
-const getLeaveTypeOptions = (): { value: string; label: string }[] => {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const saved = window.localStorage.getItem(LEAVE_TYPE_STORAGE_KEY);
-    const parsed = saved ? (JSON.parse(saved) as SavedLeaveType[]) : [];
-
-    return Array.isArray(parsed)
-      ? parsed
-          .filter((item) => item?.code && item?.name)
-          .map((item) => ({
-            value: item.code,
-            label: `${item.code} - ${item.name}`,
-          }))
-      : [];
-  } catch {
-    return [];
+const fetchLeaveGroups = async (): Promise<LeaveGroup[]> => {
+  const response = await fetch("/api/leave-requests");
+  if (!response.ok) {
+    throw new Error("Failed to load leave groups");
   }
+
+  const json = await response.json();
+  return Array.isArray(json?.data) ? json.data.map(mapApiLeaveGroup) : [];
 };
 
 function CalendarIcon() {
@@ -169,37 +178,139 @@ function CalendarIcon() {
     </svg>
   );
 }
+
+function LeaveTypeMultiSelect({
+  values,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  values: string[];
+  options: { value: string; label: string }[];
+  onChange: (nextValues: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((current) => !current)}
+        className={`flex w-full min-h-[46px] flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 outline-none transition focus:border-blue-300 ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"}`}
+      >
+        <div className="flex flex-1 flex-wrap gap-2">
+          {values.length > 0 ? (
+            values.map((value) => (
+              <span key={value} className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700">
+                {value}
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400">Select leave types</span>
+          )}
+        </div>
+
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`h-4 w-4 text-slate-500 transition ${open ? "rotate-180" : ""}`}>
+          <path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+          {options.length > 0 ? (
+            options.map((option) => {
+              const checked = values.includes(option.value);
+
+              return (
+                <label
+                  key={option.value}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      const nextValues = checked
+                        ? values.filter((item) => item !== option.value)
+                        : [...values, option.value];
+
+                      onChange(nextValues);
+                    }}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
+                  />
+                  <span className="text-sm font-medium text-slate-700">{option.value}</span>
+                  <span className="text-xs text-slate-500">{option.label.replace(`${option.value} - `, "")}</span>
+                </label>
+              );
+            })
+          ) : (
+            <div className="px-2 py-3 text-sm text-slate-500">No leave types available</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const today = new Date().toISOString().split("T")[0];
+const maxEffectiveFrom = "2100-12-31";
+
+function sanitizeDateInput(value: string): string {
+  if (!value) return "";
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return "";
+  }
+
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  if (parsed < new Date(`${today}T00:00:00.000Z`)) {
+    return "";
+  }
+
+  if (parsed > new Date(`${maxEffectiveFrom}T00:00:00.000Z`)) {
+    return "";
+  }
+
+  return value;
+}
 
 export default function StudentLeaveRequestsPage() {
   const router = useRouter();
-  const [groups, setGroups] = useState<LeaveGroup[]>(getStoredGroups);
-  const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>(getLeaveTypeOptions);
+  const [groups, setGroups] = useState<LeaveGroup[]>([]);
+  const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<LeaveGroupForm>({
-    code: "GEN",
-    name: "General Leave",
-    description: "Group for general purpose leaves like Casual, Annual and Earned Leave.",
-    leaveTypes: ["CL", "AL", "EL"],
-    effectiveFrom: "2024-01-01",
+    code: "",
+    name: "",
+    description: "",
+    leaveTypes: [],
+    effectiveFrom: "",
     status: "Active",
   });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LEAVE_GROUP_STORAGE_KEY, JSON.stringify(groups));
-    }
-  }, [groups]);
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setLeaveTypeOptions(getLeaveTypeOptions());
+    const loadData = async () => {
+      try {
+        const [options, groupsData] = await Promise.all([
+          fetchLeaveTypeOptions(),
+          fetchLeaveGroups(),
+        ]);
+        setLeaveTypeOptions(options);
+        setGroups(groupsData);
+      } catch (error) {
+        console.error("Failed to load leave group data", error);
+      }
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    loadData();
   }, []);
 
   const filteredGroups = useMemo(() => {
@@ -217,24 +328,38 @@ export default function StudentLeaveRequestsPage() {
     });
   }, [groups, search, statusFilter]);
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     const nextCode = form.code.trim().toUpperCase();
     const nextName = form.name.trim();
+    const nextEffectiveFrom = sanitizeDateInput(form.effectiveFrom);
 
-    if (!nextCode || !nextName || form.leaveTypes.length === 0 || !form.effectiveFrom) {
+    if (!nextCode || !nextName || form.leaveTypes.length === 0 || !nextEffectiveFrom) {
       return;
     }
 
-    const newGroup: LeaveGroup = {
-      id: groups.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1,
-      code: nextCode,
-      name: nextName,
-      leaveTypes: form.leaveTypes,
-      effectiveFrom: form.effectiveFrom,
-      status: form.status,
-    };
+    const response = await fetch("/api/leave-requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code: nextCode,
+        name: nextName,
+        description: form.description.trim(),
+        leaveTypeCodes: form.leaveTypes,
+        effectiveFrom: nextEffectiveFrom,
+        status: form.status.toUpperCase(),
+      }),
+    });
 
-    setGroups((prev) => [newGroup, ...prev]);
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null);
+      console.error("Failed to create leave group:", errorPayload?.error ?? response.statusText);
+      return;
+    }
+
+    const createdGroup = await response.json();
+    setGroups((prev) => [mapApiLeaveGroup(createdGroup.data), ...prev]);
     setForm({
       code: "",
       name: "",
@@ -254,22 +379,32 @@ export default function StudentLeaveRequestsPage() {
     router.push(`/leave-requests/${group.id}?mode=edit`);
   };
 
-  const handleDeleteGroup = (groupId: number) => {
+  const handleDeleteGroup = async (groupId: number) => {
+    const response = await fetch(`/api/leave-requests/${groupId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const errorJson = await response.json().catch(() => null);
+      console.error(errorJson?.error ?? "Failed to delete leave group");
+      return;
+    }
+
     setGroups((prev) => prev.filter((group) => group.id !== groupId));
   };
 
   return (
-    <div className="min-h-screen bg-[#e9edf3] p-4 text-slate-800">
+    <div className="min-h-screen bg-[#e9edf3] p-4 text-slate-800 uppercase">
       <div className="mx-auto max-w-[1400px]">
         <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="relative w-[360px]">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
               </span>
               <input
                 value={search}
-                // onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search menu, employee, reports..."
                 className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
               />
@@ -326,7 +461,7 @@ export default function StudentLeaveRequestsPage() {
           <div className="flex items-center justify-between border-t border-slate-200 bg-[#eef2f7] px-5 py-4">
             <div className="relative w-[420px]">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-              <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
               </span>
               <input
                 value={search}
@@ -395,8 +530,8 @@ export default function StudentLeaveRequestsPage() {
                     <td className="border-b border-slate-200 px-5 py-4">
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${group.status === "Active"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-200 text-slate-600"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-200 text-slate-600"
                           }`}
                       >
                         {group.status}
@@ -407,7 +542,7 @@ export default function StudentLeaveRequestsPage() {
                         onView={() => handleViewGroup(group)}
                         onEdit={() => handleEditGroup(group)}
                         onDelete={() => handleDeleteGroup(group.id)}
-                        isDeleteDisabled={Boolean(group.isUsed)}
+                        isDeleteDisabled={group.status === "Inactive" || Boolean(group.isUsed)}
                       />
                     </td>
                   </tr>
@@ -441,135 +576,147 @@ export default function StudentLeaveRequestsPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px]">
           <div className="w-full max-w-[640px] rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]">
-            <div className="flex items-center justify-between px-6 py-5">
-              <h2 className="text-[22px] font-bold text-slate-800">Create Leave Group</h2>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Close modal"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="px-6 pb-6 pt-2">
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Group Code <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={form.code}
-                    onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase().slice(0, 5) }))}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
-                    maxLength={5}
-                    placeholder="GEN"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Group Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={form.name}
-                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
-                    maxLength={32}
-                    placeholder="General Leave"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
-                <textarea
-                  value={form.description}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                  className="min-h-[78px] w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
-                  maxLength={61}
-                  placeholder="Group for general purpose leaves like Casual, Annual and Earned Leave."
-                />
-              </div>
-
-              <div className="mt-5">
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Leave Types <span className="text-red-500">*</span>
-                </label>
-
-                <select
-                  value={form.leaveTypes[0] ?? ""}
-                  onChange={(event) => {
-                    const selectedType = event.target.value;
-                    setForm((prev) => ({
-                      ...prev,
-                      leaveTypes: selectedType ? [selectedType] : [],
-                    }));
-                  }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleCreateGroup();
+              }}
+            >
+              <div className="flex items-center justify-between px-6 py-5">
+                <h2 className="text-[22px] font-bold text-slate-800">Create Leave Group</h2>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close modal"
                 >
-                  <option value="">Select leave type</option>
-                  {leaveTypeOptions.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="mt-2 text-xs text-slate-500">Select one leave type</div>
+                  <X size={20} />
+                </button>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-5">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Effective From <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-                      <CalendarIcon />
-                    </span>
-                    
+              <div className="px-6 pb-6 pt-2">
+                <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Group Code <span className="text-red-500">*</span>
+                    </label>
                     <input
-                      type="date"
-                      min={today}
-                      value={form.effectiveFrom}
-                      onChange={(event) => setForm((prev) => ({ ...prev, effectiveFrom: event.target.value }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-base text-slate-700 outline-none focus:border-blue-300"
+                      required
+                      value={form.code}
+                      onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase().slice(0, 5) }))}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                      maxLength={5}
+                      placeholder="GEN"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Group Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      required
+                      value={form.name}
+                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                      maxLength={32}
+                      placeholder="General Leave"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Status</label>
-                  <select
-                    value={form.status}
-                    onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "Active" | "Inactive" }))}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                <div className="mt-5">
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Leave Types <span className="text-red-500">*</span>
+                  </label>
+
+                  <input
+                    type="hidden"
+                    required
+                    value={form.leaveTypes.join(",")}
+                    aria-label="Leave types required"
+                  />
+
+                  <LeaveTypeMultiSelect
+                    values={form.leaveTypes}
+                    options={leaveTypeOptions}
+                    onChange={(nextValues) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        leaveTypes: nextValues,
+                      }))
+                    }
+                  />
+
+                  <div className="mt-2 text-xs text-slate-500">Select one or more leave types</div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Effective From <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                        <CalendarIcon />
+                      </span>
+
+                      <input
+                        required
+                        type="date"
+                        min={today}
+                        max={maxEffectiveFrom}
+                        value={form.effectiveFrom}
+                        onChange={(event) => {
+                          const nextValue = sanitizeDateInput(event.target.value);
+                          setForm((prev) => ({ ...prev, effectiveFrom: nextValue }));
+                        }}
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-base text-slate-700 outline-none focus:border-blue-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Status</label>
+                    <select
+                      value={form.status}
+                      onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "Active" | "Inactive" }))}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                    className="min-h-[78px] w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                    maxLength={61}
+                    placeholder="Group for general purpose leaves like Casual, Annual and Earned Leave."
+                  />
+                </div>
+
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#294f9c]"
+                  >
+                    Create
+                  </button>
                 </div>
               </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateGroup}
-                  className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#294f9c]"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
       )}

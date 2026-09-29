@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, MoreVertical } from "lucide-react";
 
-const STORAGE_KEY = "leave-type-list";
-
 type LeaveType = {
   id: number;
   code: string;
@@ -84,18 +82,25 @@ const initialLeaveTypes: LeaveType[] = [
   },
 ];
 
-const getStoredLeaveTypes = (): LeaveType[] => {
-  if (typeof window === "undefined") return initialLeaveTypes;
+const mapApiLeaveType = (item: any): LeaveType => ({
+  id: Number(item.id),
+  code: String(item.code),
+  name: String(item.name),
+  category: item.category === "ANNUAL" ? "Annual" : item.category === "MEDICAL" ? "Medical" : item.category === "CASUAL" ? "Casual" : item.category === "EMERGENCY" ? "Emergency" : "Special",
+  days: Number(item.days),
+  description: String(item.description ?? ""),
+  status: item.status === "ACTIVE" ? "Active" : "Inactive",
+  isUsed: false,
+});
 
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) return initialLeaveTypes;
-
-    const parsed = JSON.parse(saved) as LeaveType[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialLeaveTypes;
-  } catch {
-    return initialLeaveTypes;
+const fetchLeaveTypes = async (): Promise<LeaveType[]> => {
+  const response = await fetch("/api/leave-types");
+  if (!response.ok) {
+    throw new Error("Failed to load leave types");
   }
+
+  const json = await response.json();
+  return Array.isArray(json?.data) ? json.data.map(mapApiLeaveType) : [];
 };
 
 function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowActionsProps) {
@@ -146,7 +151,7 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 
 export default function LeaveTypePage() {
   const router = useRouter();
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>(getStoredLeaveTypes);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -160,10 +165,17 @@ export default function LeaveTypePage() {
   });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(leaveTypes));
-    }
-  }, [leaveTypes]);
+    const loadLeaveTypes = async () => {
+      try {
+        const data = await fetchLeaveTypes();
+        setLeaveTypes(data);
+      } catch (error) {
+        console.error("Failed to load leave types", error);
+      }
+    };
+
+    loadLeaveTypes();
+  }, []);
 
   const filteredLeaveTypes = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -180,7 +192,7 @@ export default function LeaveTypePage() {
     });
   }, [leaveTypes, search, statusFilter]);
 
-  const handleSaveType = () => {
+  const handleSaveType = async () => {
     const nextCode = form.code.trim().toUpperCase();
     const nextName = form.name.trim();
 
@@ -188,16 +200,29 @@ export default function LeaveTypePage() {
       return;
     }
 
-    const newLeaveType: LeaveType = {
-      id: leaveTypes.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1,
-      code: nextCode,
-      name: nextName,
-      category: form.category,
-      days: form.days,
-      description: form.description.trim(),
-      status: form.status,
-    };
+    const response = await fetch("/api/leave-types", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code: nextCode,
+        name: nextName,
+        category: form.category.toUpperCase(),
+        days: form.days,
+        description: form.description.trim(),
+        status: form.status.toUpperCase(),
+        applicableTo: ["STUDENT"],
+      }),
+    });
 
+    if (!response.ok) {
+      console.error("Failed to create leave type");
+      return;
+    }
+
+    const data = await response.json();
+    const newLeaveType = mapApiLeaveType(data.data);
     setLeaveTypes((prev) => [newLeaveType, ...prev]);
     setForm({
       code: "",
@@ -210,7 +235,16 @@ export default function LeaveTypePage() {
     setIsModalOpen(false);
   };
 
-  const handleDeleteType = (leaveId: number) => {
+  const handleDeleteType = async (leaveId: number) => {
+    const response = await fetch(`/api/leave-types/${leaveId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      console.error("Failed to delete leave type");
+      return;
+    }
+
     setLeaveTypes((prev) => prev.filter((leaveType) => leaveType.id !== leaveId));
   };
 
