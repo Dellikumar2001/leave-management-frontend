@@ -122,7 +122,7 @@ const ListStudentLeaveRequestsSchema = z
 
 export const getStudentLeaveRequests = authedProcedure
     .input(ListStudentLeaveRequestsSchema)
-    .handler(async ({ input, context }) => {
+    .handler(async ({ input, context }: { input: z.infer<typeof ListStudentLeaveRequestsSchema>; context: BaseContext }) => {
         const user = context.user;
         const filters = input ?? {};
         const extensionPosition = await prisma.extensionActivityPosition.findFirst({
