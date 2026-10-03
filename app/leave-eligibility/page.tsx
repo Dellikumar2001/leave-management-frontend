@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Download, Search } from "lucide-react";
+import LeaveSidebar from "../components/LeaveSidebar";
 
 const departments = ["Computer Science", "Commerce", "English", "Mathematics", "Physics"];
 const employeeNames = [
@@ -91,7 +92,9 @@ export default function LeaveEligibilityPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#e9edf3] p-4 text-slate-800">
+    <div className="min-h-screen bg-[#e9edf3] text-slate-800">
+      <LeaveSidebar activePage="eligibility" />
+      <div className="p-4 min-[801px]:ml-[175px]">
       <div className="mx-auto max-w-[1400px]">
         <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
           <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
@@ -186,7 +189,7 @@ export default function LeaveEligibilityPage() {
                     <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-800">{employee.name}</td>
                     {leaveTypes.map((leaveType) => (
                       <td key={`eligibility-${employee.id}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-700">
-                        {leaveType.status === "ACTIVE" ? `${leaveType.daysAllowed} days` : "Unavailable"}
+                        {leaveType.status === "ACTIVE" ? `${leaveType.daysAllowed} DAYS` : "Unavailable"}
                       </td>
                     ))}
                     {leaveTypes.map((leaveType) => (
@@ -212,6 +215,7 @@ export default function LeaveEligibilityPage() {
             <div className="flex items-center justify-center px-6 py-12 text-slate-500">No leave types found.</div>
           )}
         </main>
+      </div>
       </div>
     </div>
   );

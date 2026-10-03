@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, MoreVertical } from "lucide-react";
+import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveType = {
   id: number;
@@ -233,11 +234,13 @@ export default function LeaveTypePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#e9edf3] p-4 text-slate-800">
+    <div className="min-h-screen bg-[#e9edf3] text-slate-800">
+      <LeaveSidebar activePage="leave-types" />
+      <div className="p-4 min-[801px]:ml-[175px]">
       <div className="mx-auto max-w-[1400px]">
         <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm">
           <div className="flex flex-col justify-start px-5 py-5">
-            <h1 className="text-[42px] font-bold tracking-[-0.05em] text-slate-800">Leave Type</h1>
+            <h1 className="text-3xl font-bold text-slate-800">Leave Type</h1>
             {/* <p className="mt-1 text-lg text-slate-500">Create and manage leave types to categorize leave types.</p> */}
           </div>
 
@@ -494,6 +497,7 @@ export default function LeaveTypePage() {
           </form>
         </div>
       )}
+      </div>
     </div>
   );
 }
