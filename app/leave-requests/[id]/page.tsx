@@ -110,9 +110,15 @@ type LeaveGroup = {
   code: string;
   name: string;
   leaveTypes: string[];
+  categoryId: string;
   effectiveFrom: string;
   status: "Active" | "Inactive";
   isUsed?: boolean;
+};
+
+type LeaveCategoryOption = {
+  id: number;
+  name: string;
 };
 
 export default function LeaveRequestDetailsPage() {
@@ -126,6 +132,7 @@ export default function LeaveRequestDetailsPage() {
   const [form, setForm] = useState<LeaveGroup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [leaveCategoryOptions, setLeaveCategoryOptions] = useState<LeaveCategoryOption[]>([]);
 
   useEffect(() => {
     const loadLeaveGroup = async () => {
@@ -159,6 +166,7 @@ export default function LeaveRequestDetailsPage() {
           leaveTypes: Array.isArray(item.items)
             ? item.items.map((entry: { leaveType?: { code?: string | null } | null }) => entry.leaveType?.code ?? "")
             : [],
+          categoryId: String(item.categoryId ?? ""),
           effectiveFrom: new Date(item.effectiveFrom).toISOString().split("T")[0],
           status: item.status === "ACTIVE" ? "Active" : "Inactive",
         };
@@ -203,6 +211,30 @@ export default function LeaveRequestDetailsPage() {
     loadLeaveTypeOptions();
   }, []);
 
+  useEffect(() => {
+    const loadLeaveCategoryOptions = async () => {
+      try {
+        const response = await fetch("/api/leave-categories");
+        if (!response.ok) {
+          setLeaveCategoryOptions([]);
+          return;
+        }
+
+        const json = await response.json();
+        const items = Array.isArray(json?.data) ? json.data : [];
+        setLeaveCategoryOptions(items.map((item: { id?: number; name?: string }) => ({
+          id: Number(item.id),
+          name: String(item.name ?? ""),
+        })));
+      } catch (error) {
+        console.error("Failed to load leave category options", error);
+        setLeaveCategoryOptions([]);
+      }
+    };
+
+    loadLeaveCategoryOptions();
+  }, []);
+
   const handleChange = <K extends keyof LeaveGroup>(field: K, value: LeaveGroup[K]) => {
     setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
   };
@@ -220,6 +252,7 @@ export default function LeaveRequestDetailsPage() {
         name: form.name,
         description: "",
         leaveTypeCodes: form.leaveTypes,
+        categoryId: Number(form.categoryId),
         effectiveFrom: form.effectiveFrom,
         status: form.status.toUpperCase(),
       }),
@@ -314,6 +347,22 @@ export default function LeaveRequestDetailsPage() {
               disabled={isViewMode}
               onChange={(nextValues) => handleChange("leaveTypes", nextValues)}
             />
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">Leave category</span>
+            <select
+              value={form.categoryId}
+              disabled={isViewMode}
+              required
+              onChange={(event) => handleChange("categoryId", event.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+            >
+              <option value="">Select category name</option>
+              {leaveCategoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
           </label>
 
           <label className="space-y-2">

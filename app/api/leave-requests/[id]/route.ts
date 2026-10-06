@@ -47,6 +47,7 @@ export async function GET(
   const group = await prisma.leaveGroup.findUnique({
     where: { id: Number(id) },
     include: {
+      category: true,
       items: {
         include: {
           leaveType: true,
@@ -81,7 +82,19 @@ export async function PUT(
 
     const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
     const status = normalizeStatus(body.status);
+    const categoryId = Number(body.categoryId ?? existingGroup.categoryId);
     const leaveTypeCodes = Array.isArray(body.leaveTypeCodes) ? body.leaveTypeCodes.map(String) : [];
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return Response.json({ error: "A leave category is required." }, { status: 400 });
+    }
+
+    const category = await prisma.leaveCategoryMaster.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category) {
+      return Response.json({ error: "Selected leave category was not found." }, { status: 400 });
+    }
 
     const leaveTypes = leaveTypeCodes.length
       ? await prisma.leaveType.findMany({
@@ -99,6 +112,7 @@ export async function PUT(
         code: String(body.code ?? existingGroup.code).trim(),
         name: String(body.name ?? existingGroup.name).trim(),
         description: body.description !== undefined ? String(body.description).trim() || null : existingGroup.description,
+        category: { connect: { id: categoryId } },
         effectiveFrom,
         status,
         items: {
@@ -111,6 +125,7 @@ export async function PUT(
         },
       },
       include: {
+        category: true,
         items: {
           include: {
             leaveType: true,

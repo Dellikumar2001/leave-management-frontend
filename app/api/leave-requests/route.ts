@@ -43,6 +43,7 @@ function normalizeStatus(value: unknown): "ACTIVE" | "INACTIVE" {
 export async function GET() {
   const groups = await prisma.leaveGroup.findMany({
     include: {
+      category: true,
       items: {
         include: {
           leaveType: true,
@@ -61,9 +62,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const selectedCodes = Array.isArray(body.leaveTypeCodes) ? body.leaveTypeCodes : [];
+    const categoryId = Number(body.categoryId);
 
-    if (!body.code || !body.name || !body.effectiveFrom) {
-      return Response.json({ error: "Code, name, and effective from are required." }, { status: 400 });
+    if (!body.code || !body.name || !body.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
+      return Response.json({ error: "Code, name, category, and effective from are required." }, { status: 400 });
+    }
+
+    const category = await prisma.leaveCategoryMaster.findFirst({
+      where: { id: categoryId, status: "ACTIVE" },
+    });
+    if (!category) {
+      return Response.json({ error: "Select an active leave category." }, { status: 400 });
     }
 
     const leaveTypes = await prisma.leaveType.findMany({
@@ -82,6 +91,7 @@ export async function POST(request: NextRequest) {
         code: String(body.code).trim(),
         name: String(body.name).trim(),
         description: body.description ? String(body.description).trim() : null,
+        category: { connect: { id: categoryId } },
         effectiveFrom,
         status,
         items: {
@@ -93,6 +103,7 @@ export async function POST(request: NextRequest) {
         },
       },
       include: {
+        category: true,
         items: {
           include: {
             leaveType: true,

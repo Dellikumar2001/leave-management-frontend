@@ -31,8 +31,14 @@ type LeaveGroupForm = {
   name: string;
   description: string;
   leaveTypes: string[];
+  categoryId: string;
   effectiveFrom: string;
   status: "Active" | "Inactive";
+};
+
+type LeaveCategoryOption = {
+  id: number;
+  name: string;
 };
 
 type RowActionsProps = {
@@ -160,6 +166,22 @@ const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }
   }));
 };
 
+const fetchLeaveCategoryOptions = async (): Promise<LeaveCategoryOption[]> => {
+  const response = await fetch("/api/leave-categories");
+  if (!response.ok) {
+    throw new Error("Failed to load leave categories");
+  }
+
+  const json = await response.json();
+  const items = Array.isArray(json?.data) ? json.data : [];
+  return items
+    .filter((item: { status?: string }) => item.status === "ACTIVE")
+    .map((item: { id?: number; name?: string }) => ({
+      id: Number(item.id),
+      name: String(item.name ?? ""),
+    }));
+};
+
 const fetchLeaveGroups = async (): Promise<LeaveGroup[]> => {
   const response = await fetch("/api/leave-requests");
   if (!response.ok) {
@@ -284,6 +306,7 @@ export default function StudentLeaveRequestsPage() {
   const router = useRouter();
   const [groups, setGroups] = useState<LeaveGroup[]>([]);
   const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [leaveCategoryOptions, setLeaveCategoryOptions] = useState<LeaveCategoryOption[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -292,6 +315,7 @@ export default function StudentLeaveRequestsPage() {
     name: "",
     description: "",
     leaveTypes: [],
+    categoryId: "",
     effectiveFrom: "",
     status: "Active",
   });
@@ -299,11 +323,13 @@ export default function StudentLeaveRequestsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [options, groupsData] = await Promise.all([
+        const [options, categories, groupsData] = await Promise.all([
           fetchLeaveTypeOptions(),
+          fetchLeaveCategoryOptions(),
           fetchLeaveGroups(),
         ]);
         setLeaveTypeOptions(options);
+        setLeaveCategoryOptions(categories);
         setGroups(groupsData);
       } catch (error) {
         console.error("Failed to load leave group data", error);
@@ -331,9 +357,10 @@ export default function StudentLeaveRequestsPage() {
   const handleCreateGroup = async () => {
     const nextCode = form.code.trim().toUpperCase();
     const nextName = form.name.trim();
+    const categoryId = Number(form.categoryId);
     const nextEffectiveFrom = sanitizeDateInput(form.effectiveFrom);
 
-    if (!nextCode || !nextName || form.leaveTypes.length === 0 || !nextEffectiveFrom) {
+    if (!nextCode || !nextName || form.leaveTypes.length === 0 || !categoryId || !nextEffectiveFrom) {
       return;
     }
 
@@ -347,6 +374,7 @@ export default function StudentLeaveRequestsPage() {
         name: nextName,
         description: form.description.trim(),
         leaveTypeCodes: form.leaveTypes,
+        categoryId,
         effectiveFrom: nextEffectiveFrom,
         status: form.status.toUpperCase(),
       }),
@@ -365,6 +393,7 @@ export default function StudentLeaveRequestsPage() {
       name: "",
       description: "",
       leaveTypes: [],
+      categoryId: "",
       effectiveFrom: "",
       status: "Active",
     });
@@ -459,7 +488,7 @@ export default function StudentLeaveRequestsPage() {
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-200 bg-[#eef2f7] px-5 py-4">
-            <div className="relative w-[420px]">
+            {/* <div className="relative w-[420px]">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
               </span>
@@ -469,7 +498,8 @@ export default function StudentLeaveRequestsPage() {
                 placeholder="Search by group code or name..."
                 className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
               />
-            </div>
+            </div> */}
+            <div className ="mt-1 text-sl text-slate-500">{filteredGroups.length} Groups</div>
 
             <div className="relative">
               <select
@@ -625,30 +655,48 @@ export default function StudentLeaveRequestsPage() {
                   </div>
                 </div>
 
-                <div className="mt-5">
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Leave Types <span className="text-red-500">*</span>
-                  </label>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="mt-5">
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Leave Types <span className="text-red-500">*</span>
+                    </label>
 
-                  <input
-                    type="hidden"
-                    required
-                    value={form.leaveTypes.join(",")}
-                    aria-label="Leave types required"
-                  />
+                    <input
+                      type="hidden"
+                      required
+                      value={form.leaveTypes.join(",")}
+                      aria-label="Leave types required"
+                    />
 
-                  <LeaveTypeMultiSelect
-                    values={form.leaveTypes}
-                    options={leaveTypeOptions}
-                    onChange={(nextValues) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        leaveTypes: nextValues,
-                      }))
-                    }
-                  />
+                    <LeaveTypeMultiSelect
+                      values={form.leaveTypes}
+                      options={leaveTypeOptions}
+                      onChange={(nextValues) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          leaveTypes: nextValues,
+                        }))
+                      }
+                    />
 
-                  <div className="mt-2 text-xs text-slate-500">Select one or more leave types</div>
+                    <div className="mt-2 text-xs text-slate-500">Select one or more leave types</div>
+                  </div>
+                  <div className="mt-5">
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Leave Category <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={form.categoryId}
+                      onChange={(event) => setForm((prev) => ({ ...prev, categoryId: event.target.value }))}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                    >
+                      <option value="">Select category name</option>
+                      {leaveCategoryOptions.map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-5">
