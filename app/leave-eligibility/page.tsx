@@ -1,62 +1,88 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Download, RefreshCw, Search } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
-
-const departments = ["Computer Science", "Commerce", "English", "Mathematics", "Physics"];
-const employeeNames = [
-  "Anandh",
-  "Arjun",
-  "Diya Menon",
-  "cenkatesh",
-  "Kavya",
-  "Rohan Das",
-  "Sneha Thomas",
-  "Vikram",
-];
-const employees = employeeNames.map((name, employeeIndex) => ({
-  id: `EMP-${String(employeeIndex + 1).padStart(3, "0")}`,
-  name,
-  department: departments[employeeIndex % departments.length],
-  stream: employeeIndex % 2 === 0 ? "SFS" : "AIDED",
-}));
 
 type LeaveType = {
   code: string;
   id: number;
   name: string;
-  daysAllowed: number;
   status: "ACTIVE" | "INACTIVE";
 };
 
+type EmployeeLeaveRecord = {
+  leaveTypeId: number;
+  isEligible: boolean;
+  daysAllowed: number;
+  leaveBalance: number;
+};
+
+type Employee = {
+  employeeId: string;
+  name: string;
+  stream: string;
+  department: string;
+  leaveRecords: EmployeeLeaveRecord[];
+};
+
+type LeaveEligibilityData = {
+  employees: Employee[];
+  leaveTypes: LeaveType[];
+};
+
+async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
+  const response = await fetch("/api/leave-eligibility", { cache: "no-store" });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? "Unable to load leave eligibility.");
+  return result as LeaveEligibilityData;
+}
+
+function formatUpdatedTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date).toLowerCase();
+}
+
 export default function LeaveEligibilityPage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
   const [streamFilter, setStreamFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
-  const [employeeFilter, setEmployeeFilter] = useState("");
+  const [employeeIdFilter, setEmployeeIdFilter] = useState("");
+  const [employeeNameFilter, setEmployeeNameFilter] = useState("");
   const [search, setSearch] = useState("");
+  const departments = [...new Set(employees.map((employee) => employee.department))].sort();
   const leaveTypeColumnCount = Math.max(leaveTypes.length, 1);
   const normalizedSearch = search.trim().toLowerCase();
   const visibleEmployees = employees.filter((employee) =>
     (!streamFilter || employee.stream === streamFilter) &&
     (!departmentFilter || employee.department === departmentFilter) &&
-    (!employeeFilter || employee.name === employeeFilter) &&
-    (!normalizedSearch || employee.name.toLowerCase().includes(normalizedSearch) || employee.id.toLowerCase().includes(normalizedSearch))
+    (!employeeIdFilter || employee.employeeId === employeeIdFilter) &&
+    (!employeeNameFilter || employee.name === employeeNameFilter) &&
+    (!normalizedSearch || employee.name.toLowerCase().includes(normalizedSearch) || employee.employeeId.toLowerCase().includes(normalizedSearch))
   );
   const handleExport = () => {
     const rows = [
-      ["EMPLOYEE ID", "EMPLOYEE NAME", ...leaveTypes.map((leaveType) => `ELIGIBILITY: ${leaveType.code}`), ...leaveTypes.map((leaveType) => `BALANCE: ${leaveType.code}`)],
+      ["EMPLOYEE ID", "EMPLOYEE NAME", "STREAM", "DEPARTMENT", ...leaveTypes.map((leaveType) => `ELIGIBILITY: ${leaveType.code}`), ...leaveTypes.map((leaveType) => `BALANCE: ${leaveType.code}`)],
       ...visibleEmployees.map((employee) => [
-        employee.id,
+        employee.employeeId,
         employee.name,
-        ...leaveTypes.map((leaveType) => leaveType.status === "ACTIVE" ? `${leaveType.daysAllowed} days` : "Unavailable"),
-        ...leaveTypes.map(() => "Not available"),
+        employee.stream,
+        employee.department,
+        ...leaveTypes.map((leaveType) => {
+          const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
+          return record?.isEligible ? `${record.daysAllowed} days` : "Unavailable";
+        }),
+        ...leaveTypes.map((leaveType) => employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"),
       ]),
     ];
-    const csv = rows.map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\r\n");
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a");
     link.href = url;
@@ -65,17 +91,32 @@ export default function LeaveEligibilityPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setError("");
+
+    try {
+      const result = await fetchLeaveEligibility();
+      setEmployees(result.employees);
+      setLeaveTypes(result.leaveTypes);
+      setLastUpdated(formatUpdatedTime(new Date()));
+    } catch (refreshError: unknown) {
+      setError(refreshError instanceof Error ? refreshError.message : "Unable to load leave eligibility.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
-    fetch("/api/leave-types")
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error ?? "Unable to load leave eligibility.");
-        return result as LeaveType[];
-      })
+    fetchLeaveEligibility()
       .then((result) => {
-        if (isMounted) setLeaveTypes(result);
+        if (isMounted) {
+          setEmployees(result.employees);
+          setLeaveTypes(result.leaveTypes);
+          setLastUpdated(formatUpdatedTime(new Date()));
+        }
       })
       .catch((loadError: unknown) => {
         if (isMounted) {
@@ -97,7 +138,23 @@ export default function LeaveEligibilityPage() {
       <div className="p-4 min-[801px]:ml-[175px]">
       <div className="mx-auto max-w-[1400px]">
         <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-          <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
+              <p className="mt-1 text-sm text-slate-500" aria-live="polite">
+                Last updated: {lastUpdated || "Not yet"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoading || isRefreshing}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw size={16} aria-hidden="true" className={isRefreshing ? "animate-spin" : ""} />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </header>
 
         <section aria-label="Employee filters" className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center">
@@ -123,13 +180,23 @@ export default function LeaveEligibilityPage() {
           </select>
 
           <select
-            aria-label="Filter by employee"
-            value={employeeFilter}
-            onChange={(event) => setEmployeeFilter(event.target.value)}
+            aria-label="Filter by employee ID"
+            value={employeeIdFilter}
+            onChange={(event) => setEmployeeIdFilter(event.target.value)}
             className="h-10 min-w-48 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
           >
-            <option value="">All Employees</option>
-            {employees.map((employee) => <option key={employee.id} value={employee.name}>{employee.name}</option>)}
+            <option value="">All Employee IDs</option>
+            {employees.map((employee) => <option key={employee.employeeId} value={employee.employeeId}>{employee.employeeId}</option>)}
+          </select>
+
+          <select
+            aria-label="Filter by employee name"
+            value={employeeNameFilter}
+            onChange={(event) => setEmployeeNameFilter(event.target.value)}
+            className="h-10 min-w-48 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
+          >
+            <option value="">All Employee Names</option>
+            {employees.map((employee) => <option key={employee.employeeId} value={employee.name}>{employee.name}</option>)}
           </select>
 
           <label className="relative min-w-48 flex-1">
@@ -166,6 +233,8 @@ export default function LeaveEligibilityPage() {
                 <tr>
                   <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">EMPLOYEE ID</th>
                   <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">EMPLOYEE NAME</th>
+                  <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">STREAM</th>
+                  <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">DEPARTMENT</th>
                   <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium">LEAVE ELIGIBILITY</th>
                   <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium">LEAVE BALANCE</th>
                 </tr>
@@ -184,25 +253,35 @@ export default function LeaveEligibilityPage() {
               </thead>
               <tbody>
                 {!isLoading && !error && visibleEmployees.map((employee) => (
-                  <tr key={employee.id} className="border-t border-slate-200 hover:bg-slate-50">
-                    <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-700">{employee.id}</td>
+                  <tr key={employee.employeeId} className="border-t border-slate-200 hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-700">{employee.employeeId}</td>
                     <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-800">{employee.name}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">{employee.stream}</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">{employee.department}</td>
                     {leaveTypes.map((leaveType) => (
-                      <td key={`eligibility-${employee.id}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-700">
-                        {leaveType.status === "ACTIVE" ? `${leaveType.daysAllowed} DAYS` : "Unavailable"}
+                      <td key={`eligibility-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-700">
+                        {employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id)?.isEligible
+                          ? `${employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id)?.daysAllowed} DAYS`
+                          : "Unavailable"}
                       </td>
                     ))}
                     {leaveTypes.map((leaveType) => (
-                      <td key={`balance-${employee.id}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-500">
-                        Not available
+                      <td key={`balance-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-500">
+                        {employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"}
                       </td>
                     ))}
+                    {leaveTypes.length === 0 && (
+                      <>
+                        <td className="px-5 py-4 text-slate-400">N/A</td>
+                        <td className="px-5 py-4 text-slate-400">N/A</td>
+                      </>
+                    )}
                   </tr>
                 ))}
                 {!isLoading && !error && visibleEmployees.length === 0 && leaveTypes.length > 0 && (
                   <tr className="border-t border-slate-200">
-                    <td colSpan={2 + leaveTypeColumnCount * 2} className="px-5 py-12 text-center text-slate-500">
-                      "No employees match the selected filters."
+                    <td colSpan={4 + leaveTypeColumnCount * 2} className="px-5 py-12 text-center text-slate-500">
+                      {employees.length === 0 ? "No employee records found in the database." : "No employees match the selected filters."}
                     </td>
                   </tr>
                 )}

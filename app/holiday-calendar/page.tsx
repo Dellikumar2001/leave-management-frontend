@@ -85,11 +85,16 @@ function containsHolidayDate(value: string) {
   return new RegExp(datePattern.source, datePattern.flags).test(value);
 }
 
+function containsHolidayKeyword(value: string) {
+  return /\bholiday\b/i.test(value);
+}
+
 function parseHolidayText(text: string, fallbackYear = new Date().getFullYear()) {
   const found: ParsedHoliday[] = [];
   const lines = text.split(/\r?\n/).map((line) => line.trim());
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
+    if (!containsHolidayKeyword(line)) continue;
     for (const match of line.matchAll(datePattern)) {
       const date = parseDate(match[0], fallbackYear);
       let name = cleanHolidayName(line.replace(match[0], " "));
@@ -97,7 +102,7 @@ function parseHolidayText(text: string, fallbackYear = new Date().getFullYear())
         const neighboringLines = [lineIndex + 1, lineIndex + 2, lineIndex - 1];
         for (const neighborIndex of neighboringLines) {
           const neighbor = lines[neighborIndex];
-          if (neighbor && !containsHolidayDate(neighbor)) {
+          if (neighbor && !containsHolidayDate(neighbor) && !containsHolidayKeyword(neighbor)) {
             const candidateName = cleanHolidayName(neighbor);
             if (isHolidayName(candidateName)) {
               name = candidateName;
@@ -187,32 +192,13 @@ async function extractImageText(file: File, onProgress: (message: string) => voi
 }
 
 async function readHolidayFile(file: File, onProgress: (message: string) => void, fallbackYear: number): Promise<ParsedHoliday[]> {
-  if (file.size > 15 * 1024 * 1024) throw new Error("Files must be smaller than 15 MB.");
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "pdf") return parseHolidayText(await extractPdfText(file, onProgress, fallbackYear), fallbackYear);
-  if (file.type.startsWith("image/")) return parseHolidayText(await extractImageText(file, onProgress), fallbackYear);
-  if (extension === "json") {
-    const data: unknown = JSON.parse(await file.text());
-    const items = Array.isArray(data)
-      ? data
-      : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).holidays)
-        ? (data as { holidays: unknown[] }).holidays
-        : [data];
-    return items.flatMap((item): ParsedHoliday[] => {
-      if (!item || typeof item !== "object") return [];
-      const record = item as Record<string, unknown>;
-      const rawDate = record.date ?? record.holidayDate ?? record.holiday_date;
-      const rawName = record.name ?? record.holiday ?? record.title;
-      if (typeof rawDate !== "string" || typeof rawName !== "string") return [];
-      const date = parseDate(rawDate.slice(0, 10), fallbackYear);
-      const name = cleanHolidayName(rawName);
-      return date && isHolidayName(name) ? [{ date, name }] : [];
-    });
+  if (file.size > 15 * 1024 * 1024) throw new Error("PDF files must be smaller than 15 MB.");
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    throw new Error("Only PDF files can be imported.");
   }
-  const text = await file.text();
-  const rows = parseHolidayText(text, fallbackYear);
-  if (rows.length) return rows;
-  throw new Error("No dated holiday rows found. Use a text-based PDF, CSV, TXT, Markdown, or JSON file.");
+  const rows = parseHolidayText(await extractPdfText(file, onProgress, fallbackYear), fallbackYear);
+  if (rows.length === 0) throw new Error("No holiday rows containing a date and the word Holiday were found in this PDF.");
+  return rows;
 }
 
 function dateKey(date: Date) {
@@ -589,8 +575,8 @@ export default function HolidayCalendarPage() {
       {showUpload && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowUpload(false); }}>
         <section className="max-h-[90vh] w-full max-w-[450px] overflow-y-auto rounded-xl bg-white p-[22px] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="holiday-upload-title">
           <div className="mb-5 flex justify-between gap-3"><div><h2 id="holiday-upload-title" className="m-0 text-lg font-semibold text-slate-800">Import holidays</h2><p className="mt-1 text-[11px] text-slate-500">Read holiday dates and names from a supported file.</p></div><button type="button" aria-label="Close file import" onClick={() => setShowUpload(false)} className="grid size-[30px] place-items-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200"><X size={17} /></button></div>
-          <label className="block rounded-md border border-dashed border-slate-400 bg-slate-50 p-4 text-center text-[11px] text-slate-600"><FileUp size={20} className="mx-auto mb-2 text-slate-500" />PDF, image, CSV, TXT, Markdown, or JSON<input ref={fileInputRef} type="file" accept=".pdf,.csv,.txt,.md,.json,text/*,image/*,application/pdf,application/json" onChange={(event) => { setSelectedFile(event.target.files?.[0] ?? null); setUploadError(""); setUploadSuccess(""); }} className="mt-2 w-full text-[11px]" /></label>
-          <button type="button" className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-800 px-3.5 text-[11px] font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={isReadingFile || !selectedFile} onClick={readUpload}><FileUp size={14} />{isReadingFile ? "Reading file..." : "Read file"}</button>
+          <label className="block rounded-md border border-dashed border-slate-400 bg-slate-50 p-4 text-center text-[11px] text-slate-600"><FileUp size={20} className="mx-auto mb-2 text-slate-500" />Choose a PDF file containing holiday rows<input ref={fileInputRef} type="file" accept=".pdf,application/pdf" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) { setSelectedFile(null); setUploadError("Only PDF files are supported."); setUploadSuccess(""); event.target.value = ""; return; } setSelectedFile(file); setUploadError(""); setUploadSuccess(""); }} className="mt-2 w-full text-[11px]" /></label>
+          <button type="button" className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-800 px-3.5 text-[11px] font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={isReadingFile || !selectedFile} onClick={readUpload}><FileUp size={14} />{isReadingFile ? "Reading file..." : "Read PDF"}</button>
           {uploadError && <p role="alert" className="mt-2.5 text-[11px] text-red-700">{uploadError}</p>}
           {uploadProgress && <p role="status" className="mt-2.5 text-[11px] text-slate-600">{uploadProgress}</p>}
           {uploadSuccess && <p role="status" className="mt-2.5 text-[11px] text-emerald-700">{uploadSuccess}</p>}

@@ -19,6 +19,31 @@ model LeaveType {
   isUsed        Boolean  @default(false) @map("is_used")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  employeeEligibility EmployeeLeaveEligibility[]
 
   @@map("leave_types")
+}
+
+model Employee {
+  employeeId   String                     @id @map("employee_id")
+  name         String
+  stream       String
+  department   String
+  leaveRecords EmployeeLeaveEligibility[]
+
+  @@map("employees")
+}
+
+model EmployeeLeaveEligibility {
+  employeeId  String   @map("employee_id")
+  leaveTypeId Int      @map("leave_type_id")
+  isEligible  Boolean  @default(true) @map("is_eligible")
+  daysAllowed Int      @default(0) @map("days_allowed")
+  leaveBalance Int     @default(0) @map("leave_balance")
+  employee    Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, leaveTypeId])
+  @@index([leaveTypeId])
+  @@map("employee_leave_eligibilities")
 }
