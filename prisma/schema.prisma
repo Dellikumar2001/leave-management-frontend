@@ -47,3 +47,17 @@ model EmployeeLeaveEligibility {
   @@index([leaveTypeId])
   @@map("employee_leave_eligibilities")
 }
+
+model Holiday {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @db.Date
+  name            String
+  type            String
+  description     String   @default("")
+  status          String   @default("active")
+  repeatEveryYear Boolean  @default(false) @map("repeat_every_year")
+  isHoliday       Boolean  @default(true) @map("is_holiday")
+
+  @@index([date])
+  @@map("holiday_calendar")
+}

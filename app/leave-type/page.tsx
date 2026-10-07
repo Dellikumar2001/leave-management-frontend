@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, MoreVertical } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -105,13 +104,14 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 }
 
 export default function LeaveTypePage() {
-  const router = useRouter();
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "view" | "edit">("create");
+  const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState<number | null>(null);
   const [form, setForm] = useState<LeaveTypeForm>({
     code: "",
     name: "",
@@ -187,14 +187,26 @@ export default function LeaveTypePage() {
 
     setError("");
     try {
-      const response = await fetch("/api/leave-types", {
-        method: "POST",
+      const isEditing = modalMode === "edit" && selectedLeaveTypeId !== null;
+      const response = await fetch(isEditing ? `/api/leave-types/${selectedLeaveTypeId}` : "/api/leave-types", {
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newLeaveType),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Unable to save the leave type.");
-      setLeaveTypes((prev) => [result as LeaveType, ...prev]);
+      if (isEditing) {
+        const updatedLeaveType = result as LeaveType;
+        setLeaveTypes((prev) => [
+          updatedLeaveType,
+          ...prev.filter((leaveType) =>
+            leaveType.id !== updatedLeaveType.id &&
+            (statusFilter === "ALL" || updatedLeaveType.status === statusFilter),
+          ),
+        ].filter((leaveType) => statusFilter === "ALL" || leaveType.status === statusFilter));
+      } else {
+        setLeaveTypes((prev) => [result as LeaveType, ...prev]);
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Unable to save the leave type.");
       return;
@@ -209,6 +221,8 @@ export default function LeaveTypePage() {
       status: "ACTIVE",
     });
     setIsModalOpen(false);
+    setSelectedLeaveTypeId(null);
+    setModalMode("create");
   };
 
   const handleDeleteType = async (leaveId: number) => {
@@ -225,12 +239,36 @@ export default function LeaveTypePage() {
     }
   };
 
-  const handleViewType = (leaveType: LeaveType) => {
-    router.push(`/leave-type/${leaveType.id}?mode=view`);
+  const openLeaveTypeModal = (leaveType: LeaveType, mode: "view" | "edit") => {
+    setSelectedLeaveTypeId(leaveType.id);
+    setModalMode(mode);
+    setForm({
+      code: leaveType.code,
+      name: leaveType.name,
+      leaveGroup: leaveType.leaveGroup,
+      paymentType: leaveType.paymentType,
+      daysAllowed: leaveType.daysAllowed,
+      description: leaveType.description,
+      status: leaveType.status,
+    });
+    setError("");
+    setIsModalOpen(true);
   };
 
-  const handleEditType = (leaveType: LeaveType) => {
-    router.push(`/leave-type/${leaveType.id}?mode=edit`);
+  const openCreateModal = () => {
+    setSelectedLeaveTypeId(null);
+    setModalMode("create");
+    setForm({
+      code: "",
+      name: "",
+      leaveGroup: "",
+      paymentType: "PAID",
+      daysAllowed: 1,
+      description: "",
+      status: "ACTIVE",
+    });
+    setError("");
+    setIsModalOpen(true);
   };
 
   return (
@@ -298,7 +336,7 @@ export default function LeaveTypePage() {
             </select>
 
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={openCreateModal}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
             >
               <Plus size={16} />
@@ -350,8 +388,8 @@ export default function LeaveTypePage() {
                     </td>
                     <td className="px-5 py-4">
                       <RowActions
-                        onView={() => handleViewType(leaveType)}
-                        onEdit={() => handleEditType(leaveType)}
+                        onView={() => openLeaveTypeModal(leaveType, "view")}
+                        onEdit={() => openLeaveTypeModal(leaveType, "edit")}
                         onDelete={() => handleDeleteType(leaveType.id)}
                         isDeleteDisabled={leaveType.status !== "ACTIVE"}
                       />
@@ -376,26 +414,29 @@ export default function LeaveTypePage() {
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              handleSaveType();
+              if (modalMode !== "view") void handleSaveType();
             }}
             className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <div>
-                {/* <p className="text-sm font-medium uppercase tracking-wide text-slate-500">CREATE LEAVE TYPE</p> */}
-                <h2 className="mt-1 text-3xl font-bold text-slate-800">CREATE NEW LEAVE TYPE</h2>
+                <h2 className="mt-1 text-3xl font-bold text-slate-800">
+                  {modalMode === "create" ? "CREATE NEW LEAVE TYPE" : modalMode === "edit" ? "EDIT LEAVE TYPE" : "LEAVE TYPE DETAILS"}
+                </h2>
               </div>
               <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
                 <X size={18} />
               </button>
             </div>
 
+            {error && <p role="alert" className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-700">{error}</p>}
             <div className="grid gap-6 p-6 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">LEAVE TYPE CODE <span className="text-red-600">*</span></label>
                 <input
                   required
                   value={form.code}
+                  readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))}
                   placeholder="CL"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
@@ -407,6 +448,7 @@ export default function LeaveTypePage() {
                 <input
                   required
                   value={form.name}
+                  readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
                   placeholder="CASUAL LEAVE"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
@@ -418,6 +460,7 @@ export default function LeaveTypePage() {
                 <input
                   required
                   value={form.leaveGroup}
+                  readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, leaveGroup: event.target.value.toUpperCase() }))}
                   placeholder="GENERAL LEAVE"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
@@ -429,6 +472,7 @@ export default function LeaveTypePage() {
                 <select
                   required
                   value={form.paymentType}
+                  disabled={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, paymentType: event.target.value as LeaveType["paymentType"] }))}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 >
@@ -445,6 +489,7 @@ export default function LeaveTypePage() {
                   min={1}
                   step={1}
                   value={form.daysAllowed || ""}
+                  readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, daysAllowed: event.target.value === "" ? 0 : Number(event.target.value) }))}
                   onKeyDown={(event) => {
                     if (["ArrowUp", "ArrowDown", "e", "E", "+", "-", ".", ","].includes(event.key)) event.preventDefault();
@@ -459,6 +504,7 @@ export default function LeaveTypePage() {
                 <select
                   required
                   value={form.status}
+                  disabled={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as LeaveType["status"] }))}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 >
@@ -471,6 +517,7 @@ export default function LeaveTypePage() {
                 <label className="mb-1 block text-sm font-medium text-slate-700">DESCRIPTION</label>
                 <textarea
                   value={form.description}
+                  readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
                   placeholder="DESCRIBE WHEN THIS LEAVE TYPE CAN BE USED."
                   rows={4}
@@ -485,14 +532,14 @@ export default function LeaveTypePage() {
                 onClick={() => setIsModalOpen(false)}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                CANCEL
+                {modalMode === "view" ? "CLOSE" : "CANCEL"}
               </button>
-              <button
+              {modalMode !== "view" && <button
                 type="submit"
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                CREATE
-              </button>
+                {modalMode === "edit" ? "SAVE CHANGES" : "CREATE"}
+              </button>}
             </div>
           </form>
         </div>
