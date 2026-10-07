@@ -278,7 +278,7 @@ export default function LeaveEligibilityPage() {
                       )}
                     </tr>
                   ))}
-                  {!isLoading && !error && visibleEmployees.length === 0 && leaveTypes.length > 0 && (
+                  {!isLoading && !error && visibleEmployees.length === 0 && (
                     <tr className="border-t border-slate-200">
                       <td colSpan={4 + leaveTypeColumnCount * 2} className="px-5 py-12 text-center text-slate-500">
                         {employees.length === 0 ? "No employee records found in the database." : "No employees match the selected filters."}
@@ -288,11 +288,6 @@ export default function LeaveEligibilityPage() {
                 </tbody>
               </table>
             </div>
-
-            {isLoading && <div className="flex items-center justify-center px-6 py-12 text-slate-500">Loading leave eligibility...</div>}
-            {!isLoading && !error && leaveTypes.length === 0 && (
-              <div className="flex items-center justify-center px-6 py-12 text-slate-500">No leave types found.</div>
-            )}
           </main>
         </div>
       </div>
