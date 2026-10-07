@@ -7,21 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model LeaveType {
-  id            Int      @id @default(autoincrement())
-  code          String   @unique
-  name          String
-  leaveGroup    String   @map("leave_group")
-  paymentType   String   @map("payment_type")
-  daysAllowed   Int      @default(1) @map("days_allowed")
-  description   String   @default("")
-  status        String
-  isUsed        Boolean  @default(false) @map("is_used")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  employeeEligibility EmployeeLeaveEligibility[]
+enum LeaveStatus {
+  ACTIVE
+  INACTIVE
+}
 
-  @@map("leave_types")
+enum UserRole {
+  ADMIN
+  STUDENT
+  DEPARTMENT_HEAD
+  DEAN_STUDENT_AFFAIRS
+  FACULTY
+}
+
+enum LeaveRequestType {
+  MEDICAL
+  ON_DUTY
+  GENERAL
+  HOSTEL
+  OTHER
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EmployeeCategory {
+  STUDENT
+  TEACHING_STAFF
+  NON_TEACHING_STAFF
+}
+
+enum LeaveCategory {
+  ANNUAL
+  MEDICAL
+  CASUAL
+  EMERGENCY
+  SPECIAL
+}
+
+model LeaveType {
+  id                  Int                        @id @default(autoincrement())
+  code                String                     @unique
+  name                String
+  leaveGroup          String                     @default("") @map("leave_group")
+  category            LeaveCategory?
+  daysAllowed         Int                        @map("days")
+  description         String?
+  status              LeaveStatus                @default(ACTIVE)
+  applicableTo        EmployeeCategory[]         @default([STUDENT])
+  isUsed              Boolean                    @default(false) @map("is_used")
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  employeeEligibility EmployeeLeaveEligibility[]
+  groupItems          LeaveGroupItem[]
 }
 
 model Employee {
@@ -35,15 +76,145 @@ model Employee {
 }
 
 model EmployeeLeaveEligibility {
-  employeeId  String   @map("employee_id")
-  leaveTypeId Int      @map("leave_type_id")
-  isEligible  Boolean  @default(true) @map("is_eligible")
-  daysAllowed Int      @default(0) @map("days_allowed")
-  leaveBalance Int     @default(0) @map("leave_balance")
-  employee    Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
-  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  employeeId   String    @map("employee_id")
+  leaveTypeId  Int       @map("leave_type_id")
+  isEligible   Boolean   @default(true) @map("is_eligible")
+  daysAllowed  Int       @default(0) @map("days_allowed")
+  leaveBalance Int       @default(0) @map("leave_balance")
+  employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
   @@id([employeeId, leaveTypeId])
   @@index([leaveTypeId])
   @@map("employee_leave_eligibilities")
+}
+
+model LeaveCategoryMaster {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  isPaid      Boolean      @default(true)
+  description String?
+  status      LeaveStatus  @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  leaveGroups LeaveGroup[]
+
+  @@map("LeaveCategoryDefinition")
+}
+
+model LeaveGroup {
+  id            Int                  @id @default(autoincrement())
+  code          String               @unique
+  name          String
+  description   String?
+  effectiveFrom DateTime
+  status        LeaveStatus          @default(ACTIVE)
+  categoryId    Int?
+  category      LeaveCategoryMaster? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  items         LeaveGroupItem[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
+model LeaveGroupItem {
+  id           Int        @id @default(autoincrement())
+  leaveGroupId Int
+  leaveGroup   LeaveGroup @relation(fields: [leaveGroupId], references: [id], onDelete: Cascade)
+  leaveTypeId  Int
+  leaveType    LeaveType  @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  createdAt    DateTime   @default(now())
+
+  @@unique([leaveGroupId, leaveTypeId])
+}
+
+model Department {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  headId    Int?
+  head      User?     @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  users     User[]    @relation("DepartmentMembers")
+  students  Student[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model User {
+  id                    Int                        @id @default(autoincrement())
+  email                 String?                    @unique
+  firstName             String?
+  lastName              String?
+  name                  String?
+  role                  UserRole                   @default(STUDENT)
+  isActive              Boolean                    @default(true)
+  departmentId          Int?
+  department            Department?                @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  headedDepartments     Department[]               @relation("DepartmentHead")
+  student               Student?
+  reviewedLeaveRequests StudentLeaveRequest[]      @relation("LeaveRequestReviewer")
+  notifications         Notification[]
+  extensionPosition     ExtensionActivityPosition?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+}
+
+model Student {
+  id            Int                   @id @default(autoincrement())
+  userId        Int                   @unique
+  departmentId  Int?
+  studentCode   String?
+  firstName     String?
+  lastName      String?
+  name          String?
+  stream        String?
+  year          Int?
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  leaveRequests StudentLeaveRequest[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+}
+
+model StudentLeaveRequest {
+  id           Int                @id @default(autoincrement())
+  studentId    Int
+  type         LeaveRequestType
+  startDate    DateTime
+  endDate      DateTime
+  reason       String
+  documentUrl  String?
+  status       LeaveRequestStatus @default(PENDING)
+  reviewerRole String?
+  remarks      String?
+  reviewedBy   Int?
+  paymentType  String?
+  appliedAt    DateTime           @default(now())
+  reviewedAt   DateTime?
+  student      Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewer     User?              @relation("LeaveRequestReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  content   String
+  type      String
+  priority  String   @default("normal")
+  actionUrl String?
+  isRead    Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ExtensionActivityPosition {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  position  String   @default("EXTENSION_ACTIVITY_HEAD")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

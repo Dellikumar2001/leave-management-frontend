@@ -9,7 +9,6 @@ type LeaveType = {
   code: string;
   name: string;
   leaveGroup: string;
-  paymentType: "PAID" | "UNPAID";
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
@@ -62,7 +61,6 @@ export default function LeaveTypeDetailsPage() {
       !form.code.trim() ||
       !form.name.trim() ||
       !form.leaveGroup.trim() ||
-      !form.paymentType ||
       !form.status ||
       !Number.isSafeInteger(form.daysAllowed) ||
       form.daysAllowed < 1
@@ -147,14 +145,6 @@ export default function LeaveTypeDetailsPage() {
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700">LEAVE GROUP <span className="text-red-600">*</span></span>
             <input required={!isViewMode} value={form.leaveGroup} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("leaveGroup", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">PAID OR UNPAID LEAVE <span className="text-red-600">*</span></span>
-            <select required={!isViewMode} value={form.paymentType} disabled={isViewMode} onChange={(e) => handleChange("paymentType", e.target.value as LeaveType["paymentType"])} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500">
-              <option value="PAID">PAID</option>
-              <option value="UNPAID">UNPAID</option>
-            </select>
           </label>
 
           <label className="space-y-2">

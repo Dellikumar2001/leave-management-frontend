@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, Eye, Pencil, Trash2, X, MoreVertical } from "lucide-react";
+import { Search, Plus, Eye, Pencil, Trash2, X } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveType = {
@@ -10,7 +10,6 @@ type LeaveType = {
   code: string;
   name: string;
   leaveGroup: string;
-  paymentType: "PAID" | "UNPAID";
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
@@ -21,7 +20,6 @@ type LeaveTypeForm = {
   code: string;
   name: string;
   leaveGroup: string;
-  paymentType: LeaveType["paymentType"];
   daysAllowed: number;
   description: string;
   status: LeaveType["status"];
@@ -116,7 +114,6 @@ export default function LeaveTypePage() {
     code: "",
     name: "",
     leaveGroup: "",
-    paymentType: "PAID",
     daysAllowed: 1,
     description: "",
     status: "ACTIVE",
@@ -179,7 +176,6 @@ export default function LeaveTypePage() {
       code: nextCode,
       name: nextName,
       leaveGroup: nextLeaveGroup,
-      paymentType: form.paymentType,
       daysAllowed: form.daysAllowed,
       description: form.description.trim().toUpperCase(),
       status: form.status,
@@ -203,7 +199,6 @@ export default function LeaveTypePage() {
       code: "",
       name: "",
       leaveGroup: "",
-      paymentType: "PAID",
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
@@ -317,7 +312,6 @@ export default function LeaveTypePage() {
                   <th className="px-5 py-3 font-medium">CODE</th>
                   <th className="px-5 py-3 font-medium">LEAVE TYPE</th>
                   <th className="px-5 py-3 font-medium">LEAVE GROUP</th>
-                  <th className="px-5 py-3 font-medium">PAID / UNPAID</th>
                   <th className="px-5 py-3 font-medium">DAYS ALLOWED</th>
                   <th className="px-5 py-3 font-medium">STATUS</th>
                   <th className="px-5 py-3 font-medium text-right">ACTIONS</th>
@@ -336,7 +330,6 @@ export default function LeaveTypePage() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-slate-700">{leaveType.leaveGroup}</td>
-                    <td className="px-5 py-4 text-slate-700">{leaveType.paymentType}</td>
                     <td className="px-5 py-4 text-slate-700">{leaveType.daysAllowed}</td>
                     <td className="px-5 py-4">
                       <span
@@ -422,19 +415,6 @@ export default function LeaveTypePage() {
                   placeholder="GENERAL LEAVE"
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
                 />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">PAID OR UNPAID LEAVE <span className="text-red-600">*</span></label>
-                <select
-                  required
-                  value={form.paymentType}
-                  onChange={(event) => setForm((prev) => ({ ...prev, paymentType: event.target.value as LeaveType["paymentType"] }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400"
-                >
-                  <option value="PAID">PAID</option>
-                  <option value="UNPAID">UNPAID</option>
-                </select>
               </div>
 
               <div>

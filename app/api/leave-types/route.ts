@@ -4,14 +4,15 @@ import { parseLeaveTypeInput, serializeLeaveType } from "@/lib/leave-types";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const status = new URL(request.url).searchParams.get("status")?.toUpperCase();
-  if (status && status !== "ALL" && status !== "ACTIVE" && status !== "INACTIVE") {
+  const statusParam = new URL(request.url).searchParams.get("status")?.toUpperCase();
+  if (statusParam && statusParam !== "ALL" && statusParam !== "ACTIVE" && statusParam !== "INACTIVE") {
     return Response.json({ error: "Invalid status filter." }, { status: 400 });
   }
+  const status = statusParam === "ACTIVE" || statusParam === "INACTIVE" ? statusParam : undefined;
 
   try {
     const leaveTypes = await prisma.leaveType.findMany({
-      where: status && status !== "ALL" ? { status } : undefined,
+      where: status ? { status } : undefined,
       orderBy: { id: "desc" },
     });
     return Response.json(leaveTypes.map(serializeLeaveType));

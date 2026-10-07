@@ -9,7 +9,8 @@ type LeaveSidebarProps = {
 
 const navigation = [
   { id: "dashboard", label: "Dashboard", href: "/", Icon: House },
-  { id: "leave-requests", label: "Leave requests", href: "/student-leave-requests", Icon: ClipboardList },
+  { id: "leave-category", label: "Leave category", href: "/leave-category", Icon: CalendarDays },
+  { id: "leave-requests", label: "Leave groups", href: "/leave-requests", Icon: ClipboardList },
   { id: "leave-types", label: "Leave types", href: "/leave-type", Icon: CalendarDays },
   { id: "eligibility", label: "Eligibility", href: "/leave-eligibility", Icon: Users },
   { id: "holiday-calendar", label: "Holiday calendar", href: "/holiday-calendar", Icon: CalendarDays },
