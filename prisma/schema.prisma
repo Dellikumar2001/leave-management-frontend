@@ -217,4 +217,16 @@ model ExtensionActivityPosition {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+model Holiday {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @db.Date
+  name            String
+  type            String
+  description     String   @default("")
+  status          String   @default("active")
+  repeatEveryYear Boolean  @default(false) @map("repeat_every_year")
+  isHoliday       Boolean  @default(true) @map("is_holiday")
+
+  @@index([date])
+  @@map("holiday_calendar")
 }
