@@ -34,7 +34,7 @@ type LeaveEligibilityData = {
 
 function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
   const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
-  if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Unavailable";
+  if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
   return `${leaveType.daysAllowed}`;
 }
 
