@@ -11,7 +11,16 @@ export type HolidayInput = {
   isHoliday: boolean;
 };
 
-type HolidayRecord = HolidayInput & { id: number };
+export type HolidayRecord = {
+  id: number;
+  date: Date;
+  name: string;
+  type: string;
+  description: string;
+  status: string;
+  repeatEveryYear: boolean;
+  isHoliday: boolean;
+};
 
 export function parseHolidayInput(value: unknown): HolidayInput | null {
   if (!value || typeof value !== "object") return null;

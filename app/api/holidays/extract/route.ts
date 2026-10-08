@@ -78,7 +78,9 @@ export async function POST(req: NextRequest) {
 
                 uploadedFileRef = await ai.files.upload({
                     file: tempFilePath,
-                    mimeType: mimeType.split(";")[0],
+                    config: {
+                        mimeType: mimeType.split(";")[0],
+                    },
                 });
 
                 parts = [
@@ -134,7 +136,9 @@ export async function POST(req: NextRequest) {
 
             uploadedFileRef = await ai.files.upload({
                 file: tempFilePath,
-                mimeType: isPdf ? "application/pdf" : file.type || "image/jpeg",
+                config: {
+                    mimeType: isPdf ? "application/pdf" : file.type || "image/jpeg",
+                },
             });
 
             parts = [
@@ -171,30 +175,41 @@ export async function POST(req: NextRequest) {
             },
         };
 
-        // Retry on temporary traffic surges (503)
-        const modelsToTry = ["gemini-2.5-flash"];
+        // Robust fallback cascade across active Gemini flash models
+        const modelsToTry = [
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+            "gemini-flash-lite-latest",
+            "gemini-3.7-flash",
+            "gemini-3.8-flash",
+        ];
         let response: any = null;
         let lastError: any = null;
 
         for (const modelName of modelsToTry) {
-            for (let attempt = 1; attempt <= 2; attempt++) {
-                try {
-                    response = await ai.models.generateContent({
-                        model: modelName,
-                        ...payload,
-                    });
-                    if (response?.text) break;
-                } catch (err: any) {
-                    lastError = err;
-                    const status = err?.status || err?.code || (err?.message?.includes("503") ? 503 : null);
-                    if (status === 503 || err?.message?.includes("high demand") || err?.message?.includes("UNAVAILABLE")) {
-                        await wait(2000 * attempt);
-                        continue;
-                    }
-                    throw err;
+            try {
+                response = await ai.models.generateContent({
+                    model: modelName,
+                    ...payload,
+                });
+                if (response?.text) break;
+            } catch (err: any) {
+                lastError = err;
+                const status = err?.status || err?.code || (err?.message?.includes("503") ? 503 : null);
+                const isUnavailable =
+                    status === 503 ||
+                    err?.message?.includes("503") ||
+                    err?.message?.includes("high demand") ||
+                    err?.message?.includes("UNAVAILABLE");
+
+                if (isUnavailable) {
+                    console.warn(`Model ${modelName} is experiencing high demand (503), failing over to next model...`);
+                    continue;
                 }
+                console.warn(`Model ${modelName} failed:`, err?.message || err);
             }
-            if (response?.text) break;
         }
 
         if (!response?.text) {
@@ -205,8 +220,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(parsedData);
     } catch (error: any) {
         console.error("Extraction error:", error);
+        let errorMsg = error?.message || "Failed to extract holidays.";
+        try {
+            const parsed = JSON.parse(errorMsg);
+            if (parsed?.error?.message) {
+                errorMsg = parsed.error.message;
+            }
+        } catch {
+            // Not JSON
+        }
         return NextResponse.json(
-            { error: error?.message || "Failed to extract holidays." },
+            { error: errorMsg },
             { status: 500 }
         );
     } finally {
