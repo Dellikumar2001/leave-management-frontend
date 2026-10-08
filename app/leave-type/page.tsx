@@ -9,6 +9,7 @@ type LeaveType = {
   code: string;
   name: string;
   leaveGroup: string;
+  paymentType: "PAID" | "UNPAID";
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
@@ -19,6 +20,7 @@ type LeaveTypeForm = {
   code: string;
   name: string;
   leaveGroup: string;
+  paymentType: LeaveType["paymentType"];
   daysAllowed: number;
   description: string;
   status: LeaveType["status"];
@@ -114,6 +116,7 @@ export default function LeaveTypePage() {
     code: "",
     name: "",
     leaveGroup: "",
+    paymentType: "PAID",
     daysAllowed: 1,
     description: "",
     status: "ACTIVE",
@@ -211,6 +214,7 @@ export default function LeaveTypePage() {
       code: "",
       name: "",
       leaveGroup: "",
+      paymentType: "PAID",
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
