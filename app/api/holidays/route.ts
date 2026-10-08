@@ -19,14 +19,24 @@ export async function GET() {
 export async function POST(request: Request) {
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+    const rawText = await request.text();
+    if (!rawText || !rawText.trim()) {
+      return Response.json({ error: "Empty request payload received." }, { status: 400 });
+    }
+    body = JSON.parse(rawText);
+  } catch (err) {
+    console.error("Failed to parse JSON body in /api/holidays:", err);
+    return Response.json({ error: "Invalid JSON body format." }, { status: 400 });
   }
 
   const isBatch = Array.isArray(body);
-  const values = isBatch ? body : [body];
-  const inputs = values.map(parseHolidayInput);
+  const values: unknown[] = isBatch ? (body as unknown[]) : [body];
+
+  if (values.length === 0) {
+    return Response.json({ error: "No holiday records provided." }, { status: 400 });
+  }
+
+  const inputs = values.map((val) => parseHolidayInput(val));
   if (inputs.some((input) => input === null)) {
     return Response.json({ error: "Please provide valid holiday details." }, { status: 400 });
   }

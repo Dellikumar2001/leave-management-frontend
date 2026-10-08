@@ -9,6 +9,7 @@ type LeaveGroup = {
   id: number;
   code: string;
   name: string;
+  categoryName: string | null;
   leaveTypes: string[];
   effectiveFrom: string;
   status: "Active" | "Inactive";
@@ -34,7 +35,8 @@ type ApiLeaveGroup = {
   id: number;
   code: string;
   name: string;
-  items?: { leaveType?: { code?: string | null } | null }[];
+  category?: { name?: string | null } | null;
+  items?: { leaveType?: { code?: string | null; status?: string } | null }[];
   effectiveFrom: string | Date;
   status: string;
 };
@@ -131,8 +133,11 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   id: Number(group.id),
   code: String(group.code),
   name: String(group.name),
+  categoryName: group.category?.name ?? null,
   leaveTypes: Array.isArray(group.items)
-    ? group.items.map((item: { leaveType?: { code?: string | null } | null }) => item.leaveType?.code ?? "")
+    ? group.items
+      .filter((item) => item.leaveType?.status === "ACTIVE")
+      .map((item) => item.leaveType?.code ?? "")
     : [],
   effectiveFrom: new Date(group.effectiveFrom).toISOString().split("T")[0],
   status: group.status === "ACTIVE" ? "Active" : "Inactive",
@@ -140,7 +145,7 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
 });
 
 const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }[]> => {
-  const response = await fetch("/api/leave-types");
+  const response = await fetch("/api/leave-types?status=ACTIVE");
   if (!response.ok) {
     throw new Error("Failed to load leave types");
   }
@@ -334,6 +339,7 @@ export default function StudentLeaveRequestsPage() {
         !query ||
         group.code.toLowerCase().includes(query) ||
         group.name.toLowerCase().includes(query) ||
+        group.categoryName?.toLowerCase().includes(query) ||
         group.leaveTypes.some((type) => type.toLowerCase().includes(query));
 
       const matchesStatus = statusFilter === "All Status" || group.status === statusFilter;
@@ -412,7 +418,7 @@ export default function StudentLeaveRequestsPage() {
   return (
     <div className="min-h-screen bg-[#e9edf3] text-slate-800">
       <LeaveSidebar activePage="leave-requests" />
-      <div className="p-4 min-[801px]:ml-[175px]">
+      <div className="p-4 min-[801px]:ml-[175px] uppercase">
         <div className="mx-auto max-w-[1400px]">
           <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm">
             <div className="flex items-center gap-3">
@@ -515,6 +521,7 @@ export default function StudentLeaveRequestsPage() {
                     <th className="border-b border-slate-200 px-5 py-4">Sno</th>
                     <th className="border-b border-slate-200 px-5 py-4">Group Code</th>
                     <th className="border-b border-slate-200 px-5 py-4">Group Name</th>
+                    <th className="border-b border-slate-200 px-5 py-4">Leave Category</th>
                     <th className="border-b border-slate-200 px-5 py-4">Leave Types</th>
                     <th className="border-b border-slate-200 px-5 py-4">Effective From</th>
                     <th className="border-b border-slate-200 px-5 py-4">Status</th>
@@ -527,6 +534,7 @@ export default function StudentLeaveRequestsPage() {
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.name}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.categoryName ?? "—"}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <div className="flex flex-wrap gap-2">
                           {group.leaveTypes.map((type) => (

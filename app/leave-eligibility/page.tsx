@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, RefreshCw, Search } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveType = {
   code: string;
+  daysAllowed: number;
   id: number;
   name: string;
   status: "ACTIVE" | "INACTIVE";
@@ -31,6 +32,12 @@ type LeaveEligibilityData = {
   leaveTypes: LeaveType[];
 };
 
+function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
+  const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
+  if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
+  return `${leaveType.daysAllowed}`;
+}
+
 async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   const response = await fetch("/api/leave-eligibility", { cache: "no-store" });
   const result = await response.json();
@@ -38,19 +45,10 @@ async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   return result as LeaveEligibilityData;
 }
 
-function formatUpdatedTime(date: Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date).toLowerCase();
-}
-
 export default function LeaveEligibilityPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState("");
   const [error, setError] = useState("");
   const [streamFilter, setStreamFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -75,10 +73,7 @@ export default function LeaveEligibilityPage() {
         employee.name,
         employee.stream,
         employee.department,
-        ...leaveTypes.map((leaveType) => {
-          const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
-          return record?.isEligible ? `${record.daysAllowed} days` : "Unavailable";
-        }),
+        ...leaveTypes.map((leaveType) => getEligibilityValue(employee, leaveType)),
         ...leaveTypes.map((leaveType) => employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"),
       ]),
     ];
@@ -91,21 +86,6 @@ export default function LeaveEligibilityPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    setError("");
-
-    try {
-      const result = await fetchLeaveEligibility();
-      setEmployees(result.employees);
-      setLeaveTypes(result.leaveTypes);
-      setLastUpdated(formatUpdatedTime(new Date()));
-    } catch (refreshError: unknown) {
-      setError(refreshError instanceof Error ? refreshError.message : "Unable to load leave eligibility.");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -115,7 +95,6 @@ export default function LeaveEligibilityPage() {
         if (isMounted) {
           setEmployees(result.employees);
           setLeaveTypes(result.leaveTypes);
-          setLastUpdated(formatUpdatedTime(new Date()));
         }
       })
       .catch((loadError: unknown) => {
@@ -135,26 +114,10 @@ export default function LeaveEligibilityPage() {
   return (
     <div className="min-h-screen bg-[#e9edf3] text-slate-800">
       <LeaveSidebar activePage="eligibility" />
-      <div className="p-4 min-[801px]:ml-[175px]">
+      <div className="p-4 min-[801px]:ml-[175px] uppercase">
         <div className="mx-auto max-w-[1400px]">
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
-                <p className="mt-1 text-sm text-slate-500" aria-live="polite">
-                  Last updated: {lastUpdated || "Not yet"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={isLoading || isRefreshing}
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RefreshCw size={16} aria-hidden="true" className={isRefreshing ? "animate-spin" : ""} />
-                {isRefreshing ? "Refreshing..." : "Refresh"}
-              </button>
-            </div>
+            <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
           </header>
 
           <section aria-label="Employee filters" className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center">
@@ -235,17 +198,17 @@ export default function LeaveEligibilityPage() {
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">EMPLOYEE NAME</th>
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">STREAM</th>
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">DEPARTMENT</th>
-                    <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium">LEAVE ELIGIBILITY</th>
-                    <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium">LEAVE BALANCE</th>
+                    <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium bg-green-100/60">LEAVE ELIGIBILITY IN DAYS</th>
+                    <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium bg-yellow-100/50">LEAVE BALANCE IN DAYS</th>
                   </tr>
                   <tr>
                     {leaveTypes.length > 0 ? leaveTypes.map((leaveType) => (
-                      <th key={`eligibility-${leaveType.id}`} className="whitespace-nowrap px-5 py-3 font-medium">
+                      <th key={`eligibility-${leaveType.id}`} className="whitespace-nowrap px-5 py-3 font-medium bg-green-100/60">
                         {leaveType.code}
                       </th>
                     )) : <th className="px-5 py-3 font-normal text-slate-400">No leave types</th>}
                     {leaveTypes.length > 0 ? leaveTypes.map((leaveType) => (
-                      <th key={`balance-${leaveType.id}`} className="whitespace-nowrap px-5 py-3 font-medium">
+                      <th key={`balance-${leaveType.id}`} className="whitespace-nowrap px-5 py-3 font-medium bg-yellow-100/50">
                         {leaveType.code}
                       </th>
                     )) : <th className="px-5 py-3 font-normal text-slate-400">No leave types</th>}
@@ -259,14 +222,12 @@ export default function LeaveEligibilityPage() {
                       <td className="whitespace-nowrap px-5 py-4 text-slate-700">{employee.stream}</td>
                       <td className="whitespace-nowrap px-5 py-4 text-slate-700">{employee.department}</td>
                       {leaveTypes.map((leaveType) => (
-                        <td key={`eligibility-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-700">
-                          {employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id)?.isEligible
-                            ? `${employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id)?.daysAllowed} DAYS`
-                            : "Unavailable"}
+                        <td key={`eligibility-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-700 bg-green-100/60">
+                          {getEligibilityValue(employee, leaveType)}
                         </td>
                       ))}
                       {leaveTypes.map((leaveType) => (
-                        <td key={`balance-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-500">
+                        <td key={`balance-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-500 bg-yellow-100/50">
                           {employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"}
                         </td>
                       ))}
@@ -278,7 +239,7 @@ export default function LeaveEligibilityPage() {
                       )}
                     </tr>
                   ))}
-                  {!isLoading && !error && visibleEmployees.length === 0 && leaveTypes.length > 0 && (
+                  {!isLoading && !error && visibleEmployees.length === 0 && (
                     <tr className="border-t border-slate-200">
                       <td colSpan={4 + leaveTypeColumnCount * 2} className="px-5 py-12 text-center text-slate-500">
                         {employees.length === 0 ? "No employee records found in the database." : "No employees match the selected filters."}
@@ -288,11 +249,6 @@ export default function LeaveEligibilityPage() {
                 </tbody>
               </table>
             </div>
-
-            {isLoading && <div className="flex items-center justify-center px-6 py-12 text-slate-500">Loading leave eligibility...</div>}
-            {!isLoading && !error && leaveTypes.length === 0 && (
-              <div className="flex items-center justify-center px-6 py-12 text-slate-500">No leave types found.</div>
-            )}
           </main>
         </div>
       </div>

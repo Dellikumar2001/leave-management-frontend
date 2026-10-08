@@ -61,7 +61,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const selectedCodes = Array.isArray(body.leaveTypeCodes) ? body.leaveTypeCodes : [];
+    const selectedCodes = Array.isArray(body.leaveTypeCodes)
+      ? [...new Set(body.leaveTypeCodes.map((code: unknown) => String(code)))]
+      : [];
     const categoryId = Number(body.categoryId);
 
     if (!body.code || !body.name || !body.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
@@ -77,11 +79,15 @@ export async function POST(request: NextRequest) {
 
     const leaveTypes = await prisma.leaveType.findMany({
       where: {
+        status: "ACTIVE",
         code: {
-          in: selectedCodes.map((code: string) => String(code)),
+          in: selectedCodes,
         },
       },
     });
+    if (leaveTypes.length !== selectedCodes.length) {
+      return Response.json({ error: "Select active leave types only." }, { status: 400 });
+    }
 
     const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
     const status = normalizeStatus(body.status);

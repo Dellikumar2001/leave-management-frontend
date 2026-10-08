@@ -1,9 +1,28 @@
 import { prisma } from "@/lib/prisma";
-import { hasPrismaErrorCode, parseHolidayInput, serializeHoliday } from "@/lib/holiday-records";
+import {
+  hasPrismaErrorCode,
+  parseHolidayInput,
+  serializeHoliday,
+} from "@/lib/holiday-records";
+import type { HolidayRecord } from "@/lib/holiday-records";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, { params }: RouteContext) {
+  const id = parseId((await params).id);
+  if (id === null) return Response.json({ error: "Invalid holiday ID." }, { status: 400 });
+
+  try {
+    const holiday = await prisma.holiday.findUnique({ where: { id } });
+    if (!holiday) return Response.json({ error: "Holiday not found." }, { status: 404 });
+    return Response.json(serializeHoliday(holiday as HolidayRecord));
+  } catch (error) {
+    console.error("Failed to load holiday:", error);
+    return Response.json({ error: "Unable to load the holiday record." }, { status: 503 });
+  }
+}
 
 export async function PUT(request: Request, { params }: RouteContext) {
   const id = parseId((await params).id);
@@ -21,7 +40,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   try {
     const holiday = await prisma.holiday.update({ where: { id }, data: input });
-    return Response.json(serializeHoliday(holiday));
+    return Response.json(serializeHoliday(holiday as HolidayRecord));
   } catch (error) {
     if (hasPrismaErrorCode(error, "P2025")) return Response.json({ error: "Holiday not found." }, { status: 404 });
     console.error("Failed to update holiday:", error);

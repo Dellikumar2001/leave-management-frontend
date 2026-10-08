@@ -164,7 +164,9 @@ export default function LeaveRequestDetailsPage() {
           code: String(item.code ?? ""),
           name: String(item.name ?? ""),
           leaveTypes: Array.isArray(item.items)
-            ? item.items.map((entry: { leaveType?: { code?: string | null } | null }) => entry.leaveType?.code ?? "")
+            ? item.items
+              .filter((entry: { leaveType?: { code?: string | null; status?: string } | null }) => entry.leaveType?.status === "ACTIVE")
+              .map((entry: { leaveType?: { code?: string | null; status?: string } | null }) => entry.leaveType?.code ?? "")
             : [],
           categoryId: String(item.categoryId ?? ""),
           effectiveFrom: new Date(item.effectiveFrom).toISOString().split("T")[0],
@@ -188,7 +190,7 @@ export default function LeaveRequestDetailsPage() {
   useEffect(() => {
     const loadLeaveTypeOptions = async () => {
       try {
-        const response = await fetch("/api/leave-types");
+        const response = await fetch("/api/leave-types?status=ACTIVE");
         if (!response.ok) {
           setLeaveTypeOptions([]);
           return;
