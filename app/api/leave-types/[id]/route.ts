@@ -10,7 +10,18 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (id === null) return Response.json({ error: "Invalid leave type ID." }, { status: 400 });
 
   try {
-    const leaveType = await prisma.leaveType.findUnique({ where: { id } });
+    const leaveType = await prisma.leaveType.findUnique({
+      where: { id },
+      include: {
+        groupItems: {
+          include: {
+            leaveGroup: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
     if (!leaveType) return Response.json({ error: "Leave type not found." }, { status: 404 });
     return Response.json(serializeLeaveType(leaveType));
   } catch (error) {
@@ -34,7 +45,56 @@ export async function PUT(request: Request, { params }: RouteContext) {
   if (!input) return Response.json({ error: "Please provide valid leave type details." }, { status: 400 });
 
   try {
-    const leaveType = await prisma.leaveType.update({ where: { id }, data: input });
+    const { leaveGroupId, ...leaveTypeData } = input;
+    const group = leaveGroupId === undefined
+      ? null
+      : await prisma.leaveGroup.findFirst({
+          where: { id: leaveGroupId, status: "ACTIVE" },
+          select: { id: true, name: true },
+        });
+
+    if (leaveGroupId !== undefined && !group) {
+      return Response.json({ error: "Select an active leave group." }, { status: 400 });
+    }
+
+    const leaveType = await prisma.$transaction(async (transaction) => {
+      const updatedLeaveType = await transaction.leaveType.update({
+        where: { id },
+        data: {
+          ...leaveTypeData,
+          ...(group
+            ? {
+                leaveGroup: group.name,
+                groupItems: {
+                  deleteMany: {},
+                  create: {
+                    leaveGroup: { connect: { id: group.id } },
+                  },
+                },
+              }
+            : {}),
+        },
+        include: {
+          groupItems: {
+            include: {
+              leaveGroup: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
+      });
+
+      await transaction.employeeLeaveEligibility.updateMany({
+        where: { leaveTypeId: id },
+        data: {
+          isEligible: leaveTypeData.status === "ACTIVE",
+          daysAllowed: leaveTypeData.status === "ACTIVE" ? leaveTypeData.daysAllowed : 0,
+        },
+      });
+
+      return updatedLeaveType;
+    });
     return Response.json(serializeLeaveType(leaveType));
   } catch (error) {
     if (hasPrismaErrorCode(error, "P2002")) {

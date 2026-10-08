@@ -13,6 +13,15 @@ export async function GET(request: Request) {
   try {
     const leaveTypes = await prisma.leaveType.findMany({
       where: status ? { status } : undefined,
+      include: {
+        groupItems: {
+          include: {
+            leaveGroup: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
       orderBy: { id: "desc" },
     });
     return Response.json(leaveTypes.map(serializeLeaveType));
@@ -34,7 +43,50 @@ export async function POST(request: Request) {
   if (!input) return Response.json({ error: "Please provide valid leave type details." }, { status: 400 });
 
   try {
-    const leaveType = await prisma.leaveType.create({ data: input });
+    const { leaveGroupId, ...leaveTypeData } = input;
+    const group = leaveGroupId === undefined
+      ? null
+      : await prisma.leaveGroup.findFirst({
+          where: { id: leaveGroupId, status: "ACTIVE" },
+          select: { id: true, name: true },
+        });
+
+    if (leaveGroupId !== undefined && !group) {
+      return Response.json({ error: "Select an active leave group." }, { status: 400 });
+    }
+
+    const employees = await prisma.employee.findMany({ select: { employeeId: true } });
+    const leaveType = await prisma.leaveType.create({
+      data: {
+        ...leaveTypeData,
+        employeeEligibility: {
+          create: employees.map(({ employeeId }) => ({
+            employee: { connect: { employeeId } },
+            isEligible: leaveTypeData.status === "ACTIVE",
+            daysAllowed: leaveTypeData.status === "ACTIVE" ? leaveTypeData.daysAllowed : 0,
+          })),
+        },
+        ...(group
+          ? {
+              leaveGroup: group.name,
+              groupItems: {
+                create: {
+                  leaveGroup: { connect: { id: group.id } },
+                },
+              },
+            }
+          : {}),
+      },
+      include: {
+        groupItems: {
+          include: {
+            leaveGroup: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
     return Response.json(serializeLeaveType(leaveType), { status: 201 });
   } catch (error) {
     if (hasPrismaErrorCode(error, "P2002")) {

@@ -8,13 +8,13 @@ type LeaveSidebarProps = {
 };
 
 const navigation = [
-  { id: "dashboard", label: "Dashboard", href: "/", Icon: House },
+  // { id: "dashboard", label: "Dashboard", href: "/", Icon: House },
+  // { id: "settings", label: "Leave Settings", href: "/", Icon: Settings },
   { id: "leave-category", label: "Leave category", href: "/leave-category", Icon: CalendarDays },
   { id: "leave-requests", label: "Leave groups", href: "/leave-requests", Icon: ClipboardList },
   { id: "leave-types", label: "Leave types", href: "/leave-type", Icon: CalendarDays },
-  { id: "eligibility", label: "Eligibility", href: "/leave-eligibility", Icon: Users },
+  { id: "eligibility", label: "Leave eligibility", href: "/leave-eligibility", Icon: Users },
   { id: "holiday-calendar", label: "Holiday calendar", href: "/holiday-calendar", Icon: CalendarDays },
-  { id: "settings", label: "Settings", href: "/leave-type", Icon: Settings },
 ] as const;
 
 export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {

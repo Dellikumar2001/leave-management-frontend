@@ -9,10 +9,18 @@ type LeaveType = {
   code: string;
   name: string;
   leaveGroup: string;
+  leaveGroupId: number | null;
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
   isUsed?: boolean;
+};
+
+type LeaveGroupOption = {
+  id: number;
+  code: string;
+  name: string;
+  status: "ACTIVE" | "INACTIVE";
 };
 
 export default function LeaveTypeDetailsPage() {
@@ -24,21 +32,35 @@ export default function LeaveTypeDetailsPage() {
 
   const [leaveType, setLeaveType] = useState<LeaveType | null>(null);
   const [form, setForm] = useState<LeaveType | null>(null);
+  const [leaveGroups, setLeaveGroups] = useState<LeaveGroupOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
-    fetch(`/api/leave-types/${id}`)
-      .then(async (response) => {
+    Promise.all([
+      fetch(`/api/leave-types/${id}`).then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error ?? "Unable to load the leave type.");
         return result as LeaveType;
-      })
-      .then((record) => {
+      }),
+      fetch("/api/leave-requests").then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Unable to load leave groups.");
+        if (!Array.isArray(result?.data)) throw new Error("Unable to load leave groups.");
+        return result.data as LeaveGroupOption[];
+      }),
+    ])
+      .then(([record, groups]) => {
         if (!isMounted) return;
-        setLeaveType(record);
-        setForm(record);
+        const legacyGroup = groups.find((group) =>
+          group.name.toUpperCase() === record.leaveGroup.toUpperCase() ||
+          group.code.toUpperCase() === record.leaveGroup.toUpperCase(),
+        );
+        const recordWithGroup = { ...record, leaveGroupId: record.leaveGroupId ?? legacyGroup?.id ?? null };
+        setLeaveGroups(groups);
+        setLeaveType(recordWithGroup);
+        setForm(recordWithGroup);
       })
       .catch((loadError: unknown) => {
         if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load the leave type.");
@@ -60,7 +82,7 @@ export default function LeaveTypeDetailsPage() {
     if (
       !form.code.trim() ||
       !form.name.trim() ||
-      !form.leaveGroup.trim() ||
+      !form.leaveGroupId ||
       !form.status ||
       !Number.isSafeInteger(form.daysAllowed) ||
       form.daysAllowed < 1
@@ -144,7 +166,16 @@ export default function LeaveTypeDetailsPage() {
 
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700">LEAVE GROUP <span className="text-red-600">*</span></span>
-            <input required={!isViewMode} value={form.leaveGroup} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("leaveGroup", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
+            <select required={!isViewMode} value={form.leaveGroupId ?? ""} disabled={isViewMode} onChange={(e) => handleChange("leaveGroupId", e.target.value ? Number(e.target.value) : null)} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500">
+              <option value="">Select a leave group</option>
+              {leaveGroups
+                .filter((group) => group.status === "ACTIVE" || group.id === form.leaveGroupId)
+                .map((group) => (
+                  <option key={group.id} value={group.id} disabled={group.status !== "ACTIVE"}>
+                    {group.name} ({group.code}){group.status !== "ACTIVE" ? " - INACTIVE" : ""}
+                  </option>
+                ))}
+            </select>
           </label>
 
           <label className="space-y-2">

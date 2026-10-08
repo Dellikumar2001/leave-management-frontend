@@ -83,7 +83,9 @@ export async function PUT(
     const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
     const status = normalizeStatus(body.status);
     const categoryId = Number(body.categoryId ?? existingGroup.categoryId);
-    const leaveTypeCodes = Array.isArray(body.leaveTypeCodes) ? body.leaveTypeCodes.map(String) : [];
+    const leaveTypeCodes = Array.isArray(body.leaveTypeCodes)
+      ? [...new Set(body.leaveTypeCodes.map((code: unknown) => String(code)))]
+      : [];
 
     if (!Number.isInteger(categoryId) || categoryId <= 0) {
       return Response.json({ error: "A leave category is required." }, { status: 400 });
@@ -99,12 +101,16 @@ export async function PUT(
     const leaveTypes = leaveTypeCodes.length
       ? await prisma.leaveType.findMany({
           where: {
+            status: "ACTIVE",
             code: {
               in: leaveTypeCodes,
             },
           },
         })
       : [];
+    if (leaveTypes.length !== leaveTypeCodes.length) {
+      return Response.json({ error: "Select active leave types only." }, { status: 400 });
+    }
 
     const updatedGroup = await prisma.leaveGroup.update({
       where: { id: leaveGroupId },

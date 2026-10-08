@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
 
@@ -14,17 +15,35 @@ export async function GET() {
               isEligible: true,
               daysAllowed: true,
               leaveBalance: true,
+              joiningDate: true,
             },
           },
         },
       }),
       prisma.leaveType.findMany({
         orderBy: { id: "asc" },
-        select: { id: true, code: true, name: true, status: true },
+        select: { id: true, code: true, name: true, status: true, daysAllowed: true },
       }),
     ]);
 
-    return Response.json({ employees, leaveTypes });
+    const leaveTypesById = new Map(leaveTypes.map((leaveType) => [leaveType.id, leaveType]));
+    const leaveYear = new Date().getUTCFullYear();
+    const employeesWithBalances = employees.map((employee) => ({
+      ...employee,
+      leaveRecords: employee.leaveRecords.map(({ joiningDate, ...record }) => {
+        const leaveType = leaveTypesById.get(record.leaveTypeId);
+        const isEligible = record.isEligible && leaveType?.status === "ACTIVE";
+
+        return {
+          ...record,
+          leaveBalance: isEligible && leaveType
+            ? calculateLeaveBalance(leaveType.daysAllowed, joiningDate, leaveYear)
+            : 0,
+        };
+      }),
+    }));
+
+    return Response.json({ employees: employeesWithBalances, leaveTypes });
   } catch (error) {
     console.error("Failed to load leave eligibility:", error);
     return Response.json({ error: "Unable to load leave eligibility from the database." }, { status: 503 });
