@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { CalendarDays, ClipboardList, House, Settings, Users } from "lucide-react";
 
-export type LeaveSidebarPage = "dashboard" | "leave-requests" | "leave-types" | "eligibility" | "holiday-calendar";
+export type LeaveSidebarPage =
+  | "dashboard"
+  | "leave-category"
+  | "leave-requests"
+  | "leave-types"
+  | "eligibility"
+  | "holiday-calendar"
+  | "settings";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
