@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
+  Baby,
   ChevronRight,
   ClipboardList,
   RefreshCw,
@@ -20,7 +21,8 @@ export type LeaveSidebarPage =
   | "eligibility"
   | "holiday-calendar"
   | "settings"
-  | "leave-refresh";
+  | "leave-refresh"
+  | "maternity-leave";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -36,6 +38,7 @@ const leaveSettingsNavigation = [
 
 const leaveAdminNavigation = [
   { id: "leave-refresh", label: "Leave Refresh", href: "/leave-refresh", Icon: RefreshCw },
+  { id: "maternity-leave", label: "Maternity Leave", href: "/maternity-leave", Icon: Baby },
 ] as const;
 
 type NavItem = { id: string; label: string; href: string; Icon: React.ComponentType<{ size?: number; className?: string }> };

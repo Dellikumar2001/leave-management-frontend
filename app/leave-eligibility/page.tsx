@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { ChevronDown, Download, Search } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveType = {
@@ -45,24 +45,72 @@ async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   return result as LeaveEligibilityData;
 }
 
+function CheckboxFilter({
+  label,
+  options,
+  selectedValues,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const summary = selectedValues.length === 0
+    ? `All ${label}`
+    : selectedValues.length === 1
+      ? selectedValues[0]
+      : `${selectedValues.length} ${label.toLowerCase()} selected`;
+
+  return (
+    <details className="group relative min-w-48 flex-1 xl:flex-none">
+      <summary
+        aria-label={`Filter by ${label.toLowerCase()}`}
+        className="flex h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus-visible:border-blue-400 [&::-webkit-details-marker]:hidden"
+      >
+        <span className="truncate">{summary}</span>
+        <ChevronDown aria-hidden="true" size={16} className="shrink-0 text-slate-400" />
+      </summary>
+      <div className="absolute left-0 top-full z-20 mt-1 max-h-60 min-w-full overflow-y-auto rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+        {options.map((option) => (
+          <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={selectedValues.includes(option)}
+              onChange={(event) => onChange(
+                event.target.checked
+                  ? [...selectedValues, option]
+                  : selectedValues.filter((value) => value !== option)
+              )}
+              className="size-4 accent-slate-800"
+            />
+            <span className="whitespace-nowrap">{option}</span>
+          </label>
+        ))}
+        {options.length === 0 && <p className="px-2 py-2 text-sm text-slate-400">No options available</p>}
+      </div>
+    </details>
+  );
+}
+
 export default function LeaveEligibilityPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [streamFilter, setStreamFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [employeeIdFilter, setEmployeeIdFilter] = useState("");
-  const [employeeNameFilter, setEmployeeNameFilter] = useState("");
+  const [streamFilters, setStreamFilters] = useState<string[]>([]);
+  const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const streams = [...new Set(employees.map((employee) => employee.stream))].sort();
   const departments = [...new Set(employees.map((employee) => employee.department))].sort();
+  const employeeNames = [...new Set(employees.map((employee) => employee.name))].sort();
   const leaveTypeColumnCount = Math.max(leaveTypes.length, 1);
   const normalizedSearch = search.trim().toLowerCase();
   const visibleEmployees = employees.filter((employee) =>
-    (!streamFilter || employee.stream === streamFilter) &&
-    (!departmentFilter || employee.department === departmentFilter) &&
-    (!employeeIdFilter || employee.employeeId === employeeIdFilter) &&
-    (!employeeNameFilter || employee.name === employeeNameFilter) &&
+    (streamFilters.length === 0 || streamFilters.includes(employee.stream)) &&
+    (departmentFilters.length === 0 || departmentFilters.includes(employee.department)) &&
+    (employeeNameFilters.length === 0 || employeeNameFilters.includes(employee.name)) &&
     (!normalizedSearch || employee.name.toLowerCase().includes(normalizedSearch) || employee.employeeId.toLowerCase().includes(normalizedSearch))
   );
   const handleExport = () => {
@@ -121,46 +169,9 @@ export default function LeaveEligibilityPage() {
           </header>
 
           <section aria-label="Employee filters" className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center">
-            <select
-              aria-label="Filter by stream"
-              value={streamFilter}
-              onChange={(event) => setStreamFilter(event.target.value)}
-              className="h-10 min-w-36 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
-            >
-              <option value="">All Streams</option>
-              <option value="SFS">SFS</option>
-              <option value="AIDED">AIDED</option>
-            </select>
-
-            <select
-              aria-label="Filter by department"
-              value={departmentFilter}
-              onChange={(event) => setDepartmentFilter(event.target.value)}
-              className="h-10 min-w-48 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
-            >
-              <option value="">All Departments</option>
-              {departments.map((department) => <option key={department} value={department}>{department}</option>)}
-            </select>
-
-            <select
-              aria-label="Filter by employee ID"
-              value={employeeIdFilter}
-              onChange={(event) => setEmployeeIdFilter(event.target.value)}
-              className="h-10 min-w-48 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
-            >
-              <option value="">All Employee IDs</option>
-              {employees.map((employee) => <option key={employee.employeeId} value={employee.employeeId}>{employee.employeeId}</option>)}
-            </select>
-
-            <select
-              aria-label="Filter by employee name"
-              value={employeeNameFilter}
-              onChange={(event) => setEmployeeNameFilter(event.target.value)}
-              className="h-10 min-w-48 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
-            >
-              <option value="">All Employee Names</option>
-              {employees.map((employee) => <option key={employee.employeeId} value={employee.name}>{employee.name}</option>)}
-            </select>
+            <CheckboxFilter label="Streams" options={streams} selectedValues={streamFilters} onChange={setStreamFilters} />
+            <CheckboxFilter label="Departments" options={departments} selectedValues={departmentFilters} onChange={setDepartmentFilters} />
+            <CheckboxFilter label="Employee Names" options={employeeNames} selectedValues={employeeNameFilters} onChange={setEmployeeNameFilters} />
 
             <label className="relative min-w-48 flex-1">
               <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-3 text-slate-400" />

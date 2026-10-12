@@ -1,0 +1,682 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Baby, ChevronDown, Paperclip, Trash2, X } from "lucide-react";
+import LeaveSidebar from "../components/LeaveSidebar";
+
+type Employee = {
+  employeeId: string;
+  name: string;
+  stream: string;
+  department: string;
+  gender?: string;
+};
+
+type SupportingDocumentRule = {
+  id: string;
+  name: string;
+  required: boolean;
+};
+
+type MaternityRecord = {
+  employeeId: string;
+  name: string;
+  days: string;
+  remarks: string;
+  status: "Active" | "Inactive";
+};
+
+function MultiSelectDropdown({
+  label,
+  options,
+  selectedValues,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  options: string[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const displayLabel =
+    selectedValues.length === 0
+      ? `All ${label}`
+      : selectedValues.length === 1
+      ? selectedValues[0]
+      : `${selectedValues.length} ${label} selected`;
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm transition-colors ${
+          disabled
+            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+            : isOpen
+            ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
+            : "border-slate-300 text-slate-600 hover:border-slate-400"
+        }`}
+      >
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-30 w-full min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              type="text"
+              placeholder="Filter list..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="max-h-52 overflow-y-auto p-1.5">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option)}
+                    onChange={(e) => {
+                      onChange(
+                        e.target.checked
+                          ? [...selectedValues, option]
+                          : selectedValues.filter((v) => v !== option)
+                      );
+                    }}
+                    className="size-3.5 rounded border-slate-300 text-blue-600 focus:ring-0"
+                  />
+                  <span className="truncate uppercase">{option}</span>
+                </label>
+              ))
+            ) : (
+              <p className="py-3 text-center text-xs text-slate-400">No options found</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs">
+            <button
+              type="button"
+              onClick={() => onChange(Array.from(new Set([...selectedValues, ...filteredOptions])))}
+              className="text-emerald-700 hover:text-emerald-800 font-medium"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToggleSwitch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+        checked ? "bg-blue-600" : "bg-slate-300"
+      }`}
+    >
+      <span
+        className={`inline-block size-4 transform rounded-full bg-white transition-transform ${
+          checked ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+  );
+}
+
+export default function MaternityLeavePage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [error, setError] = useState("");
+
+  const [streamFilters, setStreamFilters] = useState<string[]>([]);
+  const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
+
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
+  const [days, setDays] = useState("");
+  const [hasRemarks, setHasRemarks] = useState<boolean | null>(null);
+  const [remarksText, setRemarksText] = useState("");
+  const [hasAttachments, setHasAttachments] = useState<boolean | null>(null);
+
+  const [documentConfigs, setDocumentConfigs] = useState<SupportingDocumentRule[]>([
+    {
+      id: "medical-cert",
+      name: "Medical Certificate (Expected Delivery Date)",
+      required: true,
+    },
+    {
+      id: "birth-cert",
+      name: "Birth Certificate / Proof (after delivery)",
+      required: true,
+    },
+  ]);
+
+  const [activeDialog, setActiveDialog] = useState<"remarks" | "attachments" | null>(null);
+  const [submittedRecords, setSubmittedRecords] = useState<MaternityRecord[]>([]);
+
+  const femaleEmployees = employees.filter(
+    (emp) => !emp.gender || emp.gender.toLowerCase() === "female" || emp.gender.toLowerCase() === "f"
+  );
+
+  const streams = [...new Set(femaleEmployees.map((e) => e.stream))].filter(Boolean).sort();
+
+  const departments = [
+    ...new Set(
+      femaleEmployees
+        .filter((e) => streamFilters.length === 0 || streamFilters.includes(e.stream))
+        .map((e) => e.department)
+    ),
+  ].filter(Boolean).sort();
+
+  const availableEmployees = femaleEmployees.filter((e) => {
+    const matchesStream = streamFilters.length === 0 || streamFilters.includes(e.stream);
+    const matchesDept = departmentFilters.length === 0 || departmentFilters.includes(e.department);
+    return matchesStream && matchesDept;
+  });
+
+  const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
+
+  const handleStreamChange = (newStreams: string[]) => {
+    setStreamFilters(newStreams);
+    setDepartmentFilters((prevDepts) => {
+      const validDepts = femaleEmployees
+        .filter((e) => newStreams.length === 0 || newStreams.includes(e.stream))
+        .map((e) => e.department);
+      return prevDepts.filter((d) => validDepts.includes(d));
+    });
+    setEmployeeNameFilters([]);
+    setSelectedEmployee(null);
+  };
+
+  const handleDepartmentChange = (newDepts: string[]) => {
+    setDepartmentFilters(newDepts);
+    setEmployeeNameFilters([]);
+    setSelectedEmployee(null);
+  };
+
+  const handleEmployeeNameChange = (newNames: string[]) => {
+    setEmployeeNameFilters(newNames);
+    if (newNames.length > 0) {
+      const chosenName = newNames[newNames.length - 1];
+      const found = availableEmployees.find((e) => e.name === chosenName) ?? null;
+      setSelectedEmployee(found);
+      setDays("");
+      setHasRemarks(null);
+      setRemarksText("");
+      setHasAttachments(null);
+    } else {
+      setSelectedEmployee(null);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/leave-eligibility?gender=female", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Unable to load employees.");
+        return result as { employees: Employee[] };
+      })
+      .then((result) => {
+        if (isMounted) setEmployees(result.employees);
+      })
+      .catch((loadError: unknown) => {
+        if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load employees.");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const toggleDocumentRequirement = (id: string, required: boolean) => {
+    setDocumentConfigs((prev) =>
+      prev.map((doc) => (doc.id === id ? { ...doc, required } : doc))
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedEmployee) {
+      alert("Please select a female employee.");
+      return;
+    }
+
+    if (!days || hasRemarks === null || hasAttachments === null) {
+      alert("Please fill all required fields.");
+      return;
+    }
+
+    const newRecord: MaternityRecord = {
+      employeeId: selectedEmployee.employeeId,
+      name: selectedEmployee.name,
+      days,
+      remarks: remarksText.trim() || "No remarks provided",
+      status: "Active",
+    };
+
+    try {
+      await fetch("/api/maternity-leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRecord),
+      });
+    } catch {
+      // Continue updating UI
+    }
+
+    setSubmittedRecords((prev) => [
+      ...prev.filter((item) => item.employeeId !== selectedEmployee.employeeId),
+      newRecord,
+    ]);
+  };
+
+  const handleInactiveAndDelete = async (employeeId: string) => {
+    try {
+      await fetch(`/api/maternity-leave?employeeId=${encodeURIComponent(employeeId)}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // Continue updating UI
+    }
+
+    setSubmittedRecords((prev) => prev.filter((r) => r.employeeId !== employeeId));
+  };
+
+  return (
+    <div className="min-h-screen bg-[#edf1f5] text-slate-800">
+      <LeaveSidebar activePage="maternity-leave" />
+      <div className="p-6 min-[801px]:ml-[175px]">
+        <div className="mx-auto max-w-[1440px]">
+          <header className="mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <Baby aria-hidden="true" size={28} className="text-emerald-700" />
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-800">Maternity Leave</h1>
+                <p className="text-xs font-medium text-slate-500">Eligible for female employees only</p>
+              </div>
+            </div>
+          </header>
+
+          {/* Equal-spaced full row for Stream, Department, and Employee Name */}
+          <div className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Streams"
+                  options={streams}
+                  selectedValues={streamFilters}
+                  onChange={handleStreamChange}
+                />
+              </div>
+
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Departments"
+                  options={departments}
+                  selectedValues={departmentFilters}
+                  onChange={handleDepartmentChange}
+                />
+              </div>
+
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Employee Names"
+                  options={employeeNames}
+                  selectedValues={employeeNameFilters}
+                  onChange={handleEmployeeNameChange}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Always visible form */}
+          <form
+            onSubmit={handleSubmit}
+            className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            {error && (
+              <p role="alert" className="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+
+            <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
+              {selectedEmployee ? (
+                `${selectedEmployee.name} - ${selectedEmployee.employeeId}`
+              ) : (
+                <span className="text-slate-400 font-normal">Select an employee from the dropdown above to continue</span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <label htmlFor="no-of-days" className="block text-sm font-semibold text-slate-700">
+                  No of Days <span className="text-red-500">*</span>
+                </label>
+                <div className="mt-3">
+                  <input
+                    id="no-of-days"
+                    type="text"
+                    required
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Enter days"
+                    value={days}
+                    onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))}
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <span className="block text-sm font-semibold text-slate-700">
+                  Remarks <span className="text-red-500">*</span>
+                </span>
+                <div className="mt-4 flex items-center gap-6">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="hasRemarks"
+                      required
+                      checked={hasRemarks === true}
+                      onChange={() => {
+                        setHasRemarks(true);
+                        setActiveDialog("remarks");
+                      }}
+                      className="size-4 accent-slate-800"
+                    />
+                    Yes
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="hasRemarks"
+                      required
+                      checked={hasRemarks === false}
+                      onChange={() => {
+                        setHasRemarks(false);
+                        setRemarksText("");
+                      }}
+                      className="size-4 accent-slate-800"
+                    />
+                    No
+                  </label>
+
+                  {hasRemarks && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveDialog("remarks")}
+                      className="text-xs font-medium text-blue-700 underline hover:text-blue-800"
+                    >
+                      {remarksText ? "Edit" : "Add"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <span className="block text-sm font-semibold text-slate-700">
+                  Attachments <span className="text-red-500">*</span>
+                </span>
+                <div className="mt-4 flex items-center gap-6">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="hasAttachments"
+                      required
+                      checked={hasAttachments === true}
+                      onChange={() => {
+                        setHasAttachments(true);
+                        setActiveDialog("attachments");
+                      }}
+                      className="size-4 accent-slate-800"
+                    />
+                    Yes
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      name="hasAttachments"
+                      required
+                      checked={hasAttachments === false}
+                      onChange={() => setHasAttachments(false)}
+                      className="size-4 accent-slate-800"
+                    />
+                    No
+                  </label>
+
+                  {hasAttachments && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveDialog("attachments")}
+                      className="text-xs font-medium text-blue-700 underline hover:text-blue-800"
+                    >
+                      Configure
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex justify-end">
+              <button
+                type="submit"
+                className="rounded-lg bg-[#1a2332] px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+              >
+                Submit
+              </button>
+            </div>
+          </form>
+
+          {submittedRecords.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-6 py-4">
+                <h2 className="text-base font-semibold text-slate-800">Submitted Maternity Records</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-6 py-3.5 font-medium">EMPLOYEE ID</th>
+                      <th className="px-6 py-3.5 font-medium">EMPLOYEE NAME</th>
+                      <th className="px-6 py-3.5 font-medium">DAYS</th>
+                      <th className="px-6 py-3.5 font-medium">REMARKS</th>
+                      <th className="px-6 py-3.5 font-medium">STATUS</th>
+                      <th className="px-6 py-3.5 text-right font-medium">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {submittedRecords.map((record) => (
+                      <tr key={record.employeeId} className="border-t border-slate-200 hover:bg-slate-50/60">
+                        <td className="px-6 py-4 font-medium text-slate-700">{record.employeeId}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-800">{record.name}</td>
+                        <td className="px-6 py-4 text-slate-700">{record.days} days</td>
+                        <td className="max-w-xs truncate px-6 py-4 text-slate-600">{record.remarks}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                            {record.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleInactiveAndDelete(record.employeeId)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100"
+                          >
+                            <Trash2 size={13} />
+                            Inactive &amp; Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {activeDialog === "remarks" && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setActiveDialog(null);
+          }}
+        >
+          <section
+            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800">Maternity Leave Remarks</h2>
+              <button
+                type="button"
+                onClick={() => setActiveDialog(null)}
+                className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <textarea
+              autoFocus
+              rows={5}
+              value={remarksText}
+              onChange={(e) => setRemarksText(e.target.value)}
+              placeholder="Enter remarks..."
+              className="w-full rounded-md border border-slate-300 p-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            />
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveDialog(null)}
+                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Done
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Supporting Documents Admin Access Pop-up Modal[cite: 2] */}
+      {activeDialog === "attachments" && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setActiveDialog(null);
+          }}
+        >
+          <section
+            className="w-full max-w-xl rounded-xl bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Paperclip className="size-5 rotate-45 text-blue-600" />
+                <h2 className="text-base font-bold text-slate-900">Supporting Documents</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveDialog(null)}
+                className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-slate-200">
+              {documentConfigs.map((doc, idx) => (
+                <div
+                  key={doc.id}
+                  className={`flex items-center justify-between bg-white px-4 py-3.5 ${
+                    idx !== 0 ? "border-t border-slate-100" : ""
+                  }`}
+                >
+                  <span className="text-sm font-medium text-slate-700">{doc.name}</span>
+                  <div className="flex items-center gap-3">
+                    <ToggleSwitch
+                      checked={doc.required}
+                      onChange={(val) => toggleDocumentRequirement(doc.id, val)}
+                    />
+                    <span className="w-16 text-right text-xs font-medium text-slate-700">
+                      {doc.required ? "Required" : "Optional"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveDialog(null)}
+                className="rounded-md bg-slate-800 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Done
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
