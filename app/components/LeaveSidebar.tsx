@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
   Baby,
   ChevronRight,
   ClipboardList,
+  Ban,
+  Coins,
+  FileBarChart,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -22,7 +25,10 @@ export type LeaveSidebarPage =
   | "holiday-calendar"
   | "settings"
   | "leave-refresh"
-  | "maternity-leave";
+  | "maternity-leave"
+  | "block-leave"
+  | "credit-leave"
+  | "individual-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -37,8 +43,14 @@ const leaveSettingsNavigation = [
 ] as const;
 
 const leaveAdminNavigation = [
+  { id: "block-leave", label: "Block Leave", href: "/block-leave", Icon: Ban },
+  { id: "credit-leave", label: "Credit Leave", href: "/creditleave", Icon: Coins },
   { id: "leave-refresh", label: "Leave Refresh", href: "/leave-refresh", Icon: RefreshCw },
   { id: "maternity-leave", label: "Maternity Leave", href: "/maternity-leave", Icon: Baby },
+] as const;
+
+const leaveReportNavigation = [
+  { id: "individual-report", label: "Individual Report", href: "/leave-report/individual", Icon: FileBarChart },
 ] as const;
 
 type NavItem = { id: string; label: string; href: string; Icon: React.ComponentType<{ size?: number; className?: string }> };
@@ -57,17 +69,19 @@ function SidebarGroup({
   defaultOpen?: boolean;
 }) {
   const isChildActive = items.some((item) => item.id === activePage);
-  const [isOpen, setIsOpen] = useState(defaultOpen || isChildActive);
-
-  useEffect(() => {
-    if (isChildActive) setIsOpen(true);
-  }, [activePage, isChildActive]);
+  const [openState, setOpenState] = useState(() => ({
+    activePage,
+    isOpen: defaultOpen || isChildActive,
+  }));
+  const isOpen = openState.activePage === activePage
+    ? openState.isOpen
+    : defaultOpen || isChildActive;
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => setOpenState({ activePage, isOpen: !isOpen })}
         aria-expanded={isOpen}
         className={`flex w-full min-h-[38px] items-center justify-between rounded-md px-3 text-[13px] font-medium transition-colors ${
           isChildActive
@@ -113,7 +127,7 @@ function SidebarGroup({
 
 export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 hidden min-h-screen w-[175px] border-r border-slate-200 bg-white min-[801px]:block">
+    <aside className="fixed inset-y-0 left-0 z-10 hidden min-h-screen w-[175px] border-r border-slate-200 bg-white min-[801px]:block print:hidden">
       {/* Logo */}
       <Link
         href="/"
@@ -131,6 +145,7 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
       <nav className="space-y-1 px-2 py-3" aria-label="Main navigation">
         {/* Leave Settings */}
         <SidebarGroup
+          key="leave-settings"
           icon={Settings}
           label="Leave Settings"
           items={leaveSettingsNavigation}
@@ -140,9 +155,18 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
 
         {/* Leave Administration */}
         <SidebarGroup
+          key="leave-admin"
           icon={ShieldCheck}
           label="Leave Admin"
           items={leaveAdminNavigation}
+          activePage={activePage}
+        />
+
+        <SidebarGroup
+          key="leave-report"
+          icon={FileBarChart}
+          label="Leave Report"
+          items={leaveReportNavigation}
           activePage={activePage}
         />
       </nav>

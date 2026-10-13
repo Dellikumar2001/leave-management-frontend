@@ -19,6 +19,7 @@ export async function GET() {
               isEligible: true,
               daysAllowed: true,
               leaveBalance: true,
+              creditedDays: true,
               joiningDate: true,
             },
           },
@@ -40,7 +41,7 @@ export async function GET() {
         return {
           ...record,
           leaveBalance: isEligible && lt
-            ? calculateLeaveBalance(lt.daysAllowed, joiningDate, leaveYear)
+            ? calculateLeaveBalance(lt.daysAllowed, joiningDate, leaveYear) + record.creditedDays
             : 0,
         };
       }),
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
       const lt = leaveTypesById.get(record.leaveTypeId);
       const isEligible = record.isEligible && lt?.status === "ACTIVE";
       const newBalance = isEligible && lt
-        ? calculateLeaveBalance(lt.daysAllowed, record.joiningDate, leaveYear)
+        ? calculateLeaveBalance(lt.daysAllowed, record.joiningDate, leaveYear) + record.creditedDays
         : 0;
 
       return prisma.employeeLeaveEligibility.update({

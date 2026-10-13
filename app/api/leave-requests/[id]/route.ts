@@ -84,7 +84,7 @@ export async function PUT(
     const status = normalizeStatus(body.status);
     const categoryId = Number(body.categoryId ?? existingGroup.categoryId);
     const leaveTypeCodes = Array.isArray(body.leaveTypeCodes)
-      ? [...new Set(body.leaveTypeCodes.map((code: unknown) => String(code)))]
+      ? [...new Set<string>(body.leaveTypeCodes.map((code: unknown) => String(code)))]
       : [];
 
     if (!Number.isInteger(categoryId) || categoryId <= 0) {

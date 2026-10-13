@@ -6,4 +6,4 @@ SET "gender" = 'Unknown'
 WHERE "gender" IS NULL;
 
 ALTER TABLE "employees"
-ALTER COLUMN "gender" SET NOT NULL;like this i need 
+ALTER COLUMN "gender" SET NOT NULL;

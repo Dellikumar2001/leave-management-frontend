@@ -15,6 +15,7 @@ export async function GET() {
               isEligible: true,
               daysAllowed: true,
               leaveBalance: true,
+              creditedDays: true,
               joiningDate: true,
             },
           },
@@ -37,7 +38,7 @@ export async function GET() {
         return {
           ...record,
           leaveBalance: isEligible && leaveType
-            ? calculateLeaveBalance(leaveType.daysAllowed, joiningDate, leaveYear)
+            ? calculateLeaveBalance(leaveType.daysAllowed, joiningDate, leaveYear) + record.creditedDays
             : 0,
         };
       }),
