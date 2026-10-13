@@ -1,6 +1,6 @@
 # Leave Admin database and integration guide
 
-This guide covers the Block Leave and Credit Leave pages, their API routes, and the employee balance data they update.
+This guide covers Block Leave, Credit Leave, Individual Leave Report, their API routes, and the employee balance data they use.
 
 ## Connect the pages to the database
 
@@ -16,13 +16,14 @@ npm run dev
 
 Use a development database when running `npm run db:migrate`. Before migrating a database with existing data, check its migration state with `npx prisma migrate status` and reconcile any missing or edited migration files first. Do not reset a database to work around drift.
 
-`npm run db:seed` adds the Annual and Medical leave categories and the sample employee records already used by this project. In Leave Groups, associate active leave types with the Annual or Medical category. The credit API also recognizes an active leave type whose `category` is set to `ANNUAL` or `MEDICAL`.
+`npm run db:seed` adds sample categories and employee records. In Leave Groups, associate active leave types with the Annual or Medical category where available. Credit Leave always updates `employee_leave_balances`; when a matching active leave type exists, it also updates that type's eligibility balance. Annual credits can be recorded without an Annual leave type, which supports databases that do not yet classify their types. Medical credits still require a matching active Medical type.
 
 Streams and departments are read from the existing `employees.stream` and `employees.department` columns. They are not separate tables in this application. Update or import employee records in `employees` to change the available filter choices. For leave-request blocking, the student's `studentCode` must equal the corresponding employee's `employeeId`.
 
 ## Tables and balance behavior
 
-- `employees`: employee ID, name, stream, and department.
+- `employees`: employee ID, name, stream, and department. This schema does not currently contain designation or mobile fields.
+- `Student`, `User`, and `StudentLeaveRequest`: employee-linked leave request history and available contact email. Link the report employee ID to `Student.studentCode`; otherwise the report has no linked request history.
 - `employee_leave_balances`: the annual/medical category balance used by the leave administration APIs.
 - `blocked_leaves`: one row per employee and blocked calendar date.
 - `leave_credits`: credit history, including employee, category, amount, and matching leave type.
@@ -30,7 +31,9 @@ Streams and departments are read from the existing `employees.stream` and `emplo
 - `employee_notifications`: in-app notices created for every affected employee.
 - `LeaveType`, `LeaveGroup`, `LeaveGroupItem`, and `LeaveCategoryDefinition`: active leave types and their annual/medical categorization.
 
-Credit transactions update `employee_leave_balances`, `employee_leave_eligibilities.credited_days` and `leave_balance`, and write a matching `leave_credits` record in one database transaction. Annual and medical credits choose an active type in the matching category; the page does not require administrators to select a particular leave type. The Leave Eligibility and Leave Refresh APIs include credited days when calculating and displaying balances, so refresh does not erase credits.
+Credit transactions update `employee_leave_balances`, update `employee_leave_eligibilities.credited_days` and `leave_balance` when a matching leave type exists, and write a matching `leave_credits` record in one database transaction. The Leave Eligibility and Leave Refresh APIs include type-linked credited days when calculating and displaying balances. Credits without a type remain in the category balance ledger and are shown separately in Individual Report.
+
+The Individual Report reads employee details from `employees`, email and request history through `Student.studentCode` and `StudentLeaveRequest`, and reviewer names from `User`. The current schema has no employee designation or mobile-number fields, so those report fields show “Not recorded”. Academic years currently use a July-to-June range; Odd semester is July–December and Even semester is January–June. Allocations are prorated against the selected academic year. Update these conventions if the institution uses a different academic calendar.
 
 Deleting or reducing a credit reverses the recorded amount. The API rejects a reversal that would take the credited amount below zero. All credit records use the same `/api/leave-credit` endpoint and category-specific balance source.
 
@@ -38,6 +41,7 @@ Deleting or reducing a credit reverses the recorded amount. The API rejects a re
 
 - `GET|POST|PATCH|DELETE /api/block-leave`: blocked-date history, database-backed employees/stream/department filter values, and create/edit/delete operations. Pass `?category=ANNUAL` or `?category=MEDICAL` for the employee balance shown on the credit page. A missing end date is treated as the start date.
 - `GET|POST|PATCH|DELETE /api/leave-credit`: category credit history and create/edit/delete operations.
+- `GET /api/individual-report`: an employee's leave allocation, leave-request history, approver details, absenteeism, utilization, and usage analytics for a selected period.
 - `GET /api/leave-eligibility` and `GET|POST /api/leave-refresh`: display or refresh balances including credited days.
 
 Blocking or crediting creates an in-app notification for each selected employee. A multi-select filter does not silently apply changes to every matching employee; choose the matching rows with the table's select-all checkbox to make them part of the action.
@@ -73,7 +77,7 @@ Check that `DATABASE_URL` points to the intended database and run `npm run db:se
 
 ### Leave types or leave groups fail to load
 
-Check the server logs and database connection, then confirm the leave-type, leave-group, group-item, and leave-category migrations are applied. For credits, create active Annual and Medical categories and associate active leave types with the corresponding category.
+Check the server logs and database connection, then confirm the leave-type, leave-group, group-item, and leave-category migrations are applied. Medical credits need an active type classified as Medical. Annual credits can use the category balance ledger when the database does not have a classified Annual leave type; type-specific eligibility balances are updated only when such a type exists.
 
 ### Invalid date errors
 

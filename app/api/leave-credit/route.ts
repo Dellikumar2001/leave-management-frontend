@@ -109,12 +109,12 @@ export async function POST(request: Request) {
       if (foundEmployees.length !== employeeIds.length) throw new Error("One or more selected employees could not be found.");
 
       const balanceLeaveType = await findBalanceLeaveType(transaction, credit.category);
-      if (!balanceLeaveType) {
-        throw new Error(`Create an active ${credit.category === "ANNUAL" ? "Annual" : "Medical"} leave type or group before crediting days.`);
+      if (!balanceLeaveType && credit.category === "MEDICAL") {
+        throw new Error("Create an active Medical leave type or group before crediting days.");
       }
 
       for (const employeeId of employeeIds) {
-        await changeCreditedDays(transaction, employeeId, balanceLeaveType.id, credit.category, credit.days);
+        await changeCreditedDays(transaction, employeeId, balanceLeaveType?.id ?? null, credit.category, credit.days);
         await transaction.leaveCredit.create({
           data: {
             employeeId,
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
             days: credit.days,
             startDate: new Date(new Date().toISOString().slice(0, 10)),
             endDate: new Date(new Date().toISOString().slice(0, 10)),
-            leaveTypeId: balanceLeaveType.id,
+            leaveTypeId: balanceLeaveType?.id ?? null,
           },
         });
       }

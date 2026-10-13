@@ -35,33 +35,29 @@ function totalDays(start: string, end: string) {
   return Math.floor((last.getTime() - first.getTime()) / 86_400_000) + 1;
 }
 
-function employeeGroupLabel(selected: EmployeeRow[], allEmployees: EmployeeRow[]) {
-  if (!selected.length) return "";
-  const pairs = new Set(selected.map(({ department, stream }) => `${department} - ${stream}`));
-  const streams = new Set(selected.map(({ stream }) => stream.toUpperCase()));
-  if (pairs.size === 1) return `from ${[...pairs][0]}`;
-  if (streams.size === 1) {
-    const stream = [...streams][0];
-    const streamEmployees = allEmployees.filter((employee) => employee.stream.toUpperCase() === stream);
-    if (streamEmployees.length > 0 && streamEmployees.every(({ employeeId }) =>
-      selected.some((employee) => employee.employeeId === employeeId)
-    )) {
-      return `from all ${stream} departments`;
-    }
-    return "from selected employees";
+function employeeGroupLabel(
+  selectedEmployees: EmployeeRow[],
+  allEmployees: EmployeeRow[],
+  selectedStreams: string[],
+  selectedDepartments: string[],
+) {
+  const scopedEmployees = selectedStreams.length || selectedDepartments.length
+    ? allEmployees.filter((employee) =>
+        (!selectedStreams.length || selectedStreams.includes(employee.stream)) &&
+        (!selectedDepartments.length || selectedDepartments.includes(employee.department))
+      )
+    : selectedEmployees;
+  const pairs = [...new Set(scopedEmployees.map(({ department, stream }) => `${department} - ${stream}`))].sort();
+  if (pairs.length === 0) return "from the selected employees";
+
+  if (selectedStreams.length > 0 && selectedDepartments.length === 0) {
+    return `from all ${selectedStreams.join(" and ")} departments`;
   }
 
-  const aidedAndSfs = allEmployees.filter(({ stream }) => ["AIDED", "SFS"].includes(stream.toUpperCase()));
-  if (
-    streams.size === 2 &&
-    streams.has("AIDED") &&
-    streams.has("SFS") &&
-    aidedAndSfs.length > 0 &&
-    aidedAndSfs.every(({ employeeId }) => selected.some((employee) => employee.employeeId === employeeId))
-  ) {
-    return "from all AIDED and SFS departments";
-  }
-  return "from selected employees";
+  const formattedPairs = pairs.length > 1
+    ? `${pairs.slice(0, -1).join(", ")} and ${pairs[pairs.length - 1]}`
+    : pairs[0];
+  return `from ${formattedPairs}`;
 }
 
 async function readJson<T = Record<string, unknown>>(response: Response): Promise<T> {
@@ -191,7 +187,7 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   const daysToBlock = totalDays(startDate, endDate || startDate);
   const canSubmit = selectedEmployeeIds.length > 0 && (mode === "block" ? daysToBlock > 0 : days > 0);
   const showSummary = selectedEmployees.length > 0 && (mode === "credit" || daysToBlock > 0);
-  const groupLabel = employeeGroupLabel(selectedEmployees, employees);
+  const groupLabel = employeeGroupLabel(selectedEmployees, employees, selectedStreams, selectedDepartments);
   const summary = mode === "block"
     ? `${daysToBlock} day${daysToBlock === 1 ? "" : "s"}, from ${formatDate(startDate)} to ${formatDate(endDate || startDate)}, will be blocked for ${selectedEmployees.length} employee${selectedEmployees.length === 1 ? "" : "s"} (${groupLabel}).`
     : `${days} day${days === 1 ? "" : "s"} will be credited for ${selectedEmployees.length} employee${selectedEmployees.length === 1 ? "" : "s"} (${groupLabel}).`;
@@ -304,8 +300,14 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
             <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${mode === "block"
               ? "xl:grid-cols-[minmax(120px,1fr)_minmax(140px,1.1fr)_minmax(180px,1.35fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
               : "xl:grid-cols-[minmax(130px,1fr)_minmax(150px,1.1fr)_minmax(200px,1.5fr)_minmax(160px,1fr)_auto]"}`}>
-              <FilterMultiSelect label="Stream" options={streams} selected={selectedStreams} onChange={setSelectedStreams} />
-              <FilterMultiSelect label="Department" options={departments} selected={selectedDepartments} onChange={setSelectedDepartments} />
+              <FilterMultiSelect label="Stream" options={streams} selected={selectedStreams} onChange={(values) => {
+                setSelectedStreams(values);
+                setSelectedEmployeeIds([]);
+              }} />
+              <FilterMultiSelect label="Department" options={departments} selected={selectedDepartments} onChange={(values) => {
+                setSelectedDepartments(values);
+                setSelectedEmployeeIds([]);
+              }} />
               <label className="block min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
                 <span className="relative block">

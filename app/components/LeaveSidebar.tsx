@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Ban,
   Coins,
+  FileBarChart,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -26,7 +27,8 @@ export type LeaveSidebarPage =
   | "leave-refresh"
   | "maternity-leave"
   | "block-leave"
-  | "credit-leave";
+  | "credit-leave"
+  | "individual-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -45,6 +47,10 @@ const leaveAdminNavigation = [
   { id: "credit-leave", label: "Credit Leave", href: "/creditleave", Icon: Coins },
   { id: "leave-refresh", label: "Leave Refresh", href: "/leave-refresh", Icon: RefreshCw },
   { id: "maternity-leave", label: "Maternity Leave", href: "/maternity-leave", Icon: Baby },
+] as const;
+
+const leaveReportNavigation = [
+  { id: "individual-report", label: "Individual Report", href: "/leave-report/individual", Icon: FileBarChart },
 ] as const;
 
 type NavItem = { id: string; label: string; href: string; Icon: React.ComponentType<{ size?: number; className?: string }> };
@@ -121,7 +127,7 @@ function SidebarGroup({
 
 export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 hidden min-h-screen w-[175px] border-r border-slate-200 bg-white min-[801px]:block">
+    <aside className="fixed inset-y-0 left-0 z-10 hidden min-h-screen w-[175px] border-r border-slate-200 bg-white min-[801px]:block print:hidden">
       {/* Logo */}
       <Link
         href="/"
@@ -153,6 +159,14 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
           icon={ShieldCheck}
           label="Leave Admin"
           items={leaveAdminNavigation}
+          activePage={activePage}
+        />
+
+        <SidebarGroup
+          key="leave-report"
+          icon={FileBarChart}
+          label="Leave Report"
+          items={leaveReportNavigation}
           activePage={activePage}
         />
       </nav>
