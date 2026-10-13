@@ -5,6 +5,7 @@ export type LeaveTypeInput = {
   name: string;
   leaveGroup: string;
   leaveGroupId?: number;
+  paymentType: "PAID" | "UNPAID";
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
@@ -14,13 +15,14 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
   if (!value || typeof value !== "object") return null;
 
   const input = value as Record<string, unknown>;
-  const { code, name, leaveGroup, leaveGroupId, daysAllowed, description, status } = input;
+  const { code, name, leaveGroup, leaveGroupId, paymentType = "PAID", daysAllowed, description, status } = input;
 
   if (
     typeof code !== "string" || !code.trim() ||
     typeof name !== "string" || !name.trim() ||
     typeof leaveGroup !== "string" || !leaveGroup.trim() ||
     (leaveGroupId !== undefined && (!Number.isSafeInteger(leaveGroupId) || Number(leaveGroupId) <= 0)) ||
+    (paymentType !== "PAID" && paymentType !== "UNPAID") ||
     typeof daysAllowed !== "number" || !Number.isSafeInteger(daysAllowed) || daysAllowed < 1 ||
     typeof description !== "string" ||
     (status !== "ACTIVE" && status !== "INACTIVE" && status !== "Active" && status !== "Inactive")
@@ -33,6 +35,7 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
     name: name.trim().toUpperCase(),
     leaveGroup: leaveGroup.trim().toUpperCase(),
     ...(leaveGroupId === undefined ? {} : { leaveGroupId: Number(leaveGroupId) }),
+    paymentType,
     daysAllowed,
     description: description.trim().toUpperCase(),
     status: status.toUpperCase() as LeaveTypeInput["status"],
@@ -44,6 +47,7 @@ export function serializeLeaveType<T extends {
   code: string;
   name: string;
   leaveGroup: string;
+  paymentType: string | null;
   daysAllowed: number;
   description: string | null;
   status: string;
@@ -58,6 +62,7 @@ export function serializeLeaveType<T extends {
     name: leaveType.name,
     leaveGroup: groups.length ? groups.map((group) => group.name).join(", ") : leaveType.leaveGroup,
     leaveGroupId: groups[0]?.id ?? null,
+    paymentType: leaveType.paymentType === "UNPAID" ? "UNPAID" : "PAID",
     daysAllowed: leaveType.daysAllowed,
     description: leaveType.description ?? "",
     status: leaveType.status.toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE",

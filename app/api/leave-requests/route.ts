@@ -41,28 +41,31 @@ function normalizeStatus(value: unknown): "ACTIVE" | "INACTIVE" {
 }
 
 export async function GET() {
-  const groups = await prisma.leaveGroup.findMany({
-    include: {
-      category: true,
-      items: {
-        include: {
-          leaveType: true,
+  try {
+    const groups = await prisma.leaveGroup.findMany({
+      include: {
+        category: true,
+        items: {
+          include: {
+            leaveType: true,
+          },
         },
       },
-    },
-    orderBy: {
-      effectiveFrom: "desc",
-    },
-  });
+      orderBy: { effectiveFrom: "desc" },
+    });
 
-  return Response.json({ data: groups });
+    return Response.json({ data: groups });
+  } catch (error) {
+    console.error("Failed to load leave groups:", error);
+    return Response.json({ error: "Unable to load leave groups from the database." }, { status: 503 });
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const selectedCodes = Array.isArray(body.leaveTypeCodes)
-      ? [...new Set(body.leaveTypeCodes.map((code: unknown) => String(code)))]
+      ? [...new Set<string>(body.leaveTypeCodes.map((code: unknown) => String(code)))]
       : [];
     const categoryId = Number(body.categoryId);
 

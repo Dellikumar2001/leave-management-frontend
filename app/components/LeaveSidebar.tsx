@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
   Baby,
   ChevronRight,
   ClipboardList,
+  Ban,
+  Coins,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -22,7 +24,9 @@ export type LeaveSidebarPage =
   | "holiday-calendar"
   | "settings"
   | "leave-refresh"
-  | "maternity-leave";
+  | "maternity-leave"
+  | "block-leave"
+  | "credit-leave";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -37,6 +41,8 @@ const leaveSettingsNavigation = [
 ] as const;
 
 const leaveAdminNavigation = [
+  { id: "block-leave", label: "Block Leave", href: "/block-leave", Icon: Ban },
+  { id: "credit-leave", label: "Credit Leave", href: "/creditleave", Icon: Coins },
   { id: "leave-refresh", label: "Leave Refresh", href: "/leave-refresh", Icon: RefreshCw },
   { id: "maternity-leave", label: "Maternity Leave", href: "/maternity-leave", Icon: Baby },
 ] as const;
@@ -57,17 +63,19 @@ function SidebarGroup({
   defaultOpen?: boolean;
 }) {
   const isChildActive = items.some((item) => item.id === activePage);
-  const [isOpen, setIsOpen] = useState(defaultOpen || isChildActive);
-
-  useEffect(() => {
-    if (isChildActive) setIsOpen(true);
-  }, [activePage, isChildActive]);
+  const [openState, setOpenState] = useState(() => ({
+    activePage,
+    isOpen: defaultOpen || isChildActive,
+  }));
+  const isOpen = openState.activePage === activePage
+    ? openState.isOpen
+    : defaultOpen || isChildActive;
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => setOpenState({ activePage, isOpen: !isOpen })}
         aria-expanded={isOpen}
         className={`flex w-full min-h-[38px] items-center justify-between rounded-md px-3 text-[13px] font-medium transition-colors ${
           isChildActive
@@ -131,6 +139,7 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
       <nav className="space-y-1 px-2 py-3" aria-label="Main navigation">
         {/* Leave Settings */}
         <SidebarGroup
+          key="leave-settings"
           icon={Settings}
           label="Leave Settings"
           items={leaveSettingsNavigation}
@@ -140,6 +149,7 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
 
         {/* Leave Administration */}
         <SidebarGroup
+          key="leave-admin"
           icon={ShieldCheck}
           label="Leave Admin"
           items={leaveAdminNavigation}

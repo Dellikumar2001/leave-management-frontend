@@ -15,6 +15,8 @@ npm run dev
 
 The leave type table starts empty. Leave type list, create, edit, view, and delete actions use Prisma and PostgreSQL; no sample records are inserted.
 
+See [LEAVE-ADMINISTRATION.md](./LEAVE-ADMINISTRATION.md) for Block Leave and Credit Leave database setup, APIs, migrations, balance behavior, blocked-date enforcement, and troubleshooting.
+
 ## Getting Started
 
 First, run the development server:

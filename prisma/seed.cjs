@@ -14,6 +14,17 @@ const employees = [
 ];
 
 async function main() {
+  for (const category of [
+    { code: "ANNUAL", name: "Annual", description: "Annual leave balances and requests." },
+    { code: "MEDICAL", name: "Medical", description: "Medical leave balances and requests." },
+  ]) {
+    await prisma.leaveCategoryMaster.upsert({
+      where: { code: category.code },
+      update: { name: category.name, description: category.description },
+      create: category,
+    });
+  }
+
   const leaveTypes = await prisma.leaveType.findMany();
 
   for (const employee of employees) {
