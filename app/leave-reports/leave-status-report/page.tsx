@@ -633,18 +633,6 @@ export default function LeaveStatusReportPage() {
             )}
           </section>
 
-          {/* ── Active date range badge (shown only after generating) */}
-          {hasGenerated && (startDate || endDate) && !dateError && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 normal-case">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                Date filter active:&nbsp;
-                <strong>{startDate || "Any"}</strong>
-                &nbsp;→&nbsp;
-                <strong>{endDate || "Any"}</strong>
-              </span>
-            </div>
-          )}
 
           {/* ── Table Showcase OR Placeholder */}
           {!hasGenerated ? (
@@ -740,34 +728,18 @@ export default function LeaveStatusReportPage() {
                 </table>
               </div>
 
-              {/* ── Footer summary & Export Trigger Button */}
+              {/* ── Footer Export Trigger Button */}
               {!isGenerating && !error && visibleEmployees.length > 0 && (
-                <div className="border-t border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
-                  <p className="text-xs text-slate-500 normal-case">
-                    Showing{" "}
-                    <strong className="text-slate-700">{visibleEmployees.length}</strong> of{" "}
-                    <strong className="text-slate-700">{reportEmployees.length}</strong> employee
-                    {reportEmployees.length !== 1 ? "s" : ""}
-                    {(startDate || endDate) && !dateError && (
-                      <>
-                        &nbsp;&middot; Period:{" "}
-                        <strong className="text-slate-700">{startDate || "Any"}</strong>
-                        {" → "}
-                        <strong className="text-slate-700">{endDate || "Any"}</strong>
-                      </>
-                    )}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      id="btn-export-leave-status-footer"
-                      type="button"
-                      onClick={handleToggleExportPreview}
-                      className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-4 text-xs font-semibold text-white hover:bg-slate-700 transition-colors normal-case shadow-xs cursor-pointer"
-                    >
-                      <Download size={14} aria-hidden="true" />
-                      <span>Export</span>
-                    </button>
-                  </div>
+                <div className="border-t border-slate-200 px-5 py-3.5 flex items-center justify-end bg-slate-50">
+                  <button
+                    id="btn-export-leave-status-footer"
+                    type="button"
+                    onClick={handleToggleExportPreview}
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-4 text-xs font-semibold text-white hover:bg-slate-700 transition-colors normal-case shadow-xs cursor-pointer"
+                  >
+                    <Download size={14} aria-hidden="true" />
+                    <span>Export</span>
+                  </button>
                 </div>
               )}
             </main>
