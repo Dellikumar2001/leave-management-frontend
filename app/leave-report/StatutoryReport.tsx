@@ -570,7 +570,7 @@ export default function StatutoryReport() {
       >
         <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-10">
           {/* Stream Dropdown */}
-          <div className="flex min-w-0 flex-col gap-1 xl:col-span-1">
+          <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
             <label htmlFor="filter-stream" className="text-[11px] font-semibold uppercase text-slate-500">
               Stream <span className="text-emerald-600">*</span>
             </label>
