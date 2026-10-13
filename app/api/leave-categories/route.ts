@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const categories = await prisma.leaveCategoryMaster.findMany({
-    orderBy: { name: "asc" },
-  });
+  try {
+    const categories = await prisma.leaveCategoryMaster.findMany({
+      orderBy: { name: "asc" },
+    });
 
-  return Response.json({ data: categories });
+    return Response.json({ data: categories });
+  } catch (error) {
+    console.error("Failed to load leave categories:", error);
+    return Response.json({ error: "Unable to load leave categories. Check database connection." }, { status: 503 });
+  }
 }
 
 export async function POST(request: Request) {

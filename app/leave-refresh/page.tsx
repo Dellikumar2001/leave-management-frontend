@@ -385,17 +385,23 @@ export default function LeaveRefreshPage() {
             className="mt-4 flex flex-wrap items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             {/* Stream single-select */}
-            <select
-              id="filter-stream"
-              aria-label="Filter by stream"
-              value={streamFilter}
-              onChange={(e) => setStreamFilter(e.target.value)}
-              className="h-10 min-w-[120px] rounded-md border border-slate-300 bg-white px-3 text-sm normal-case text-slate-700 outline-none focus:border-blue-400"
-            >
-              <option value="">All Streams</option>
-              <option value="SFS">SFS</option>
-              <option value="AIDED">AIDED</option>
-            </select>
+            <div className="relative min-w-[140px]">
+              <select
+                id="filter-stream"
+                aria-label="Filter by stream"
+                value={streamFilter}
+                onChange={(e) => setStreamFilter(e.target.value)}
+                className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-9 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-blue-400"
+              >
+                <option value="">All Streams</option>
+                <option value="SFS">SFS</option>
+                <option value="AIDED">AIDED</option>
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+            </div>
 
             {/* Departments multi-select */}
             <MultiSelect
