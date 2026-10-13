@@ -10,7 +10,6 @@ import {
   FileSpreadsheet,
   FileText,
   RefreshCw,
-  Search,
   X,
 } from "lucide-react";
 import LeaveSidebar from "../../components/LeaveSidebar";
@@ -116,9 +115,6 @@ export default function LeaveStatusReportPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [dateError, setDateError] = useState("");
-
-  // Search within generated report
-  const [search, setSearch] = useState("");
 
   // Load initial dropdown options on mount
   useEffect(() => {
@@ -232,19 +228,16 @@ export default function LeaveStatusReportPage() {
     }
   };
 
-  // Visible rows after search and status filter applied to generated report
+  // Visible rows after status filter applied to generated report
   const visibleEmployees = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return reportEmployees.filter((e) => {
       if (streamFilter && e.stream !== streamFilter) return false;
       if (departmentFilter && e.department !== departmentFilter) return false;
       if (employeeFilter && e.employeeId !== employeeFilter) return false;
       if (statusFilter && e.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
-      if (q && !e.name.toLowerCase().includes(q) && !e.employeeId.toLowerCase().includes(q))
-        return false;
       return true;
     });
-  }, [reportEmployees, streamFilter, departmentFilter, employeeFilter, statusFilter, search]);
+  }, [reportEmployees, streamFilter, departmentFilter, employeeFilter, statusFilter]);
 
   // Toggle preview and smoothly scroll down to it
   const handleToggleExportPreview = () => {
@@ -615,23 +608,6 @@ export default function LeaveStatusReportPage() {
                 aria-hidden="true"
               />
             </div>
-
-            {/* Search */}
-            <label className="relative min-w-[170px] flex-1">
-              <Search
-                aria-hidden="true"
-                size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="search"
-                aria-label="Search employees"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search employees…"
-                className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm normal-case text-slate-700 outline-none placeholder:text-slate-400 transition-colors focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
-              />
-            </label>
 
             {/* Top Generate Button — triggers generation of the table */}
             <button
