@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, Download, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Download } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveType = {
@@ -45,51 +45,126 @@ async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   return result as LeaveEligibilityData;
 }
 
-function CheckboxFilter({
+function MultiSelectDropdown({
   label,
   options,
   selectedValues,
   onChange,
+  disabled = false,
 }: {
   label: string;
   options: string[];
   selectedValues: string[];
   onChange: (values: string[]) => void;
+  disabled?: boolean;
 }) {
-  const summary = selectedValues.length === 0
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const displayLabel = disabled
+    ? `Select ${label}`
+    : selectedValues.length === 0
     ? `All ${label}`
     : selectedValues.length === 1
-      ? selectedValues[0]
-      : `${selectedValues.length} ${label.toLowerCase()} selected`;
+    ? selectedValues[0]
+    : `${selectedValues.length} ${label} selected`;
 
   return (
-    <details className="group relative min-w-48 flex-1 xl:flex-none">
-      <summary
-        aria-label={`Filter by ${label.toLowerCase()}`}
-        className="flex h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus-visible:border-blue-400 [&::-webkit-details-marker]:hidden"
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${
+          disabled
+            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+            : isOpen
+            ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
+            : "border-slate-300 text-slate-600 hover:border-slate-400"
+        }`}
       >
-        <span className="truncate">{summary}</span>
-        <ChevronDown aria-hidden="true" size={16} className="shrink-0 text-slate-400" />
-      </summary>
-      <div className="absolute left-0 top-full z-20 mt-1 max-h-60 min-w-full overflow-y-auto rounded-md border border-slate-200 bg-white p-2 shadow-lg">
-        {options.map((option) => (
-          <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-slate-700 hover:bg-slate-50">
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="p-2 border-b border-slate-100">
             <input
-              type="checkbox"
-              checked={selectedValues.includes(option)}
-              onChange={(event) => onChange(
-                event.target.checked
-                  ? [...selectedValues, option]
-                  : selectedValues.filter((value) => value !== option)
-              )}
-              className="size-4 accent-slate-800"
+              type="text"
+              placeholder="Filter list..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded bg-slate-50 px-2.5 py-1.5 text-xs normal-case text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400"
             />
-            <span className="whitespace-nowrap">{option}</span>
-          </label>
-        ))}
-        {options.length === 0 && <p className="px-2 py-2 text-sm text-slate-400">No options available</p>}
-      </div>
-    </details>
+          </div>
+
+          <div className="max-h-52 overflow-y-auto p-1.5">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-xs font-medium normal-case text-slate-700 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option)}
+                    onChange={(e) => {
+                      onChange(
+                        e.target.checked
+                          ? [...selectedValues, option]
+                          : selectedValues.filter((v) => v !== option)
+                      );
+                    }}
+                    className="size-3.5 rounded border-slate-300 text-blue-600 focus:ring-0"
+                  />
+                  <span className="truncate uppercase">{option}</span>
+                </label>
+              ))
+            ) : (
+              <p className="py-3 text-center text-xs text-slate-400 normal-case">No options found</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs normal-case">
+            <button
+              type="button"
+              onClick={() => onChange(Array.from(new Set([...selectedValues, ...filteredOptions])))}
+              className="text-emerald-700 hover:text-emerald-800 font-medium"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -98,21 +173,60 @@ export default function LeaveEligibilityPage() {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
-  const streams = [...new Set(employees.map((employee) => employee.stream))].sort();
-  const departments = [...new Set(employees.map((employee) => employee.department))].sort();
-  const employeeNames = [...new Set(employees.map((employee) => employee.name))].sort();
+
+  // Step 1: All available streams
+  const streams = [...new Set(employees.map((employee) => employee.stream))].filter(Boolean).sort();
+
+  // Step 2: Departments disabled until Stream is chosen
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const departments = isDepartmentDisabled
+    ? []
+    : [
+        ...new Set(
+          employees
+            .filter((employee) => streamFilters.includes(employee.stream))
+            .map((employee) => employee.department)
+        ),
+      ].filter(Boolean).sort();
+
+  // Step 3: Employees disabled until Department is chosen
+  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const availableEmployees = isEmployeeDisabled
+    ? []
+    : employees.filter(
+        (employee) => streamFilters.includes(employee.stream) && departmentFilters.includes(employee.department)
+      );
+
+  const employeeNames = [...new Set(availableEmployees.map((employee) => employee.name))].filter(Boolean).sort();
+
+  const handleStreamChange = (newStreams: string[]) => {
+    setStreamFilters(newStreams);
+    setDepartmentFilters([]);
+    setEmployeeNameFilters([]);
+  };
+
+  const handleDepartmentChange = (newDepts: string[]) => {
+    setDepartmentFilters(newDepts);
+    setEmployeeNameFilters([]);
+  };
+
+  const handleEmployeeNameChange = (newNames: string[]) => {
+    setEmployeeNameFilters(newNames);
+  };
+
   const leaveTypeColumnCount = Math.max(leaveTypes.length, 1);
-  const normalizedSearch = search.trim().toLowerCase();
-  const visibleEmployees = employees.filter((employee) =>
-    (streamFilters.length === 0 || streamFilters.includes(employee.stream)) &&
-    (departmentFilters.length === 0 || departmentFilters.includes(employee.department)) &&
-    (employeeNameFilters.length === 0 || employeeNameFilters.includes(employee.name)) &&
-    (!normalizedSearch || employee.name.toLowerCase().includes(normalizedSearch) || employee.employeeId.toLowerCase().includes(normalizedSearch))
-  );
+
+  const visibleEmployees = employees.filter((employee) => {
+    if (streamFilters.length > 0 && !streamFilters.includes(employee.stream)) return false;
+    if (departmentFilters.length > 0 && !departmentFilters.includes(employee.department)) return false;
+    if (employeeNameFilters.length > 0 && !employeeNameFilters.includes(employee.name)) return false;
+    return true;
+  });
+
   const handleExport = () => {
     const rows = [
       ["EMPLOYEE ID", "EMPLOYEE NAME", "STREAM", "DEPARTMENT", ...leaveTypes.map((leaveType) => `ELIGIBILITY: ${leaveType.code}`), ...leaveTypes.map((leaveType) => `BALANCE: ${leaveType.code}`)],
@@ -133,7 +247,6 @@ export default function LeaveEligibilityPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
-
 
   useEffect(() => {
     let isMounted = true;
@@ -168,27 +281,48 @@ export default function LeaveEligibilityPage() {
             <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
           </header>
 
-          <section aria-label="Employee filters" className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center">
-            <CheckboxFilter label="Streams" options={streams} selectedValues={streamFilters} onChange={setStreamFilters} />
-            <CheckboxFilter label="Departments" options={departments} selectedValues={departmentFilters} onChange={setDepartmentFilters} />
-            <CheckboxFilter label="Employee Names" options={employeeNames} selectedValues={employeeNameFilters} onChange={setEmployeeNameFilters} />
-
-            <label className="relative min-w-48 flex-1">
-              <Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-3 text-slate-400" />
-              <input
-                type="search"
-                aria-label="Search employees"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search employees"
-                className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400"
+          {/* Equal split filter bar without search bar */}
+          <section
+            aria-label="Employee filters"
+            className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
+          >
+            {/* Step 1: Stream Dropdown */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Streams"
+                options={streams}
+                selectedValues={streamFilters}
+                onChange={handleStreamChange}
               />
-            </label>
+            </div>
 
+            {/* Step 2: Department Dropdown (Unlocked after Stream selection) */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Departments"
+                options={departments}
+                selectedValues={departmentFilters}
+                onChange={handleDepartmentChange}
+                disabled={isDepartmentDisabled}
+              />
+            </div>
+
+            {/* Step 3: Employee Name Dropdown (Unlocked after Department selection) */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Employee Names"
+                options={employeeNames}
+                selectedValues={employeeNameFilters}
+                onChange={handleEmployeeNameChange}
+                disabled={isEmployeeDisabled}
+              />
+            </div>
+
+            {/* Export Button */}
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-slate-800 px-4 text-sm font-medium text-white hover:bg-slate-700"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-slate-800 px-5 text-sm font-medium text-white hover:bg-slate-700"
             >
               <Download size={16} aria-hidden="true" />
               Export

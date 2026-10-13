@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, Eye, Pencil, Trash2, X } from "lucide-react";
+import { Search, Plus, Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveGroup = {
@@ -75,8 +75,9 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-                }`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
+                isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
+              }`}
               title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
@@ -89,46 +90,6 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
   );
 }
 
-// ---- Seed data (replace with API data) -------------------------------------
-// const initialGroups: LeaveGroup[] = [
-//   {
-//     id: 1,
-//     code: "GEN",
-//     name: "General Leave",
-//     leaveTypes: ["CL", "AL", "EL"],
-//     effectiveFrom: "2024-01-01",
-//     status: "Active",
-//     isUsed: true,
-//   },
-//   {
-//     id: 2,
-//     code: "MED",
-//     name: "Medical Leave",
-//     leaveTypes: ["ML", "SL"],
-//     effectiveFrom: "2024-01-01",
-//     status: "Active",
-//     isUsed: false,
-//   },
-//   {
-//     id: 3,
-//     code: "UNP",
-//     name: "Unpaid Leave",
-//     leaveTypes: ["LOP"],
-//     effectiveFrom: "2024-01-01",
-//     status: "Active",
-//     isUsed: true,
-//   },
-//   {
-//     id: 4,
-//     code: "SPE",
-//     name: "Special Leave",
-//     leaveTypes: ["PL", "CO"],
-//     effectiveFrom: "2024-01-01",
-//     status: "Active",
-//     isUsed: false,
-//   },
-// ];
-
 const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   id: Number(group.id),
   code: String(group.code),
@@ -136,8 +97,8 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   categoryName: group.category?.name ?? null,
   leaveTypes: Array.isArray(group.items)
     ? group.items
-      .filter((item) => item.leaveType?.status === "ACTIVE")
-      .map((item) => item.leaveType?.code ?? "")
+        .filter((item) => item.leaveType?.status === "ACTIVE")
+        .map((item) => item.leaveType?.code ?? "")
     : [],
   effectiveFrom: new Date(group.effectiveFrom).toISOString().split("T")[0],
   status: group.status === "ACTIVE" ? "Active" : "Inactive",
@@ -154,7 +115,7 @@ const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }
   const items = Array.isArray(json) ? json : [];
   return items.map((item: { code?: string | null; name?: string | null }) => ({
     value: String(item.code ?? ""),
-    label: `${item.code ?? ""} - ${item.name ?? ""}`,
+    label: `${item.code ?? ""} ${item.name ?? ""}`,
   }));
 };
 
@@ -212,7 +173,9 @@ function LeaveTypeMultiSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((current) => !current)}
-        className={`flex w-full min-h-[46px] flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 outline-none transition focus:border-blue-300 ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"}`}
+        className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 outline-none transition focus:border-blue-300 ${
+          disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"
+        }`}
       >
         <div className="flex flex-1 flex-wrap gap-2">
           {values.length > 0 ? (
@@ -255,7 +218,7 @@ function LeaveTypeMultiSelect({
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
                   />
                   <span className="text-sm font-medium text-slate-700">{option.value}</span>
-                  <span className="text-xs text-slate-500">{option.label.replace(`${option.value} - `, "")}</span>
+                  <span className="text-xs text-slate-500">{option.label.replace(`${option.value}`, "")}</span>
                 </label>
               );
             })
@@ -420,104 +383,57 @@ export default function StudentLeaveRequestsPage() {
       <LeaveSidebar activePage="leave-requests" />
       <div className="p-4 min-[801px]:ml-[175px] uppercase">
         <div className="mx-auto max-w-[1400px]">
-          <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="relative w-[360px]">
-                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-                  <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                </span>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search menu, employee, reports..."
-                  className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
-                aria-label="Notifications"
-              >
-                <span className="relative">
-                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M10 20a2 2 0 0 0 4 0" strokeLinecap="round" />
-                  </svg>
-                </span>
-              </button>
-
-              <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d9d9d9] text-xs font-bold text-slate-700">
-                  CA
-                </div>
-                <div className="leading-tight">
-                  <div className="text-sm font-semibold text-slate-700">Charles A</div>
-                  <div className="text-[11px] text-slate-500">Admin</div>
-                </div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-slate-500">
-                  <path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-            </div>
+          {/* Header matched to Leave Eligibility banner */}
+          <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-800">Leave Group</h1>
           </header>
 
-          <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-[#f5f7fa] shadow-sm">
-            <div className="flex items-center justify-between px-5 py-5">
-              <div>
-                <h1 className="text-[42px] font-bold tracking-[-0.05em] text-slate-800">Leave Group</h1>
-                <p className="mt-1 text-lg text-slate-500">Create and manage leave groups to categorize leave types.</p>
+          {/* Inline Filter & Action bar styled matching Maternity Leave / Leave Eligibility */}
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {/* Search Bar - matching Maternity Leave input style */}
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by group code, name, or leave type..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm normal-case text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                />
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#2f5fbb] px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#294f9c]"
-              >
-                <Plus size={16} />
-                Create Leave Group
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-200 bg-[#eef2f7] px-5 py-4">
-              {/* <div className="relative w-[420px]">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-                <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-              </span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by group code or name..."
-                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
-              />
-            </div> */}
-              <div className="mt-1 text-sl text-slate-500">{filteredGroups.length} Groups</div>
-
-              <div className="relative">
+              {/* Status Dropdown - matching Stream/Department filter button size */}
+              <div className="relative min-w-[170px]">
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="appearance-none rounded-xl border border-slate-300 bg-white px-4 py-2.5 pr-10 text-sm text-slate-700 outline-none focus:border-blue-300"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 pr-9 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option>All Status</option>
                   <option>Active</option>
                   <option>Inactive</option>
                 </select>
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                    <path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
-            </div>
 
+              {/* Create Button - inline with search & status filter */}
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c]"
+              >
+                <Plus size={16} />
+                Create Leave Group
+              </button>
+            </div>
+          </div>
+
+          <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left">
                 <thead>
-                  <tr className="bg-[#eef2f7] text-sm font-semibold text-slate-700">
+                  <tr className="bg-[#f8fafc] text-sm font-semibold text-slate-700">
                     <th className="border-b border-slate-200 px-5 py-4">Sno</th>
                     <th className="border-b border-slate-200 px-5 py-4">Group Code</th>
                     <th className="border-b border-slate-200 px-5 py-4">Group Name</th>
@@ -525,12 +441,12 @@ export default function StudentLeaveRequestsPage() {
                     <th className="border-b border-slate-200 px-5 py-4">Leave Types</th>
                     <th className="border-b border-slate-200 px-5 py-4">Effective From</th>
                     <th className="border-b border-slate-200 px-5 py-4">Status</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Actions</th>
+                    <th className="border-b border-slate-200 px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredGroups.map((group, index) => (
-                    <tr key={group.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc]">
+                    <tr key={group.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.name}</td>
@@ -556,10 +472,11 @@ export default function StudentLeaveRequestsPage() {
                       </td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${group.status === "Active"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-200 text-slate-600"
-                            }`}
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                            group.status === "Active"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-slate-200 text-slate-600"
+                          }`}
                         >
                           {group.status}
                         </span>
@@ -574,11 +491,18 @@ export default function StudentLeaveRequestsPage() {
                       </td>
                     </tr>
                   ))}
+                  {filteredGroups.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-5 py-12 text-center text-sm normal-case text-slate-500">
+                        No leave groups match your filter criteria.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-200 bg-[#eef2f7] px-5 py-4 text-sm text-slate-500">
+            <div className="flex items-center justify-between border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm text-slate-500">
               <div>Showing 1 to {filteredGroups.length} of {filteredGroups.length} entries</div>
 
               <div className="flex items-center gap-2">

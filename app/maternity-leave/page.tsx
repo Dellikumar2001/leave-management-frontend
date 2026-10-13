@@ -20,8 +20,8 @@ type SupportingDocumentRule = {
 
 type MaternityRecord = {
   employeeId: string;
-  name: string;
-  days: string;
+  employeeName: string;
+  noOfDays: number;
   remarks: string;
   status: "Active" | "Inactive";
 };
@@ -57,12 +57,13 @@ function MultiSelectDropdown({
     opt.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const displayLabel =
-    selectedValues.length === 0
-      ? `All ${label}`
-      : selectedValues.length === 1
-      ? selectedValues[0]
-      : `${selectedValues.length} ${label} selected`;
+  const displayLabel = disabled
+    ? `Select ${label}`
+    : selectedValues.length === 0
+    ? `Select ${label}`
+    : selectedValues.length === 1
+    ? selectedValues[0]
+    : `${selectedValues.length} ${label} selected`;
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -209,38 +210,42 @@ export default function MaternityLeavePage() {
     (emp) => !emp.gender || emp.gender.toLowerCase() === "female" || emp.gender.toLowerCase() === "f"
   );
 
+  // Step 1: All available streams
   const streams = [...new Set(femaleEmployees.map((e) => e.stream))].filter(Boolean).sort();
 
-  const departments = [
-    ...new Set(
-      femaleEmployees
-        .filter((e) => streamFilters.length === 0 || streamFilters.includes(e.stream))
-        .map((e) => e.department)
-    ),
-  ].filter(Boolean).sort();
+  // Step 2: Departments only unlocked and computed after Stream is selected
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const departments = isDepartmentDisabled
+    ? []
+    : [
+        ...new Set(
+          femaleEmployees
+            .filter((e) => streamFilters.includes(e.stream))
+            .map((e) => e.department)
+        ),
+      ].filter(Boolean).sort();
 
-  const availableEmployees = femaleEmployees.filter((e) => {
-    const matchesStream = streamFilters.length === 0 || streamFilters.includes(e.stream);
-    const matchesDept = departmentFilters.length === 0 || departmentFilters.includes(e.department);
-    return matchesStream && matchesDept;
-  });
+  // Step 3: Employees only unlocked and computed after Department is selected
+  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const availableEmployees = isEmployeeDisabled
+    ? []
+    : femaleEmployees.filter(
+        (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+      );
 
   const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
 
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
-    setDepartmentFilters((prevDepts) => {
-      const validDepts = femaleEmployees
-        .filter((e) => newStreams.length === 0 || newStreams.includes(e.stream))
-        .map((e) => e.department);
-      return prevDepts.filter((d) => validDepts.includes(d));
-    });
+    // Reset downstream selections when stream changes or is cleared
+    setDepartmentFilters([]);
     setEmployeeNameFilters([]);
     setSelectedEmployee(null);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    // Reset employee selection when department changes or is cleared
     setEmployeeNameFilters([]);
     setSelectedEmployee(null);
   };
@@ -263,17 +268,30 @@ export default function MaternityLeavePage() {
   useEffect(() => {
     let isMounted = true;
 
-    fetch("/api/leave-eligibility?gender=female", { cache: "no-store" })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error ?? "Unable to load employees.");
-        return result as { employees: Employee[] };
+    Promise.all([
+      fetch("/api/leave-eligibility?gender=female", { cache: "no-store" }),
+      fetch("/api/maternity-leave", { cache: "no-store" }),
+    ])
+      .then(async ([employeeResponse, recordResponse]) => {
+        const [employeeResult, recordResult] = await Promise.all([
+          employeeResponse.json(),
+          recordResponse.json(),
+        ]);
+        if (!employeeResponse.ok) throw new Error(employeeResult.error ?? "Unable to load employees.");
+        if (!recordResponse.ok) throw new Error(recordResult.error ?? "Unable to load maternity leave records.");
+        return {
+          employees: employeeResult.employees as Employee[],
+          records: recordResult.records as MaternityRecord[],
+        };
       })
       .then((result) => {
-        if (isMounted) setEmployees(result.employees);
+        if (isMounted) {
+          setEmployees(result.employees);
+          setSubmittedRecords(result.records);
+        }
       })
       .catch((loadError: unknown) => {
-        if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load employees.");
+        if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load maternity leave data.");
       });
 
     return () => {
@@ -291,7 +309,7 @@ export default function MaternityLeavePage() {
     e.preventDefault();
 
     if (!selectedEmployee) {
-      alert("Please select a female employee.");
+      alert("Please select an employee.");
       return;
     }
 
@@ -300,40 +318,40 @@ export default function MaternityLeavePage() {
       return;
     }
 
-    const newRecord: MaternityRecord = {
-      employeeId: selectedEmployee.employeeId,
-      name: selectedEmployee.name,
-      days,
-      remarks: remarksText.trim() || "No remarks provided",
-      status: "Active",
-    };
-
     try {
-      await fetch("/api/maternity-leave", {
+      const response = await fetch("/api/maternity-leave", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newRecord),
+        body: JSON.stringify({
+          employeeId: selectedEmployee.employeeId,
+          noOfDays: Number(days),
+          remarks: remarksText.trim() || "No remarks provided",
+        }),
       });
-    } catch {
-      // Continue updating UI
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Unable to save maternity leave record.");
+      setError("");
+      setSubmittedRecords((prev) => [
+        ...prev.filter((item) => item.employeeId !== selectedEmployee.employeeId),
+        result.record as MaternityRecord,
+      ]);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Unable to save maternity leave record.");
     }
-
-    setSubmittedRecords((prev) => [
-      ...prev.filter((item) => item.employeeId !== selectedEmployee.employeeId),
-      newRecord,
-    ]);
   };
 
   const handleInactiveAndDelete = async (employeeId: string) => {
     try {
-      await fetch(`/api/maternity-leave?employeeId=${encodeURIComponent(employeeId)}`, {
+      const response = await fetch(`/api/maternity-leave?employeeId=${encodeURIComponent(employeeId)}`, {
         method: "DELETE",
       });
-    } catch {
-      // Continue updating UI
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Unable to delete maternity leave record.");
+      setError("");
+      setSubmittedRecords((prev) => prev.filter((record) => record.employeeId !== employeeId));
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete maternity leave record.");
     }
-
-    setSubmittedRecords((prev) => prev.filter((r) => r.employeeId !== employeeId));
   };
 
   return (
@@ -351,9 +369,10 @@ export default function MaternityLeavePage() {
             </div>
           </header>
 
-          {/* Equal-spaced full row for Stream, Department, and Employee Name */}
+          {/* Sequential 3-Step Selection Row */}
           <div className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+              {/* Step 1: Streams always active */}
               <div className="w-full">
                 <MultiSelectDropdown
                   label="Streams"
@@ -363,21 +382,25 @@ export default function MaternityLeavePage() {
                 />
               </div>
 
+              {/* Step 2: Departments disabled until Stream is chosen */}
               <div className="w-full">
                 <MultiSelectDropdown
                   label="Departments"
                   options={departments}
                   selectedValues={departmentFilters}
                   onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
                 />
               </div>
 
+              {/* Step 3: Employee Names disabled until Department is chosen */}
               <div className="w-full">
                 <MultiSelectDropdown
                   label="Employee Names"
                   options={employeeNames}
                   selectedValues={employeeNameFilters}
                   onChange={handleEmployeeNameChange}
+                  disabled={isEmployeeDisabled}
                 />
               </div>
             </div>
@@ -543,8 +566,8 @@ export default function MaternityLeavePage() {
                     {submittedRecords.map((record) => (
                       <tr key={record.employeeId} className="border-t border-slate-200 hover:bg-slate-50/60">
                         <td className="px-6 py-4 font-medium text-slate-700">{record.employeeId}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-800">{record.name}</td>
-                        <td className="px-6 py-4 text-slate-700">{record.days} days</td>
+                        <td className="px-6 py-4 font-semibold text-slate-800">{record.employeeName}</td>
+                        <td className="px-6 py-4 text-slate-700">{record.noOfDays} days</td>
                         <td className="max-w-xs truncate px-6 py-4 text-slate-600">{record.remarks}</td>
                         <td className="px-6 py-4">
                           <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
@@ -632,7 +655,7 @@ export default function MaternityLeavePage() {
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Paperclip className="size-5 rotate-45 text-blue-600" />
-                <h2 className="text-base font-bold text-slate-900">Supporting Documents</h2>
+                <h2 className="text-base font-bold text-slate-900">Supporting Documents[cite: 2]</h2>
               </div>
               <button
                 type="button"
@@ -651,14 +674,14 @@ export default function MaternityLeavePage() {
                     idx !== 0 ? "border-t border-slate-100" : ""
                   }`}
                 >
-                  <span className="text-sm font-medium text-slate-700">{doc.name}</span>
+                  <span className="text-sm font-medium text-slate-700">{doc.name}[cite: 2]</span>
                   <div className="flex items-center gap-3">
                     <ToggleSwitch
                       checked={doc.required}
                       onChange={(val) => toggleDocumentRequirement(doc.id, val)}
                     />
                     <span className="w-16 text-right text-xs font-medium text-slate-700">
-                      {doc.required ? "Required" : "Optional"}
+                      {doc.required ? "Required" : "Optional"}[cite: 2]
                     </span>
                   </div>
                 </div>

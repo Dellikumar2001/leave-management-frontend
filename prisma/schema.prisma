@@ -54,7 +54,7 @@ model LeaveType {
   name                String
   leaveGroup          String                     @default("") @map("leave_group")
   category            LeaveCategory?
-  daysAllowed         Int                        @map("days")
+  daysAllowed         Int                        @map("days_allowed")
   description         String?
   status              LeaveStatus                @default(ACTIVE)
   applicableTo        EmployeeCategory[]         @default([STUDENT])
@@ -63,6 +63,8 @@ model LeaveType {
   updatedAt           DateTime                   @updatedAt
   employeeEligibility EmployeeLeaveEligibility[]
   groupItems          LeaveGroupItem[]
+
+  @@map("leave_types")
 }
 
 model Employee {
@@ -70,7 +72,9 @@ model Employee {
   name         String
   stream       String
   department   String
+  gender       String
   leaveRecords EmployeeLeaveEligibility[]
+  maternityLeave MaternityLeave?
 
   @@map("employees")
 }
@@ -88,6 +92,16 @@ model EmployeeLeaveEligibility {
   @@id([employeeId, leaveTypeId])
   @@index([leaveTypeId])
   @@map("employee_leave_eligibilities")
+}
+
+model MaternityLeave {
+  employeeId   String   @id @map("employee_id")
+  employeeName String   @map("employee_name")
+  noOfDays     Int      @map("no_of_days")
+  remarks      String
+  employee     Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@map("maternity_leaves")
 }
 
 model LeaveCategoryMaster {

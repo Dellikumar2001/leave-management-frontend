@@ -3,23 +3,25 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const employees = [
-  { employeeId: "EMP-001", name: "Anandh", stream: "SFS", department: "Computer Science" },
-  { employeeId: "EMP-002", name: "Arjun", stream: "AIDED", department: "Commerce" },
-  { employeeId: "EMP-003", name: "Diya Menon", stream: "SFS", department: "English" },
-  { employeeId: "EMP-004", name: "cenkatesh", stream: "AIDED", department: "Mathematics" },
-  { employeeId: "EMP-005", name: "Kavya", stream: "SFS", department: "Physics" },
-  { employeeId: "EMP-006", name: "Rohan Das", stream: "AIDED", department: "Computer Science" },
-  { employeeId: "EMP-007", name: "Sneha Thomas", stream: "SFS", department: "Commerce" },
-  { employeeId: "EMP-008", name: "Vikram", stream: "AIDED", department: "English" },
+  { employeeId: "EMP-001", name: "Anandh", stream: "SFS", department: "Computer Science", gender: "Male" },
+  { employeeId: "EMP-002", name: "Arjun", stream: "AIDED", department: "Commerce", gender: "Male" },
+  { employeeId: "EMP-003", name: "Diya Menon", stream: "SFS", department: "English", gender: "Female" },
+  { employeeId: "EMP-004", name: "cenkatesh", stream: "AIDED", department: "Mathematics", gender: "Male" },
+  { employeeId: "EMP-005", name: "Kavya", stream: "SFS", department: "Physics", gender: "Female" },
+  { employeeId: "EMP-006", name: "Rohan Das", stream: "AIDED", department: "Computer Science", gender: "Male" },
+  { employeeId: "EMP-007", name: "Sneha Thomas", stream: "SFS", department: "Commerce", gender: "Female" },
+  { employeeId: "EMP-008", name: "Vikram", stream: "AIDED", department: "English", gender: "Male" },
 ];
 
 async function main() {
-  const leaveTypes = await prisma.leaveType.findMany();
+  const leaveTypes = await prisma.leaveType.findMany({
+    select: { id: true, status: true, daysAllowed: true },
+  });
 
   for (const employee of employees) {
     await prisma.employee.upsert({
       where: { employeeId: employee.employeeId },
-      update: {},
+      update: { gender: employee.gender },
       create: employee,
     });
 
