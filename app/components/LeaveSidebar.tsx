@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronRight,
   ClipboardList,
+  FileText,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -20,25 +21,115 @@ export type LeaveSidebarPage =
   | "eligibility"
   | "holiday-calendar"
   | "settings"
-  | "leave-refresh";
+  | "leave-refresh"
+  | "leave-report"
+  | "statutory-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
 };
 
-const leaveSettingsNavigation = [
-  { id: "leave-category",    label: "Leave category",    href: "/leave-category",    Icon: CalendarDays  },
-  { id: "leave-requests",    label: "Leave groups",      href: "/leave-requests",    Icon: ClipboardList  },
-  { id: "leave-types",       label: "Leave types",       href: "/leave-type",        Icon: CalendarDays  },
-  { id: "eligibility",       label: "Leave eligibility", href: "/leave-eligibility", Icon: Users         },
-  { id: "holiday-calendar",  label: "Holiday calendar",  href: "/holiday-calendar",  Icon: CalendarDays  },
+type SubItem = {
+  id: string;
+  label: string;
+  href: string;
+  Icon?: React.ComponentType<{ size?: number; className?: string }>;
+};
+
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  subItems?: readonly SubItem[];
+};
+
+const leaveSettingsNavigation: readonly NavItem[] = [
+  { id: "leave-category",   label: "Leave category",    href: "/leave-category",   Icon: CalendarDays },
+  { id: "leave-requests",   label: "Leave groups",      href: "/leave-requests",   Icon: ClipboardList },
+  { id: "leave-types",      label: "Leave types",       href: "/leave-type",       Icon: CalendarDays },
+  { id: "eligibility",      label: "Leave eligibility", href: "/leave-eligibility", Icon: Users },
+  { id: "holiday-calendar", label: "Holiday calendar",  href: "/holiday-calendar", Icon: CalendarDays },
 ] as const;
 
-const leaveAdminNavigation = [
+const leaveAdminNavigation: readonly NavItem[] = [
   { id: "leave-refresh", label: "Leave Refresh", href: "/leave-refresh", Icon: RefreshCw },
+  {
+    id: "leave-report",
+    label: "Leave Report",
+    href: "/leave-report",
+    Icon: FileText,
+    subItems: [
+      { id: "statutory-report", label: "Statutory Report", href: "/leave-report", Icon: FileText },
+    ],
+  },
 ] as const;
 
-type NavItem = { id: string; label: string; href: string; Icon: React.ComponentType<{ size?: number; className?: string }> };
+function SubGroupItem({
+  item,
+  activePage,
+}: {
+  item: NavItem;
+  activePage: string;
+}) {
+  const isSubActive =
+    item.id === activePage ||
+    (item.subItems?.some((sub) => sub.id === activePage) ?? false);
+  const [subOpen, setSubOpen] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (isSubActive) setSubOpen(true);
+  }, [isSubActive]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setSubOpen((prev) => !prev)}
+        className={`flex w-full min-h-[34px] items-center justify-between rounded-md px-2 text-[12.5px] transition-colors ${
+          isSubActive
+            ? "bg-slate-100/70 font-semibold text-slate-900"
+            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <item.Icon size={14} className={isSubActive ? "text-emerald-700" : "text-slate-400"} />
+          <span className="truncate">{item.label}</span>
+        </span>
+        <ChevronRight
+          size={12}
+          className={`text-slate-400 transition-transform duration-200 ${
+            subOpen ? "rotate-90" : "rotate-0"
+          }`}
+        />
+      </button>
+
+      {subOpen && item.subItems && (
+        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2">
+          {item.subItems.map((sub) => {
+            const isCurrent = sub.id === activePage;
+            const SubIcon = sub.Icon || item.Icon;
+            return (
+              <Link
+                key={sub.id}
+                href={sub.href}
+                aria-current={isCurrent ? "page" : undefined}
+                className={`flex min-h-[30px] items-center gap-2 rounded-md px-2 text-[12px] no-underline transition-colors ${
+                  isCurrent
+                    ? "bg-emerald-50 font-semibold text-emerald-800"
+                    : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
+                }`}
+              >
+                <SubIcon size={13} className={isCurrent ? "text-emerald-700" : "text-slate-400"} />
+                <span className="truncate">{sub.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SidebarGroup({
   icon: Icon,
@@ -53,7 +144,11 @@ function SidebarGroup({
   activePage: string;
   defaultOpen?: boolean;
 }) {
-  const isChildActive = items.some((item) => item.id === activePage);
+  const isChildActive = items.some(
+    (item) =>
+      item.id === activePage ||
+      (item.subItems?.some((sub) => sub.id === activePage) ?? false)
+  );
   const [isOpen, setIsOpen] = useState(defaultOpen || isChildActive);
 
   useEffect(() => {
@@ -84,12 +179,17 @@ function SidebarGroup({
 
       {isOpen && (
         <div className="ml-2.5 mt-1 space-y-0.5 border-l border-slate-200 pl-2">
-          {items.map(({ id, label: itemLabel, href, Icon: ItemIcon }) => {
-            const isActive = id === activePage;
+          {items.map((item) => {
+            if (item.subItems && item.subItems.length > 0) {
+              return <SubGroupItem key={item.id} item={item} activePage={activePage} />;
+            }
+
+            const isActive = item.id === activePage;
+            const ItemIcon = item.Icon;
             return (
               <Link
-                key={id}
-                href={href}
+                key={item.id}
+                href={item.href}
                 aria-current={isActive ? "page" : undefined}
                 className={`flex min-h-[34px] items-center gap-2 rounded-md px-2 text-[12.5px] no-underline transition-colors ${
                   isActive
@@ -98,7 +198,7 @@ function SidebarGroup({
                 }`}
               >
                 <ItemIcon size={14} className={isActive ? "text-emerald-700" : "text-slate-400"} />
-                <span className="truncate">{itemLabel}</span>
+                <span className="truncate">{item.label}</span>
               </Link>
             );
           })}
@@ -141,6 +241,7 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
           label="Leave Admin"
           items={leaveAdminNavigation}
           activePage={activePage}
+          defaultOpen={true}
         />
       </nav>
     </aside>

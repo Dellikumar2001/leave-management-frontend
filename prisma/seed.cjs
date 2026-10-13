@@ -13,6 +13,17 @@ const employees = [
   { employeeId: "EMP-008", name: "Vikram", stream: "AIDED", department: "English" },
 ];
 
+const employeeGenders = {
+  "EMP-001": "Male",
+  "EMP-002": "Male",
+  "EMP-003": "Female",
+  "EMP-004": "Male",
+  "EMP-005": "Female",
+  "EMP-006": "Male",
+  "EMP-007": "Female",
+  "EMP-008": "Male",
+};
+
 async function main() {
   const leaveTypes = await prisma.leaveType.findMany();
 
@@ -22,6 +33,8 @@ async function main() {
       update: {},
       create: employee,
     });
+
+    const gender = employeeGenders[employee.employeeId] || "Male";
 
     for (const leaveType of leaveTypes) {
       const isEligible = leaveType.status.toUpperCase() === "ACTIVE";
@@ -33,13 +46,14 @@ async function main() {
             leaveTypeId: leaveType.id,
           },
         },
-        update: {},
+        update: { gender },
         create: {
           employeeId: employee.employeeId,
           leaveTypeId: leaveType.id,
           isEligible,
           daysAllowed: isEligible ? leaveType.daysAllowed : 0,
           leaveBalance: 0,
+          gender,
         },
       });
     }

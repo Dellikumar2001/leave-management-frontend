@@ -407,13 +407,13 @@ export default function LeaveRefreshPage() {
             />
 
             {/* Employee IDs multi-select */}
-            <MultiSelect
+            {/* <MultiSelect
               id="filter-employee-ids"
               placeholder="All Employee IDs"
               options={allEmployeeIds}
               selected={selectedEmployeeIds}
               onChange={setSelectedEmployeeIds}
-            />
+            /> */}
 
             {/* Employee Names multi-select */}
             <MultiSelect
@@ -425,7 +425,7 @@ export default function LeaveRefreshPage() {
             />
 
             {/* Search */}
-            <label className="relative min-w-[200px] flex-1">
+            {/* <label className="relative min-w-[200px] flex-1">
               <Search
                 aria-hidden="true"
                 size={16}
@@ -439,7 +439,7 @@ export default function LeaveRefreshPage() {
                 placeholder="Search employees"
                 className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm normal-case text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400"
               />
-            </label>
+            </label> */}
 
             {/* Export */}
             <button

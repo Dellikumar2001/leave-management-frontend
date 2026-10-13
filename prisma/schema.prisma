@@ -82,6 +82,7 @@ model EmployeeLeaveEligibility {
   daysAllowed  Int       @default(0) @map("days_allowed")
   leaveBalance Int       @default(0) @map("leave_balance")
   joiningDate  DateTime  @default(dbgenerated("(DATE '2026-01-01' + FLOOR(RANDOM() * 364)::INTEGER)")) @map("joining_date") @db.Date
+  gender       String    @default("") @map("gender")
   employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
