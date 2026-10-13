@@ -275,7 +275,6 @@ export default function LeaveTypePage() {
       code: leaveType.code,
       name: leaveType.name,
       leaveGroupId: String(leaveType.leaveGroupId ?? legacyGroup?.id ?? ""),
-      paymentType: leaveType.paymentType,
       daysAllowed: leaveType.daysAllowed,
       description: leaveType.description,
       status: leaveType.status,
@@ -291,7 +290,6 @@ export default function LeaveTypePage() {
       code: "",
       name: "",
       leaveGroupId: "",
-      paymentType: "PAID",
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
@@ -513,19 +511,7 @@ export default function LeaveTypePage() {
                 )}
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Paid or unpaid leave <span className="text-red-500">*</span></label>
-                <select
-                  required
-                  value={form.paymentType}
-                  disabled={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, paymentType: event.target.value as LeaveType["paymentType"] }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                >
-                  <option value="PAID">PAID</option>
-                  <option value="UNPAID">UNPAID</option>
-                </select>
-              </div>
+
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Days allowed <span className="text-red-500">*</span></label>

@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  Baby,
+  BarChart3,
   CalendarDays,
   ChevronRight,
   ClipboardList,
+  FileCheck,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -20,7 +23,10 @@ export type LeaveSidebarPage =
   | "eligibility"
   | "holiday-calendar"
   | "settings"
-  | "leave-refresh";
+  | "leave-refresh"
+  | "paternity-leave"
+  | "maternity-leave"
+  | "leave-status-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -36,6 +42,12 @@ const leaveSettingsNavigation = [
 
 const leaveAdminNavigation = [
   { id: "leave-refresh", label: "Leave Refresh", href: "/leave-refresh", Icon: RefreshCw },
+  { id: "paternity-leave", label: "Paternity Leave", href: "/paternity-leave", Icon: Baby },
+  { id: "maternity-leave", label: "Maternity Leave", href: "/maternity-leave", Icon: Baby },
+] as const;
+
+const leaveReportsNavigation = [
+  { id: "leave-status-report", label: "Leave Status Report", href: "/leave-reports/leave-status-report", Icon: FileCheck },
 ] as const;
 
 type NavItem = { id: string; label: string; href: string; Icon: React.ComponentType<{ size?: number; className?: string }> };
@@ -140,6 +152,14 @@ export default function LeaveSidebar({ activePage }: LeaveSidebarProps) {
           icon={ShieldCheck}
           label="Leave Admin"
           items={leaveAdminNavigation}
+          activePage={activePage}
+        />
+
+        {/* Leave Reports */}
+        <SidebarGroup
+          icon={BarChart3}
+          label="Leave Reports"
+          items={leaveReportsNavigation}
           activePage={activePage}
         />
       </nav>

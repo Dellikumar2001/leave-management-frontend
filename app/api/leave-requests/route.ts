@@ -41,32 +41,43 @@ function normalizeStatus(value: unknown): "ACTIVE" | "INACTIVE" {
 }
 
 export async function GET() {
-  const groups = await prisma.leaveGroup.findMany({
-    include: {
-      category: true,
-      items: {
-        include: {
-          leaveType: true,
+  try {
+    const groups = await prisma.leaveGroup.findMany({
+      include: {
+        category: true,
+        items: {
+          include: {
+            leaveType: true,
+          },
         },
       },
-    },
-    orderBy: {
-      effectiveFrom: "desc",
-    },
-  });
-
-  return Response.json({ data: groups });
+      orderBy: {
+        effectiveFrom: "desc",
+      },
+    });
+    return Response.json({ data: groups });
+  } catch (error) {
+    console.error("Failed to load leave requests:", error);
+    return Response.json({ error: "Unable to load leave requests. Check the database connection." }, { status: 503 });
+  }
 }
 
 export async function POST(request: NextRequest) {
+  let body: unknown;
   try {
-    const body = await request.json();
-    const selectedCodes = Array.isArray(body.leaveTypeCodes)
-      ? [...new Set(body.leaveTypeCodes.map((code: unknown) => String(code)))]
-      : [];
-    const categoryId = Number(body.categoryId);
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Request body is missing or not valid JSON." }, { status: 400 });
+  }
 
-    if (!body.code || !body.name || !body.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
+  try {
+    const b = body as Record<string, unknown>;
+    const selectedCodes = Array.isArray(b.leaveTypeCodes)
+      ? [...new Set(b.leaveTypeCodes.map((code: unknown) => String(code)))] as string[]
+      : [];
+    const categoryId = Number(b.categoryId);
+
+    if (!b.code || !b.name || !b.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
       return Response.json({ error: "Code, name, category, and effective from are required." }, { status: 400 });
     }
 
@@ -89,19 +100,19 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Select active leave types only." }, { status: 400 });
     }
 
-    const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
-    const status = normalizeStatus(body.status);
+    const effectiveFrom = getEffectiveFromDate(b.effectiveFrom);
+    const status = normalizeStatus(b.status);
 
     const leaveGroup = await prisma.leaveGroup.create({
       data: {
-        code: String(body.code).trim(),
-        name: String(body.name).trim(),
-        description: body.description ? String(body.description).trim() : null,
+        code: String(b.code).trim(),
+        name: String(b.name).trim(),
+        description: b.description ? String(b.description).trim() : null,
         category: { connect: { id: categoryId } },
         effectiveFrom,
         status,
         items: {
-          create: leaveTypes.map((leaveType) => ({
+          create: leaveTypes.map((leaveType: (typeof leaveTypes)[number]) => ({
             leaveType: {
               connect: { id: leaveType.id },
             },

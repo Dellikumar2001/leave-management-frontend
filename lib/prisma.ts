@@ -4,11 +4,17 @@ const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
 };
 
+const isStale =
+  !globalForPrisma.prisma ||
+  !("paternityLeave" in globalForPrisma.prisma) ||
+  !("maternityLeave" in globalForPrisma.prisma);
+
 export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ["query", "error", "warn"],
-  });
+  !isStale && globalForPrisma.prisma
+    ? globalForPrisma.prisma
+    : new PrismaClient({
+        log: ["query", "error", "warn"],
+      });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
