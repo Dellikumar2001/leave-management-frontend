@@ -37,6 +37,7 @@ type Employee = {
   name: string;
   stream: string;
   department: string;
+  status?: string;
   remarks?: string | null;
   leaveRecords: EmployeeLeaveRecord[];
 };
@@ -70,19 +71,20 @@ function getEmployeeRemark(employee: Employee): string {
   return "—";
 }
 
-/* ─── Build flat rows for export & preview (Only requested columns) ─ */
+/* ─── Build flat rows for export & preview (Columns including STATUS) ─ */
 
 function buildExportRows(
   visibleEmployees: Employee[],
   startDate: string,
   endDate: string
 ) {
-  const headers = ["EMPLOYEE ID", "NAME", "DATE FROM", "DATE TO", "REMARKS"];
+  const headers = ["EMPLOYEE ID", "NAME", "DATE FROM", "DATE TO", "STATUS", "REMARKS"];
   const rows = visibleEmployees.map((emp) => [
     emp.employeeId,
     emp.name,
     startDate || "—",
     endDate || "—",
+    emp.status || "Approved",
     getEmployeeRemark(emp),
   ]);
   return { headers, rows };
@@ -108,6 +110,7 @@ export default function LeaveStatusReportPage() {
   const [streamFilter, setStreamFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [employeeFilter, setEmployeeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   // Date range
   const [startDate, setStartDate] = useState("");
@@ -211,6 +214,7 @@ export default function LeaveStatusReportPage() {
       if (streamFilter) params.set("stream", streamFilter);
       if (departmentFilter) params.set("department", departmentFilter);
       if (employeeFilter) params.set("employeeId", employeeFilter);
+      if (statusFilter) params.set("status", statusFilter);
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
 
@@ -228,18 +232,19 @@ export default function LeaveStatusReportPage() {
     }
   };
 
-  // Visible rows after search filter applied to generated report
+  // Visible rows after search and status filter applied to generated report
   const visibleEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
     return reportEmployees.filter((e) => {
       if (streamFilter && e.stream !== streamFilter) return false;
       if (departmentFilter && e.department !== departmentFilter) return false;
       if (employeeFilter && e.employeeId !== employeeFilter) return false;
+      if (statusFilter && e.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
       if (q && !e.name.toLowerCase().includes(q) && !e.employeeId.toLowerCase().includes(q))
         return false;
       return true;
     });
-  }, [reportEmployees, streamFilter, departmentFilter, employeeFilter, search]);
+  }, [reportEmployees, streamFilter, departmentFilter, employeeFilter, statusFilter, search]);
 
   // Toggle preview and smoothly scroll down to it
   const handleToggleExportPreview = () => {
@@ -295,7 +300,7 @@ export default function LeaveStatusReportPage() {
     });
 
     // ── Row 1: Header Title Banner "Leave Status Report"
-    worksheet.mergeCells("A1:E1");
+    worksheet.mergeCells("A1:F1");
     const titleCell = worksheet.getCell("A1");
     titleCell.value = "Leave Status Report";
     titleCell.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
@@ -308,7 +313,7 @@ export default function LeaveStatusReportPage() {
     worksheet.getRow(1).height = 36;
 
     // ── Row 2: Sub-info row (Date only)
-    worksheet.mergeCells("A2:E2");
+    worksheet.mergeCells("A2:F2");
     const infoCell = worksheet.getCell("A2");
     infoCell.value = `Date: ${currentDate}`;
     infoCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF475569" } };
@@ -323,7 +328,7 @@ export default function LeaveStatusReportPage() {
     // ── Row 3: Blank separator row
     worksheet.getRow(3).height = 10;
 
-    // ── Row 4: Highlighted Column Headers (EMPLOYEE ID, NAME, DATE FROM, DATE TO, REMARKS)
+    // ── Row 4: Highlighted Column Headers (EMPLOYEE ID, NAME, DATE FROM, DATE TO, STATUS, REMARKS)
     const headerRow = worksheet.getRow(4);
     headerRow.values = headers;
     headerRow.height = 28;
@@ -343,7 +348,7 @@ export default function LeaveStatusReportPage() {
       };
       cell.alignment = {
         vertical: "middle",
-        horizontal: colNumber === 2 || colNumber === 5 ? "left" : "center",
+        horizontal: colNumber === 2 || colNumber === 6 ? "left" : "center",
       };
       cell.border = {
         top: { style: "thin", color: { argb: "FF94A3B8" } },
@@ -365,7 +370,7 @@ export default function LeaveStatusReportPage() {
         cell.font = { name: "Segoe UI", size: 10, color: { argb: "FF1E293B" } };
         cell.alignment = {
           vertical: "middle",
-          horizontal: colNumber === 2 || colNumber === 5 ? "left" : "center",
+          horizontal: colNumber === 2 || colNumber === 6 ? "left" : "center",
         };
         cell.fill = {
           type: "pattern",
@@ -387,6 +392,7 @@ export default function LeaveStatusReportPage() {
       { key: "name", width: 30 },
       { key: "dateFrom", width: 18 },
       { key: "dateTo", width: 18 },
+      { key: "status", width: 16 },
       { key: "remarks", width: 36 },
     ];
 
@@ -588,6 +594,28 @@ export default function LeaveStatusReportPage() {
               />
             </div>
 
+            {/* Status Filter */}
+            <div className="relative min-w-[150px]">
+              <select
+                id="filter-status"
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+              >
+                <option value="">All Statuses</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+            </div>
+
             {/* Search */}
             <label className="relative min-w-[170px] flex-1">
               <Search
@@ -671,6 +699,7 @@ export default function LeaveStatusReportPage() {
                       <th className="whitespace-nowrap px-5 py-3.5 font-semibold border-b border-slate-200">DEPARTMENT</th>
                       <th className="whitespace-nowrap px-5 py-3.5 font-semibold border-b border-slate-200">DATE FROM</th>
                       <th className="whitespace-nowrap px-5 py-3.5 font-semibold border-b border-slate-200">DATE TO</th>
+                      <th className="whitespace-nowrap px-5 py-3.5 font-semibold border-b border-slate-200">STATUS</th>
                       <th className="whitespace-nowrap px-5 py-3.5 font-semibold border-b border-slate-200">REMARKS</th>
                     </tr>
                   </thead>
@@ -678,7 +707,7 @@ export default function LeaveStatusReportPage() {
                   <tbody>
                     {isGenerating && (
                       <tr>
-                        <td colSpan={7} className="px-5 py-12 text-center text-slate-400 normal-case">
+                        <td colSpan={8} className="px-5 py-12 text-center text-slate-400 normal-case">
                           Generating report data…
                         </td>
                       </tr>
@@ -686,7 +715,7 @@ export default function LeaveStatusReportPage() {
 
                     {!isGenerating && !error && visibleEmployees.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="px-5 py-12 text-center text-slate-500 normal-case">
+                        <td colSpan={8} className="px-5 py-12 text-center text-slate-500 normal-case">
                           No employees match the selected filters.
                         </td>
                       </tr>
@@ -700,6 +729,32 @@ export default function LeaveStatusReportPage() {
                         <td className="whitespace-nowrap px-5 py-4 text-slate-700">{emp.department}</td>
                         <td className="whitespace-nowrap px-5 py-4 text-slate-600 normal-case">{startDate || "—"}</td>
                         <td className="whitespace-nowrap px-5 py-4 text-slate-600 normal-case">{endDate || "—"}</td>
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold normal-case ${
+                              emp.status?.toLowerCase() === "approved"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : emp.status?.toLowerCase() === "pending"
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : emp.status?.toLowerCase() === "rejected"
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                            }`}
+                          >
+                            <span
+                              className={`size-1.5 rounded-full ${
+                                emp.status?.toLowerCase() === "approved"
+                                  ? "bg-emerald-500"
+                                  : emp.status?.toLowerCase() === "pending"
+                                  ? "bg-amber-500"
+                                  : emp.status?.toLowerCase() === "rejected"
+                                  ? "bg-red-500"
+                                  : "bg-slate-400"
+                              }`}
+                            />
+                            {emp.status || "Approved"}
+                          </span>
+                        </td>
                         <td className="whitespace-nowrap px-5 py-4 text-slate-600 normal-case">
                           {getEmployeeRemark(emp)}
                         </td>
@@ -784,7 +839,7 @@ export default function LeaveStatusReportPage() {
                     </span>
                   </div>
 
-                  {/* Preview Table with the exact 5 export columns */}
+                  {/* Preview Table with export columns */}
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-xs">
                       <thead className="bg-slate-800 text-white font-semibold">
@@ -793,13 +848,14 @@ export default function LeaveStatusReportPage() {
                           <th className="px-4 py-2.5 whitespace-nowrap">NAME</th>
                           <th className="px-4 py-2.5 whitespace-nowrap">DATE FROM</th>
                           <th className="px-4 py-2.5 whitespace-nowrap">DATE TO</th>
+                          <th className="px-4 py-2.5 whitespace-nowrap">STATUS</th>
                           <th className="px-4 py-2.5 whitespace-nowrap">REMARKS</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
                         {visibleEmployees.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-slate-400 normal-case">
+                            <td colSpan={6} className="px-4 py-8 text-center text-slate-400 normal-case">
                               No records to export.
                             </td>
                           </tr>
@@ -813,6 +869,21 @@ export default function LeaveStatusReportPage() {
                               <td className="px-4 py-2.5 font-semibold text-slate-900 whitespace-nowrap">{emp.name}</td>
                               <td className="px-4 py-2.5 whitespace-nowrap normal-case">{startDate || "—"}</td>
                               <td className="px-4 py-2.5 whitespace-nowrap normal-case">{endDate || "—"}</td>
+                              <td className="px-4 py-2.5 whitespace-nowrap normal-case">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
+                                    emp.status?.toLowerCase() === "approved"
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                      : emp.status?.toLowerCase() === "pending"
+                                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                      : emp.status?.toLowerCase() === "rejected"
+                                      ? "bg-red-50 text-red-700 border border-red-200"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                                  }`}
+                                >
+                                  {emp.status || "Approved"}
+                                </span>
+                              </td>
                               <td className="px-4 py-2.5 normal-case">{getEmployeeRemark(emp)}</td>
                             </tr>
                           ))

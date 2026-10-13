@@ -24,14 +24,14 @@ const starterLeaveTypes = [
 ];
 
 const employees = [
-  { employeeId: "EMP-001", name: "Anandh", stream: "SFS", department: "Computer Science" },
-  { employeeId: "EMP-002", name: "Arjun", stream: "AIDED", department: "Commerce" },
-  { employeeId: "EMP-003", name: "Diya Menon", stream: "SFS", department: "English" },
-  { employeeId: "EMP-004", name: "Venkatesh", stream: "AIDED", department: "Mathematics" },
-  { employeeId: "EMP-005", name: "Kavya", stream: "SFS", department: "Physics" },
-  { employeeId: "EMP-006", name: "Rohan Das", stream: "AIDED", department: "Computer Science" },
-  { employeeId: "EMP-007", name: "Sneha Thomas", stream: "SFS", department: "Commerce" },
-  { employeeId: "EMP-008", name: "Vikram", stream: "AIDED", department: "English" },
+  { employeeId: "EMP-001", name: "Anandh", stream: "SFS", department: "Computer Science", status: "Approved" },
+  { employeeId: "EMP-002", name: "Arjun", stream: "AIDED", department: "Commerce", status: "Pending" },
+  { employeeId: "EMP-003", name: "Diya Menon", stream: "SFS", department: "English", status: "Approved" },
+  { employeeId: "EMP-004", name: "Venkatesh", stream: "AIDED", department: "Mathematics", status: "Rejected" },
+  { employeeId: "EMP-005", name: "Kavya", stream: "SFS", department: "Physics", status: "Approved" },
+  { employeeId: "EMP-006", name: "Rohan Das", stream: "AIDED", department: "Computer Science", status: "Cancelled" },
+  { employeeId: "EMP-007", name: "Sneha Thomas", stream: "SFS", department: "Commerce", status: "Pending" },
+  { employeeId: "EMP-008", name: "Vikram", stream: "AIDED", department: "English", status: "Approved" },
 ];
 
 const starterHolidays = [
@@ -80,7 +80,7 @@ async function main() {
   for (const employee of employees) {
     await prisma.employee.upsert({
       where: { employeeId: employee.employeeId },
-      update: { name: employee.name, stream: employee.stream, department: employee.department },
+      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status },
       create: employee,
     });
 

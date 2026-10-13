@@ -12,10 +12,11 @@ export async function GET(request: Request) {
     const stream = searchParams.get("stream") ?? "";
     const department = searchParams.get("department") ?? "";
     const employeeId = searchParams.get("employeeId") ?? "";
+    const status = searchParams.get("status") ?? "";
     const startDate = searchParams.get("startDate") ?? "";
     const endDate = searchParams.get("endDate") ?? "";
 
-    const [employees, leaveTypes, studentRequests] = await Promise.all([
+    const [employees, leaveTypes, studentRequests, rawStatuses] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
         where: {
@@ -50,7 +51,17 @@ export async function GET(request: Request) {
           },
         },
       }).catch(() => []),
+      prisma.$queryRaw<{ employee_id: string; status: string }[]>`
+        SELECT employee_id, status FROM employees
+      `.catch(() => []),
     ]);
+
+    const statusMap = new Map<string, string>();
+    for (const row of rawStatuses) {
+      if (row.employee_id && row.status) {
+        statusMap.set(row.employee_id, row.status);
+      }
+    }
 
     const remarkMap = new Map<string, string>();
     for (const req of studentRequests) {
@@ -61,13 +72,18 @@ export async function GET(request: Request) {
 
     const employeesWithRemarks = employees.map((emp) => ({
       ...emp,
+      status: (emp as { status?: string }).status || statusMap.get(emp.employeeId) || "Approved",
       remarks: remarkMap.get(emp.employeeId) ?? null,
     }));
 
+    const finalEmployees = status
+      ? employeesWithRemarks.filter((e) => e.status.toLowerCase() === status.toLowerCase())
+      : employeesWithRemarks;
+
     return Response.json({
-      employees: employeesWithRemarks,
+      employees: finalEmployees,
       leaveTypes,
-      filters: { stream, department, employeeId, startDate, endDate },
+      filters: { stream, department, employeeId, status, startDate, endDate },
     });
   } catch (error) {
     console.error("Failed to load leave status report:", error);
