@@ -366,7 +366,7 @@ export default function LeaveRefreshPage() {
               }
               className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${
                 canRecalculate
-                  ? "bg-emerald-700 text-white shadow-md hover:bg-emerald-800 active:scale-[0.98]"
+                  ? "bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:scale-[0.98]"
                   : "cursor-not-allowed bg-slate-200 text-slate-400"
               }`}
             >

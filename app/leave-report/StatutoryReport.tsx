@@ -68,7 +68,7 @@ const reportColumns: { key: keyof ReportRow; label: string; weight: number }[] =
   { key: "remarks", label: "REMARKS", weight: 0.8 },
 ];
 
-function createReportPdf(rows: ReportRow[], reportDate: string) {
+function createReportPdf(rows: ReportRow[], reportDate: string, reportTitle: string) {
   const pdf = new jsPDF({ orientation: "landscape", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -87,7 +87,7 @@ function createReportPdf(rows: ReportRow[], reportDate: string) {
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(18);
   pdf.setTextColor(31, 41, 55);
-  pdf.text("LEAVE STATUS REPORT", margin, 27);
+  pdf.text(reportTitle.toUpperCase(), margin, 27);
 
   const drawHeader = () => {
     let x = margin;
@@ -142,10 +142,10 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function createCsvBlob(rows: ReportRow[], reportDate: string) {
+function createCsvBlob(rows: ReportRow[], reportDate: string, reportTitle: string) {
   const csvRows = [
     ["Date", reportDate],
-    ["LEAVE STATUS REPORT"],
+    [reportTitle.toUpperCase()],
     reportColumns.map((column) => column.label),
     ...rows.map((row) => reportColumns.map((column) => row[column.key])),
   ];
@@ -223,8 +223,8 @@ export function MultiSelect({
         className={`flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm normal-case transition-colors outline-none ${disabled
           ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
           : open
-            ? "border-emerald-600 ring-2 ring-emerald-100"
-            : "border-slate-300 hover:border-slate-400 focus:border-emerald-600"
+            ? "border-blue-400 ring-2 ring-blue-100"
+            : "border-slate-300 hover:border-slate-400 focus:border-blue-400"
           }`}
       >
         <span className="flex flex-1 flex-wrap items-center gap-1 overflow-hidden">
@@ -339,6 +339,8 @@ export default function StatutoryReport() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const reportTitle = activeTab === "maternity" ? "Maternity Leave Report" : "Paternity Leave Report";
+
   // Load Data from API
   const loadData = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
@@ -378,10 +380,10 @@ export default function StatutoryReport() {
 
   // Options available for filters based on gender scope
   const streamScopedEmployees = streamFilter
-    ? genderFilteredEmployees.filter((employee) => employee.stream === streamFilter)
+    ? employees.filter((employee) => employee.stream === streamFilter)
     : [];
 
-  const allStreams = [...new Set(genderFilteredEmployees.map((employee) => employee.stream))]
+  const allStreams = [...new Set(employees.map((employee) => employee.stream))]
     .filter(Boolean)
     .sort();
 
@@ -389,8 +391,9 @@ export default function StatutoryReport() {
     .filter(Boolean)
     .sort();
 
-  const departmentScopedEmployees = streamScopedEmployees.filter((employee) =>
-    selectedDepartments.includes(employee.department)
+  const departmentScopedEmployees = genderFilteredEmployees.filter(
+    (employee) =>
+      employee.stream === streamFilter && selectedDepartments.includes(employee.department)
   );
 
   const allEmployeeNames = [
@@ -449,23 +452,23 @@ export default function StatutoryReport() {
     );
   };
 
-  const reportBaseName = `leave-status-report-${startDate}-${endDate}`;
+  const reportBaseName = `${activeTab}-leave-report-${startDate}-${endDate}`;
 
   const handleDownloadPdf = () => {
     if (!previewRows) return;
-    downloadBlob(createReportPdf(previewRows, startDate), `${reportBaseName}.pdf`);
+    downloadBlob(createReportPdf(previewRows, startDate, reportTitle), `${reportBaseName}.pdf`);
   };
 
   const handleDownloadCsv = () => {
     if (!previewRows) return;
-    downloadBlob(createCsvBlob(previewRows, startDate), `${reportBaseName}.csv`);
+    downloadBlob(createCsvBlob(previewRows, startDate, reportTitle), `${reportBaseName}.csv`);
   };
 
   const handleDownloadExcel = async () => {
     if (!previewRows) return;
     const { default: ExcelJS } = await import("exceljs");
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Leave Status Report");
+    const worksheet = workbook.addWorksheet(reportTitle);
     worksheet.columns = [
       { header: "EMPLOYEE ID", key: "employeeId", width: 18 },
       { header: "EMPLOYEE NAME", key: "name", width: 26 },
@@ -476,7 +479,7 @@ export default function StatutoryReport() {
       { header: "REMARKS", key: "remarks", width: 18 },
     ];
     worksheet.addRow(["Date:", startDate]);
-    worksheet.addRow(["LEAVE STATUS REPORT"]);
+    worksheet.addRow([reportTitle.toUpperCase()]);
     worksheet.addRow(reportColumns.map((column) => column.label));
     previewRows.forEach((row) => worksheet.addRow(row));
     worksheet.mergeCells("B1:G1");
@@ -581,7 +584,7 @@ export default function StatutoryReport() {
                 setSelectedEmployeeNames([]);
                 setPreviewRows(null);
               }}
-              className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm normal-case text-slate-700 outline-none focus:border-emerald-600"
+              className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm normal-case text-slate-700 outline-none focus:border-blue-400"
             >
               <option value="">Select Streams</option>
               {allStreams.map((stream) => <option key={stream} value={stream}>{stream}</option>)}
@@ -639,13 +642,9 @@ export default function StatutoryReport() {
                   setStartDate(e.target.value);
                   setPreviewRows(null);
                 }}
-                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-600"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
               />
             </div>
-          </div>
-
-          <div className="hidden h-10 items-center justify-center text-slate-400 xl:flex" aria-hidden="true">
-            <ArrowRight size={16} />
           </div>
 
           {/* End Date Calendar Input */}
@@ -663,27 +662,7 @@ export default function StatutoryReport() {
                   setEndDate(e.target.value);
                   setPreviewRows(null);
                 }}
-                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-600"
-              />
-            </div>
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
-            <label htmlFor="filter-employee-search" className="text-[11px] font-semibold uppercase text-slate-500">
-              Search Employees
-            </label>
-            <div className="relative">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                id="filter-employee-search"
-                type="search"
-                value={employeeSearch}
-                onChange={(event) => {
-                  setEmployeeSearch(event.target.value);
-                  setPreviewRows(null);
-                }}
-                placeholder="Search employees..."
-                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-emerald-600"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
               />
             </div>
           </div>
@@ -700,7 +679,7 @@ export default function StatutoryReport() {
                 : "Select a stream, department, start date, and end date to enable Generate"
             }
             className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition-colors ${canGenerate
-                ? "bg-emerald-700 text-white shadow-emerald-700/20 hover:bg-emerald-800 active:scale-[0.98]"
+                ? "bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:scale-[0.98]"
                 : "cursor-not-allowed bg-slate-200 text-slate-400"
                 }`}
           >
@@ -708,20 +687,6 @@ export default function StatutoryReport() {
             <span>Generate</span>
           </button>
         </div>
-
-        {/* Validation hint banner */}
-        {!canGenerate && !isLoading && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-800 border border-amber-200/60">
-            <span className="font-semibold">Required to enable Generate:</span>
-            <span>
-              {!hasStreamSelected && "• Select a Stream "}
-              {hasStreamSelected && !hasDepartmentSelected && "• Select at least one Department "}
-              {!startDate && "• Pick Start Date "}
-              {!endDate && "• Pick End Date "}
-              {startDate && endDate && startDate > endDate && "• End Date must be after Start Date "}
-            </span>
-          </div>
-        )}
       </section>
 
       {/* Error Banner */}
@@ -737,7 +702,7 @@ export default function StatutoryReport() {
       {/* Table Section */}
       <main className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {startDate && endDate && (
-          <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50 px-5 py-2 text-xs text-emerald-800">
+          <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-600">
             <span className="size-2 rounded-full bg-emerald-500" aria-hidden="true" />
             <span>Date filter active:</span>
             <strong>{startDate}</strong>
@@ -747,7 +712,7 @@ export default function StatutoryReport() {
         )}
         <div className="overflow-x-auto">
           <table className="min-w-[920px] w-full text-left text-sm">
-            <thead className="bg-slate-800 text-white">
+            <thead className="bg-slate-50 text-slate-600">
               <tr>
                 {reportColumns.map((column) => (
                   <th key={column.key} className="whitespace-nowrap px-5 py-3 font-semibold">
@@ -807,10 +772,10 @@ export default function StatutoryReport() {
       </main>
 
       {previewRows && (
-        <section className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
-          <header className="flex items-center justify-between bg-slate-800 px-5 py-4 text-white">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex items-center justify-between border-b border-slate-200 bg-[#f5f7fa] px-5 py-4 text-slate-800">
             <div className="flex items-center gap-3">
-              <span className="grid size-8 place-items-center rounded-md bg-emerald-900/70 text-emerald-300">
+              <span className="grid size-8 place-items-center rounded-md bg-emerald-100 text-emerald-700">
                 <Eye size={17} aria-hidden="true" />
               </span>
               <h2 className="text-sm font-semibold">FILE PREVIEW</h2>
@@ -819,12 +784,12 @@ export default function StatutoryReport() {
               type="button"
               onClick={() => setPreviewRows(null)}
               aria-label="Close report preview"
-              className="grid size-8 place-items-center rounded-md text-slate-300 hover:bg-slate-700 hover:text-white"
+              className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800"
             >
               <X size={18} />
             </button>
           </header>
-          <div className="bg-slate-50 p-4 sm:p-6">
+          <div className="bg-[#f5f7fa] p-4 sm:p-6">
             <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <span className="rounded bg-slate-100 px-2.5 py-1 font-mono text-xs font-semibold text-slate-700">
@@ -833,11 +798,11 @@ export default function StatutoryReport() {
                 <span className="text-xs text-slate-400">{previewRows.length} record{previewRows.length === 1 ? "" : "s"}</span>
               </div>
               <h3 className="mt-3 border-b border-slate-100 pb-4 text-lg font-bold text-slate-800 sm:text-xl">
-                LEAVE STATUS REPORT
+                {reportTitle.toUpperCase()}
               </h3>
               <div className="mt-4 overflow-x-auto">
                 <table className="min-w-[760px] w-full text-left text-xs">
-                  <thead className="bg-slate-800 text-white">
+                  <thead className="bg-slate-50 text-slate-600">
                     <tr>
                       {reportColumns.map((column) => (
                         <th key={column.key} className="whitespace-nowrap px-3 py-2.5 font-semibold">
@@ -865,21 +830,21 @@ export default function StatutoryReport() {
                   <button
                     type="button"
                     onClick={handleDownloadPdf}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-red-600 px-3.5 text-xs font-semibold text-white hover:bg-red-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700"
                   >
                     <FileText size={14} aria-hidden="true" /> Download PDF
                   </button>
                   <button
                     type="button"
                     onClick={handleDownloadExcel}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-3.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700"
                   >
                     <FileSpreadsheet size={14} aria-hidden="true" /> Download Excel
                   </button>
                   <button
                     type="button"
                     onClick={handleDownloadCsv}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-900"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700"
                   >
                     <Download size={14} aria-hidden="true" /> Download CSV
                   </button>
