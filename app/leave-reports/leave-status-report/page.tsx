@@ -281,7 +281,7 @@ export default function LeaveStatusReportPage() {
   const handleExcel = async () => {
     const { headers, rows } = buildExportRows(visibleEmployees, startDate, endDate);
     const currentDate = new Date().toISOString().split("T")[0];
-    const ExcelJSModule = await import("exceljs");
+    const ExcelJSModule = await new Function("return import('exceljs')")();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ExcelJS: any = (ExcelJSModule as any).default || ExcelJSModule;
     const workbook = new ExcelJS.Workbook();
@@ -406,7 +406,7 @@ export default function LeaveStatusReportPage() {
     const currentDate = new Date().toISOString().split("T")[0];
     const jspdfModule = await import("jspdf");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const jsPDF = (jspdfModule as any).default || (jspdfModule as any).jsPDF || jspdfModule;
+    const jsPDF = (jspdfModule as any).jsPDF || (jspdfModule as any).default || jspdfModule;
     const autoTableModule = await import("jspdf-autotable");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const autoTable = (autoTableModule as any).default || autoTableModule;

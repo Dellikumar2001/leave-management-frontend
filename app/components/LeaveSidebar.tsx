@@ -24,6 +24,7 @@ export type LeaveSidebarPage =
   | "leave-requests"
   | "leave-types"
   | "eligibility"
+  | "create-eligibility"
   | "holiday-calendar"
   | "settings"
   | "leave-refresh"
@@ -78,6 +79,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     id: "eligibility",
     label: "Leave eligibility",
     href: "/leave-eligibility",
+    Icon: Users,
+  },
+  {
+    id: "create-eligibility",
+    label: "Create leave eligibility",
+    href: "/create-eligibility",
     Icon: Users,
   },
   {

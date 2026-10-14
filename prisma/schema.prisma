@@ -68,6 +68,22 @@ model LeaveType {
 
 }
 
+model LeaveEligibility {
+  id               Int         @id @default(autoincrement())
+  eligibilityName  String      @map("eligibility_name")
+  description      String      @default("")
+  employeeType     String      @map("employee_type")
+  employmentType   String      @map("employment_type")
+  managementStream String      @default("") @map("management_stream")
+  leaveGroup       String      @map("leave_group")
+  status           LeaveStatus @default(ACTIVE)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("leave_eligibilities")
+}
+
 model Employee {
   employeeId     String                     @id @map("employee_id")
   name           String

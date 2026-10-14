@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { jsPDF } from "jspdf";
 import {
   ArrowRight,
   Check,
@@ -68,7 +67,8 @@ const reportColumns: { key: keyof ReportRow; label: string; weight: number }[] =
   { key: "remarks", label: "REMARKS", weight: 0.8 },
 ];
 
-function createReportPdf(rows: ReportRow[], reportDate: string, reportTitle: string) {
+async function createReportPdf(rows: ReportRow[], reportDate: string, reportTitle: string) {
+  const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "landscape", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -454,9 +454,10 @@ export default function StatutoryReport() {
 
   const reportBaseName = `${activeTab}-leave-report-${startDate}-${endDate}`;
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!previewRows) return;
-    downloadBlob(createReportPdf(previewRows, startDate, reportTitle), `${reportBaseName}.pdf`);
+    const pdfBlob = await createReportPdf(previewRows, startDate, reportTitle);
+    downloadBlob(pdfBlob, `${reportBaseName}.pdf`);
   };
 
   const handleDownloadCsv = () => {
