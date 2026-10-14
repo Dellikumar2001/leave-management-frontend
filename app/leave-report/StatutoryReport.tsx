@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import {
   ArrowRight,
@@ -187,9 +187,16 @@ export function MultiSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setSearch("");
+    }
+  }
+
+  useEffect(() => {
+    if (open) {
       searchRef.current?.focus();
     }
   }, [open]);
@@ -335,36 +342,41 @@ export default function StatutoryReport() {
   const [streamFilter, setStreamFilter] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
-  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
   const reportTitle = activeTab === "maternity" ? "Maternity Leave Report" : "Paternity Leave Report";
 
-  // Load Data from API
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/statutory-report", { signal });
-      if (!response.ok) {
-        throw new Error(`Failed to load data: ${response.statusText}`);
-      }
-      const data: StatutoryReportData = await response.json();
-      setEmployees(data.employees || []);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Unable to load statutory report data.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
-  }, [loadData]);
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        const response = await fetch("/api/statutory-report", { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`Failed to load data: ${response.statusText}`);
+        }
+        const data: StatutoryReportData = await response.json();
+        if (!isMounted) return;
+        setEmployees(data.employees || []);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Unable to load statutory report data.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, []);
 
   // Gender filtering: Maternity = Female, Paternity = Male
   const genderFilteredEmployees = employees.filter((emp) => {

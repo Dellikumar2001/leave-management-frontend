@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -246,27 +246,32 @@ export default function LeaveRefreshPage() {
     visibleEmployees.length > 0 &&
     (streamFilters.length > 0 || departmentFilters.length > 0 || employeeNameFilters.length > 0);
 
-  // ── Load data
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const result = await fetchData(signal);
-      setEmployees(result.employees);
-      setLeaveTypes(result.leaveTypes);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Unable to load data.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
-  }, [loadData]);
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        const result = await fetchData(controller.signal);
+        if (!isMounted) return;
+        setEmployees(result.employees);
+        setLeaveTypes(result.leaveTypes);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Unable to load data.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, []);
 
   // ── Recalculate handler
   const handleRecalculate = async () => {

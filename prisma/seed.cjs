@@ -1,22 +1,8 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-const employees = [
-  { employeeId: "EMP-001", name: "Anandh", stream: "SFS", department: "Computer Science", gender: "Male" },
-  { employeeId: "EMP-002", name: "Arjun", stream: "AIDED", department: "Commerce", gender: "Male" },
-  { employeeId: "EMP-003", name: "Diya Menon", stream: "SFS", department: "English", gender: "Female" },
-  { employeeId: "EMP-004", name: "cenkatesh", stream: "AIDED", department: "Mathematics", gender: "Male" },
-  { employeeId: "EMP-005", name: "Kavya", stream: "SFS", department: "Physics", gender: "Female" },
-  { employeeId: "EMP-006", name: "Rohan Das", stream: "AIDED", department: "Computer Science", gender: "Male" },
-  { employeeId: "EMP-007", name: "Sneha Thomas", stream: "SFS", department: "Commerce", gender: "Female" },
-  { employeeId: "EMP-008", name: "Vikram", stream: "AIDED", department: "English", gender: "Male" },
-];
-
-async function main() {
-  const leaveTypes = await prisma.leaveType.findMany({
-    select: { id: true, status: true, daysAllowed: true },
-  });
 const categories = [
   { code: "ANNUAL", name: "Annual Leave", description: "Standard annual paid leave allocation", isPaid: true },
   { code: "CASUAL", name: "Casual Leave", description: "Short-term unforeseen casual leaves", isPaid: true },
@@ -104,14 +90,12 @@ async function main() {
 
   console.log("Seeding Employees and Eligibility...");
   for (const employee of employees) {
+    const gender = employeeGenders[employee.employeeId] || "Male";
     await prisma.employee.upsert({
       where: { employeeId: employee.employeeId },
-      update: { gender: employee.gender },
-      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status },
-      create: employee,
+      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status, gender },
+      create: { ...employee, gender },
     });
-
-    const gender = employeeGenders[employee.employeeId] || "Male";
 
     for (const lt of allLeaveTypes) {
       const isEligible = lt.status.toUpperCase() === "ACTIVE";
@@ -150,6 +134,71 @@ async function main() {
     }
   }
 
+  console.log("Seeding Employee Leave Applications...");
+  const leaveTypeMap = {};
+  for (const lt of allLeaveTypes) {
+    leaveTypeMap[lt.code] = lt.id;
+  }
+
+  const applications = [
+    // EMP-001 (Anandh)
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-02-10"), endDate: new Date("2026-02-11"), daysCount: 2, reason: "Family Function", status: "Approved", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Granted as requested." },
+    { employeeId: "EMP-001", typeCode: "ML", startDate: new Date("2026-04-05"), endDate: new Date("2026-04-07"), daysCount: 3, reason: "Viral fever and recovery", status: "Approved", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Medical certificate verified." },
+    { employeeId: "EMP-001", typeCode: "EL", startDate: new Date("2026-07-15"), endDate: new Date("2026-07-20"), daysCount: 6, reason: "Annual family travel", status: "Approved", reviewedBy: "Dean of Academics", remarks: "Approved with alternate class arrangement." },
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-09-02"), endDate: new Date("2026-09-03"), daysCount: 2, reason: "Personal urgent errands", status: "Approved", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Approved." },
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-10-20"), endDate: new Date("2026-10-21"), daysCount: 2, reason: "Attending tech conference", status: "Pending", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Under review." },
+    // EMP-002 (Arjun)
+    { employeeId: "EMP-002", typeCode: "CL", startDate: new Date("2026-01-15"), endDate: new Date("2026-01-16"), daysCount: 2, reason: "Personal commitment", status: "Approved", reviewedBy: "Commerce HOD", remarks: "Approved." },
+    { employeeId: "EMP-002", typeCode: "ML", startDate: new Date("2026-03-12"), endDate: new Date("2026-03-14"), daysCount: 3, reason: "Severe migraine and rest", status: "Approved", reviewedBy: "Commerce HOD", remarks: "Approved." },
+    { employeeId: "EMP-002", typeCode: "EL", startDate: new Date("2026-08-10"), endDate: new Date("2026-08-14"), daysCount: 5, reason: "Personal leave", status: "Rejected", reviewedBy: "Dean", remarks: "Conflict with examination duty schedule." },
+    { employeeId: "EMP-002", typeCode: "CL", startDate: new Date("2026-10-25"), endDate: new Date("2026-10-26"), daysCount: 2, reason: "Attending seminar", status: "Pending", reviewedBy: "Commerce HOD", remarks: "Awaiting recommendation." },
+    // EMP-003 (Diya Menon)
+    { employeeId: "EMP-003", typeCode: "MLV", startDate: new Date("2026-02-01"), endDate: new Date("2026-07-30"), daysCount: 180, reason: "Statutory maternity leave", status: "Approved", reviewedBy: "Principal", remarks: "Statutory leave sanctioned." },
+    { employeeId: "EMP-003", typeCode: "CL", startDate: new Date("2026-09-15"), endDate: new Date("2026-09-16"), daysCount: 2, reason: "Child health checkup", status: "Approved", reviewedBy: "English HOD", remarks: "Approved." },
+    // EMP-004 (Venkatesh)
+    { employeeId: "EMP-004", typeCode: "CL", startDate: new Date("2026-02-18"), endDate: new Date("2026-02-19"), daysCount: 2, reason: "Personal work", status: "Approved", reviewedBy: "Mathematics HOD", remarks: "Approved." },
+    { employeeId: "EMP-004", typeCode: "ML", startDate: new Date("2026-05-11"), endDate: new Date("2026-05-13"), daysCount: 3, reason: "Knee sprain treatment", status: "Approved", reviewedBy: "Mathematics HOD", remarks: "Medical receipt submitted." },
+    // EMP-005 (Kavya)
+    { employeeId: "EMP-005", typeCode: "CL", startDate: new Date("2026-03-05"), endDate: new Date("2026-03-06"), daysCount: 2, reason: "Family wedding ceremony", status: "Approved", reviewedBy: "Physics HOD", remarks: "Granted." },
+    { employeeId: "EMP-005", typeCode: "EL", startDate: new Date("2026-06-10"), endDate: new Date("2026-06-18"), daysCount: 9, reason: "Summer vacation travel", status: "Approved", reviewedBy: "Dean", remarks: "Approved." },
+    // EMP-006 (Rohan Das)
+    { employeeId: "EMP-006", typeCode: "PL", startDate: new Date("2026-04-10"), endDate: new Date("2026-04-24"), daysCount: 15, reason: "Paternity statutory leave", status: "Approved", reviewedBy: "CS HOD", remarks: "Childbirth statutory leave." },
+    { employeeId: "EMP-006", typeCode: "CL", startDate: new Date("2026-08-20"), endDate: new Date("2026-08-21"), daysCount: 2, reason: "Personal emergency", status: "Cancelled", reviewedBy: "CS HOD", remarks: "Cancelled by employee." },
+    // EMP-007 (Sneha Thomas)
+    { employeeId: "EMP-007", typeCode: "CL", startDate: new Date("2026-02-25"), endDate: new Date("2026-02-26"), daysCount: 2, reason: "Family commitment", status: "Approved", reviewedBy: "Commerce HOD", remarks: "Approved." },
+    { employeeId: "EMP-007", typeCode: "ML", startDate: new Date("2026-06-04"), endDate: new Date("2026-06-06"), daysCount: 3, reason: "Seasonal flu recovery", status: "Approved", reviewedBy: "Commerce HOD", remarks: "Approved." },
+    // EMP-008 (Vikram)
+    { employeeId: "EMP-008", typeCode: "CL", startDate: new Date("2026-03-15"), endDate: new Date("2026-03-16"), daysCount: 2, reason: "Personal work", status: "Approved", reviewedBy: "English HOD", remarks: "Approved." },
+    { employeeId: "EMP-008", typeCode: "EL", startDate: new Date("2026-07-01"), endDate: new Date("2026-07-05"), daysCount: 5, reason: "Personal travel", status: "Approved", reviewedBy: "Dean", remarks: "Approved." },
+  ];
+
+  for (const app of applications) {
+    const leaveTypeId = leaveTypeMap[app.typeCode];
+    if (!leaveTypeId) continue;
+    const existing = await prisma.employeeLeaveApplication.findFirst({
+      where: {
+        employeeId: app.employeeId,
+        leaveTypeId,
+        startDate: app.startDate,
+      },
+    });
+    if (!existing) {
+      await prisma.employeeLeaveApplication.create({
+        data: {
+          employeeId: app.employeeId,
+          leaveTypeId,
+          startDate: app.startDate,
+          endDate: app.endDate,
+          daysCount: app.daysCount,
+          reason: app.reason,
+          status: app.status,
+          reviewedBy: app.reviewedBy,
+          remarks: app.remarks,
+        },
+      });
+    }
+  }
+
   console.log("Database seeded successfully!");
 }
 
@@ -160,4 +209,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-  })
+  });

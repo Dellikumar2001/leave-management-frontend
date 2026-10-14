@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -102,8 +101,18 @@ function parseMaternityLeaveInput(value: unknown): MaternityLeaveInput | null {
   return { employeeId, noOfDays, remarks };
 }
 
-function serializeRecord(record: { employeeId: string; employeeName: string; noOfDays: number; remarks: string }) {
-  return { ...record, status: "Active" as const };
+function serializeRecord(record: {
+  employeeId: string;
+  employeeName: string;
+  noOfDays: number;
+  remarks: string | null;
+  status?: string;
+}) {
+  return {
+    ...record,
+    remarks: record.remarks ?? "",
+    status: "Active" as const,
+  };
 }
 
 function hasPrismaErrorCode(error: unknown, code: string): boolean {

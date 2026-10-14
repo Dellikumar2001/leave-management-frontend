@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import Link from "next/link";
 import {
   Baby,
@@ -34,7 +34,8 @@ export type LeaveSidebarPage =
   | "leave-report"
   | "statutory-report"
   | "paternity-leave"
-  | "leave-status-report";
+  | "leave-status-report"
+  | "employee-status-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -140,6 +141,12 @@ const leaveReportNavigation: readonly NavItem[] = [
     href: "/leave-reports/leave-status-report",
     Icon: FileCheck,
   },
+  {
+    id: "employee-status-report",
+    label: "Employee Individual Leave Status Report",
+    href: "/leave-report/employee-status",
+    Icon: Users,
+  },
 ];
 
 function SubGroupItem({
@@ -154,12 +161,14 @@ function SubGroupItem({
     (item.subItems?.some((sub) => sub.id === activePage) ?? false);
 
   const [subOpen, setSubOpen] = useState(true);
+  const [prevIsSubActive, setPrevIsSubActive] = useState(isSubActive);
 
-  useEffect(() => {
+  if (isSubActive !== prevIsSubActive) {
+    setPrevIsSubActive(isSubActive);
     if (isSubActive) {
       setSubOpen(true);
     }
-  }, [isSubActive]);
+  }
 
   const ItemIcon = item.Icon;
 

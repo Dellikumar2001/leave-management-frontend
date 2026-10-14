@@ -1,4 +1,7 @@
-export async function handleRestRequest(handler: (args: any) => Promise<any>, request: Request) {
+export async function handleRestRequest<T = unknown>(
+  handler: (args: { input: Record<string, unknown>; context: Record<string, unknown> }) => Promise<T>,
+  request: Request
+) {
   try {
     const url = new URL(request.url);
     const query = Object.fromEntries(url.searchParams.entries());
