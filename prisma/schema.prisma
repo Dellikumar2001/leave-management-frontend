@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  engineType = "client"
 }
 
 datasource db {
@@ -26,12 +27,14 @@ enum LeaveRequestType {
   GENERAL
   HOSTEL
   OTHER
+  ANNUAL
 }
 
 enum LeaveRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  WITHDRAWN
 }
 
 enum EmployeeCategory {
@@ -55,9 +58,9 @@ model LeaveType {
   leaveGroup          String                     @default("") @map("leave_group")
   paymentType         String?                    @map("payment_type")
   category            LeaveCategory?
-  daysAllowed         Int                        @map("days")
-  description         String?
-  status              LeaveStatus                @default(ACTIVE)
+  daysAllowed         Int                        @map("days_allowed")
+  description         String                     @default("")
+  status              String                     @default("ACTIVE")
   applicableTo        EmployeeCategory[]         @default([STUDENT])
   isUsed              Boolean                    @default(false) @map("is_used")
   createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -66,6 +69,7 @@ model LeaveType {
   groupItems          LeaveGroupItem[]
   leaveCredits        LeaveCredit[]
 
+  @@map("leave_types")
 }
 
 model Employee {
@@ -73,7 +77,10 @@ model Employee {
   name           String
   stream         String
   department     String
-  gender         String?    
+  gender         String
+  designation    String?
+  mobileNumber   String?                    @map("mobile_number")
+  workEmail      String?                    @map("work_email")
   leaveRecords   EmployeeLeaveEligibility[]
   maternityLeave MaternityLeave?
   paternityLeaves PaternityLeave[]
@@ -168,7 +175,7 @@ model LeaveCredit {
   version     Int           @default(1)
   leaveTypeId Int?          @map("leave_type_id")
   createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
   employee    Employee      @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType   LeaveType?    @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
 

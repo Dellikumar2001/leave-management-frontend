@@ -94,6 +94,9 @@ export async function GET(request: Request) {
         name: true,
         stream: true,
         department: true,
+        designation: true,
+        mobileNumber: true,
+        workEmail: true,
         leaveBalances: { select: { category: true, balance: true } },
         leaveRecords: {
           where: { isEligible: true },
@@ -170,9 +173,10 @@ export async function GET(request: Request) {
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
-    const requestHistory = requests.map((record) => {
+    const requestHistory = requests.filter((record) =>
+      isTaken(record.status.toString().toUpperCase(), record.endDate, today),
+    ).map((record) => {
       const status = record.status.toString().toUpperCase();
-      const finalStatus = isTaken(status, record.endDate, today) ? "TAKEN" : status;
       const reviewer = record.reviewer;
       const approver = reviewer?.name?.trim() ||
         [reviewer?.firstName, reviewer?.lastName].filter(Boolean).join(" ") || null;
@@ -180,9 +184,10 @@ export async function GET(request: Request) {
         id: record.id,
         startDate: record.startDate,
         endDate: record.endDate,
+        appliedAt: record.appliedAt,
         duration: inclusiveDays(record.startDate, record.endDate),
         leaveType: record.type.toString().replaceAll("_", " "),
-        status: finalStatus,
+        status,
         reason: record.reason,
         approver,
         reviewedAt: record.reviewedAt,
@@ -277,11 +282,11 @@ export async function GET(request: Request) {
       employee: {
         employeeId: employee.employeeId,
         name: employee.name,
-        designation: null,
+        designation: employee.designation,
         department: employee.department,
         stream: employee.stream,
-        mobile: null,
-        workEmail: primaryStudent?.user.email?.trim() || null,
+        mobile: employee.mobileNumber,
+        workEmail: employee.workEmail?.trim() || primaryStudent?.user.email?.trim() || null,
       },
       period: {
         startDate: periodStart,
