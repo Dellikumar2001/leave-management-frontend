@@ -63,13 +63,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const selectedCodes = Array.isArray(body.leaveTypeCodes)
-      ? [...new Set<string>(body.leaveTypeCodes.map((code: unknown) => String(code)))]
+    const body = await request.json() as Record<string, unknown>;
+    const b = body;
+    const selectedCodes = Array.isArray(b.leaveTypeCodes)
+      ? [...new Set(b.leaveTypeCodes.map((code: unknown) => String(code)))] as string[]
       : [];
-    const categoryId = Number(body.categoryId);
+    const categoryId = Number(b.categoryId);
 
-    if (!body.code || !body.name || !body.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
+    if (!b.code || !b.name || !b.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
       return Response.json({ error: "Code, name, category, and effective from are required." }, { status: 400 });
     }
 
@@ -92,19 +93,19 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Select active leave types only." }, { status: 400 });
     }
 
-    const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
-    const status = normalizeStatus(body.status);
+    const effectiveFrom = getEffectiveFromDate(b.effectiveFrom);
+    const status = normalizeStatus(b.status);
 
     const leaveGroup = await prisma.leaveGroup.create({
       data: {
-        code: String(body.code).trim(),
-        name: String(body.name).trim(),
-        description: body.description ? String(body.description).trim() : null,
+        code: String(b.code).trim(),
+        name: String(b.name).trim(),
+        description: b.description ? String(b.description).trim() : null,
         category: { connect: { id: categoryId } },
         effectiveFrom,
         status,
         items: {
-          create: leaveTypes.map((leaveType) => ({
+          create: leaveTypes.map((leaveType: (typeof leaveTypes)[number]) => ({
             leaveType: {
               connect: { id: leaveType.id },
             },

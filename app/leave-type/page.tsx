@@ -296,7 +296,7 @@ export default function LeaveTypePage() {
       code: "",
       name: "",
       leaveGroupId: "",
-      paymentType: "PAID",
+      paymentType:"PAID",
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",

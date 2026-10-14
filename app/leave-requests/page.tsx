@@ -106,43 +106,55 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
 });
 
 const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }[]> => {
-  const response = await fetch("/api/leave-types?status=ACTIVE");
-  if (!response.ok) {
-    throw new Error("Failed to load leave types");
-  }
+  try {
+    const response = await fetch("/api/leave-types?status=ACTIVE");
+    if (!response.ok) {
+      return [];
+    }
 
-  const json = await response.json();
-  const items = Array.isArray(json) ? json : [];
-  return items.map((item: { code?: string | null; name?: string | null }) => ({
-    value: String(item.code ?? ""),
-    label: `${item.code ?? ""} ${item.name ?? ""}`,
-  }));
+    const json = await response.json();
+    const items = Array.isArray(json) ? json : [];
+    return items.map((item: { code?: string | null; name?: string | null }) => ({
+      value: String(item.code ?? ""),
+      label: `${item.code ?? ""} - ${item.name ?? ""}`,
+    }));
+  } catch {
+    return [];
+  }
 };
 
 const fetchLeaveCategoryOptions = async (): Promise<LeaveCategoryOption[]> => {
-  const response = await fetch("/api/leave-categories");
-  if (!response.ok) {
-    throw new Error("Failed to load leave categories");
-  }
+  try {
+    const response = await fetch("/api/leave-categories");
+    if (!response.ok) {
+      return [];
+    }
 
-  const json = await response.json();
-  const items = Array.isArray(json?.data) ? json.data : [];
-  return items
-    .filter((item: { status?: string }) => item.status === "ACTIVE")
-    .map((item: { id?: number; name?: string }) => ({
-      id: Number(item.id),
-      name: String(item.name ?? ""),
-    }));
+    const json = await response.json();
+    const items = Array.isArray(json?.data) ? json.data : [];
+    return items
+      .filter((item: { status?: string }) => item.status === "ACTIVE")
+      .map((item: { id?: number; name?: string }) => ({
+        id: Number(item.id),
+        name: String(item.name ?? ""),
+      }));
+  } catch {
+    return [];
+  }
 };
 
 const fetchLeaveGroups = async (): Promise<LeaveGroup[]> => {
-  const response = await fetch("/api/leave-requests");
-  if (!response.ok) {
-    throw new Error("Failed to load leave groups");
-  }
+  try {
+    const response = await fetch("/api/leave-requests");
+    if (!response.ok) {
+      return [];
+    }
 
-  const json = await response.json();
-  return Array.isArray(json?.data) ? json.data.map(mapApiLeaveGroup) : [];
+    const json = await response.json();
+    return Array.isArray(json?.data) ? json.data.map(mapApiLeaveGroup) : [];
+  } catch {
+    return [];
+  }
 };
 
 function CalendarIcon() {

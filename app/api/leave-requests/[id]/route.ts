@@ -107,7 +107,7 @@ export async function PUT(
             },
           },
         })
-      : [];
+      : ([] as Awaited<ReturnType<typeof prisma.leaveType.findMany>>);
     if (leaveTypes.length !== leaveTypeCodes.length) {
       return Response.json({ error: "Select active leave types only." }, { status: 400 });
     }
@@ -123,7 +123,7 @@ export async function PUT(
         status,
         items: {
           deleteMany: {},
-          create: leaveTypes.map((leaveType) => ({
+          create: leaveTypes.map((leaveType: (typeof leaveTypes)[number]) => ({
             leaveType: {
               connect: { id: leaveType.id },
             },
