@@ -26,7 +26,7 @@ const emptyForm: EligibilityForm = {
   leaveGroup: "",
 };
 
-const inputClassName = "h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white";
+const inputClassName = "h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white";
 
 export default function CreateEligibilityPage() {
   const [eligibilities, setEligibilities] = useState<Eligibility[]>([]);
@@ -78,13 +78,12 @@ export default function CreateEligibilityPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          eligibilityName: form.eligibilityName.trim(),
-          description: form.description.trim(),
-          employeeType: form.employeeType.trim(),
-          employmentType: form.employmentType.trim(),
-          managementStream: form.managementStream.trim(),
-          leaveGroup: form.leaveGroup.trim(),
+          eligibilityName: form.eligibilityName.trim().toUpperCase(),
+          description: form.description.trim().toUpperCase(),
+          employeeType: form.employeeType.trim().toUpperCase(),
+          employmentType: form.employmentType.trim().toUpperCase(),
+          managementStream: form.managementStream.trim().toUpperCase(),
+          leaveGroup: form.leaveGroup.trim().toUpperCase(),
         }),
       });
       const result = await response.json();
@@ -114,10 +113,10 @@ export default function CreateEligibilityPage() {
                 <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
                   type="search"
-                  placeholder="Search eligibility..."
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm normal-case text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="SEARCH ELIGIBILITY..."
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <button
@@ -136,7 +135,7 @@ export default function CreateEligibilityPage() {
           </div>
 
           <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {error && !isModalOpen && <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm normal-case text-red-700">{error}</p>}
+            {error && !isModalOpen && <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm uppercase text-red-700">{error}</p>}
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left">
                 <thead>
@@ -153,27 +152,27 @@ export default function CreateEligibilityPage() {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={8} className="bg-white px-5 py-10 text-center text-sm normal-case text-slate-500">Loading eligibility...</td></tr>
+                    <tr><td colSpan={8} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">Loading eligibility...</td></tr>
                   ) : filteredEligibilities.length === 0 ? (
-                    <tr><td colSpan={8} className="bg-white px-5 py-10 text-center text-sm normal-case text-slate-500">{search ? "No eligibility records match your search." : "No leave eligibility records yet."}</td></tr>
+                    <tr><td colSpan={8} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">{search ? "No eligibility records match your search." : "No leave eligibility records yet."}</td></tr>
                   ) : filteredEligibilities.map((item, index) => (
                     <tr key={item.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 font-semibold text-slate-800">{item.eligibilityName}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 normal-case">{item.description || "-"}</td>
-                      <td className="border-b border-slate-200 px-5 py-4">{item.employeeType}</td>
-                      <td className="border-b border-slate-200 px-5 py-4">{item.employmentType}</td>
-                      <td className="border-b border-slate-200 px-5 py-4">{item.managementStream || "-"}</td>
-                      <td className="border-b border-slate-200 px-5 py-4">{item.leaveGroup}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 font-semibold uppercase text-slate-800">{item.eligibilityName}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 uppercase">{item.description || "-"}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 uppercase">{item.employeeType}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 uppercase">{item.employmentType}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 uppercase">{item.managementStream || "-"}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 uppercase">{item.leaveGroup}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
-                        <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">{item.status}</span>
+                        <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium uppercase text-emerald-700">{item.status}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm normal-case text-slate-500">
+            <div className="border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm uppercase text-slate-500">
               Showing {filteredEligibilities.length} of {eligibilities.length} eligibility records
             </div>
           </section>
@@ -185,62 +184,98 @@ export default function CreateEligibilityPage() {
           <form onSubmit={handleSubmit} className="my-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">Create Leave Eligibility</h2>
-                <p className="mt-1 text-sm normal-case text-slate-500">Enter the eligibility details below.</p>
+                <h2 className="text-xl font-bold uppercase text-slate-800">Create Leave Eligibility</h2>
+                <p className="mt-1 text-sm uppercase text-slate-500">Enter the eligibility details below.</p>
               </div>
               <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close dialog">
                 <X size={20} />
               </button>
             </div>
 
-            {error && <p role="alert" className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm normal-case text-red-700">{error}</p>}
+            {error && <p role="alert" className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm uppercase text-red-700">{error}</p>}
             <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
               <div>
-                <label htmlFor="eligibilityName" className="mb-1.5 block text-sm font-medium text-slate-700">Eligibility name <span className="text-red-500">*</span></label>
-                <input id="eligibilityName" required maxLength={120} value={form.eligibilityName} onChange={(event) => setForm((previous) => ({ ...previous, eligibilityName: event.target.value }))} className={`${inputClassName} uppercase`} />
+                <label htmlFor="eligibilityName" className="mb-1.5 block text-sm font-medium uppercase text-slate-700">Eligibility name <span className="text-red-500">*</span></label>
+                <input
+                  id="eligibilityName"
+                  required
+                  maxLength={120}
+                  value={form.eligibilityName}
+                  onChange={(event) => setForm((previous) => ({ ...previous, eligibilityName: event.target.value.toUpperCase() }))}
+                  className={inputClassName}
+                />
               </div>
               <div>
-                <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
-                <input id="description" maxLength={500} value={form.description} onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))} className={inputClassName} />
+                <label htmlFor="description" className="mb-1.5 block text-sm font-medium uppercase text-slate-700">Description</label>
+                <input
+                  id="description"
+                  maxLength={500}
+                  value={form.description}
+                  onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value.toUpperCase() }))}
+                  className={inputClassName}
+                />
               </div>
               <div>
-                <label htmlFor="employeeType" className="mb-1.5 block text-sm font-medium text-slate-700">Employee type <span className="text-red-500">*</span></label>
-                <select id="employeeType" required value={form.employeeType} onChange={(event) => setForm((previous) => ({ ...previous, employeeType: event.target.value }))} className={inputClassName}>
-                  <option value="">Select employee type</option>
-                  <option value="Teaching">Teaching</option>
-                  <option value="Non-Teaching">Non-Teaching</option>
-                  <option value="Student">Student</option>
+                <label htmlFor="employeeType" className="mb-1.5 block text-sm font-medium uppercase text-slate-700">Employee type <span className="text-red-500">*</span></label>
+                <select
+                  id="employeeType"
+                  required
+                  value={form.employeeType}
+                  onChange={(event) => setForm((previous) => ({ ...previous, employeeType: event.target.value.toUpperCase() }))}
+                  className={inputClassName}
+                >
+                  <option value="">SELECT EMPLOYEE TYPE</option>
+                  <option value="TEACHING">TEACHING</option>
+                  <option value="NON-TEACHING">NON-TEACHING</option>
+                  <option value="STUDENT">STUDENT</option>
                 </select>
               </div>
               <div>
-                <label htmlFor="employmentType" className="mb-1.5 block text-sm font-medium text-slate-700">Employment type <span className="text-red-500">*</span></label>
-                <select id="employmentType" required value={form.employmentType} onChange={(event) => setForm((previous) => ({ ...previous, employmentType: event.target.value }))} className={inputClassName}>
-                  <option value="">Select employment type</option>
-                  <option value="Permanent">Permanent</option>
-                  <option value="Contract">Contract</option>
-                  <option value="Temporary">Temporary</option>
+                <label htmlFor="employmentType" className="mb-1.5 block text-sm font-medium uppercase text-slate-700">Employment type <span className="text-red-500">*</span></label>
+                <select
+                  id="employmentType"
+                  required
+                  value={form.employmentType}
+                  onChange={(event) => setForm((previous) => ({ ...previous, employmentType: event.target.value.toUpperCase() }))}
+                  className={inputClassName}
+                >
+                  <option value="">SELECT EMPLOYMENT TYPE</option>
+                  <option value="PERMANENT">PERMANENT</option>
+                  <option value="CONTRACT">CONTRACT</option>
+                  <option value="TEMPORARY">TEMPORARY</option>
                 </select>
               </div>
               <div>
-                <label htmlFor="managementStream" className="mb-1.5 block text-sm font-medium text-slate-700">Management stream</label>
-                <select id="managementStream" value={form.managementStream} onChange={(event) => setForm((previous) => ({ ...previous, managementStream: event.target.value }))} className={inputClassName}>
-                  <option value="">Select stream</option>
-                  <option value="All">All</option>
-                  <option value="Academic">Academic</option>
-                  <option value="Administration">Administration</option>
+                <label htmlFor="managementStream" className="mb-1.5 block text-sm font-medium uppercase text-slate-700">Management stream</label>
+                <select
+                  id="managementStream"
+                  value={form.managementStream}
+                  onChange={(event) => setForm((previous) => ({ ...previous, managementStream: event.target.value.toUpperCase() }))}
+                  className={inputClassName}
+                >
+                  <option value="">SELECT STREAM</option>
+                  <option value="ALL">ALL</option>
+                  <option value="ACADEMIC">ACADEMIC</option>
+                  <option value="ADMINISTRATION">ADMINISTRATION</option>
                 </select>
               </div>
               <div>
-                <label htmlFor="leaveGroup" className="mb-1.5 block text-sm font-medium text-slate-700">Leave group <span className="text-red-500">*</span></label>
-                <select id="leaveGroup" required value={form.leaveGroup} onChange={(event) => setForm((previous) => ({ ...previous, leaveGroup: event.target.value }))} className={inputClassName}>
-                  <option value="">Select leave group</option>
-                  <option value="Teaching Staff Leave Group">Teaching Staff Leave Group</option>
-                  <option value="Non Teaching Staff Leave Group">Non Teaching Staff Leave Group</option>
-                  <option value="General Staff Leave Group">General Staff Leave Group</option>
+                <label htmlFor="leaveGroup" className="mb-1.5 block text-sm font-medium uppercase text-slate-700">Leave group <span className="text-red-500">*</span></label>
+                <select
+                  id="leaveGroup"
+                  required
+                  value={form.leaveGroup}
+                  onChange={(event) => setForm((previous) => ({ ...previous, leaveGroup: event.target.value.toUpperCase() }))}
+                  className={inputClassName}
+                >
+                  <option value="">SELECT LEAVE GROUP</option>
+                  <option value="TEACHING STAFF LEAVE GROUP">TEACHING STAFF LEAVE GROUP</option>
+                  <option value="NON TEACHING STAFF LEAVE GROUP">NON TEACHING STAFF LEAVE GROUP</option>
+                  <option value="GENERAL STAFF LEAVE GROUP">GENERAL STAFF LEAVE GROUP</option>
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4 uppercase">
               <button type="button" onClick={() => setIsModalOpen(false)} className="h-10 rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Cancel</button>
               <button type="submit" disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c] disabled:cursor-wait disabled:opacity-60">
                 <Save size={16} />

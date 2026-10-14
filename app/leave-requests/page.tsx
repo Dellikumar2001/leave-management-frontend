@@ -12,7 +12,7 @@ type LeaveGroup = {
   categoryName: string | null;
   leaveTypes: string[];
   effectiveFrom: string;
-  status: "Active" | "Inactive";
+  status: "ACTIVE" | "INACTIVE";
   isUsed?: boolean;
 };
 
@@ -23,7 +23,7 @@ type LeaveGroupForm = {
   leaveTypes: string[];
   categoryId: string;
   effectiveFrom: string;
-  status: "Active" | "Inactive";
+  status: "ACTIVE" | "INACTIVE";
 };
 
 type LeaveCategoryOption = {
@@ -53,13 +53,13 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 
   return (
     <div className="relative flex items-center justify-end gap-1">
-      <button onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View">
+      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View">
         <Eye size={16} />
       </button>
-      <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit">
+      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit">
         <Pencil size={16} />
       </button>
-      <button onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
         <Trash2 size={14} />
       </button>
 
@@ -75,13 +75,13 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${
                 isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
               }`}
               title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
+              <span>{isDeleteDisabled ? "DELETE DISABLED" : "DELETE"}</span>
             </button>
           </div>
         </>
@@ -92,31 +92,28 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 
 const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   id: Number(group.id),
-  code: String(group.code),
-  name: String(group.name),
-  categoryName: group.category?.name ?? null,
+  code: String(group.code ?? "").toUpperCase(),
+  name: String(group.name ?? "").toUpperCase(),
+  categoryName: group.category?.name ? String(group.category.name).toUpperCase() : null,
   leaveTypes: Array.isArray(group.items)
     ? group.items
         .filter((item) => item.leaveType?.status === "ACTIVE")
-        .map((item) => item.leaveType?.code ?? "")
+        .map((item) => String(item.leaveType?.code ?? "").toUpperCase())
     : [],
   effectiveFrom: new Date(group.effectiveFrom).toISOString().split("T")[0],
-  status: group.status === "ACTIVE" ? "Active" : "Inactive",
+  status: group.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
   isUsed: false,
 });
 
 const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }[]> => {
   try {
     const response = await fetch("/api/leave-types?status=ACTIVE");
-    if (!response.ok) {
-      return [];
-    }
-
+    if (!response.ok) return [];
     const json = await response.json();
     const items = Array.isArray(json) ? json : [];
     return items.map((item: { code?: string | null; name?: string | null }) => ({
-      value: String(item.code ?? ""),
-      label: `${item.code ?? ""} - ${item.name ?? ""}`,
+      value: String(item.code ?? "").toUpperCase(),
+      label: `${String(item.code ?? "").toUpperCase()} ${String(item.name ?? "").toUpperCase()}`,
     }));
   } catch {
     return [];
@@ -126,17 +123,14 @@ const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }
 const fetchLeaveCategoryOptions = async (): Promise<LeaveCategoryOption[]> => {
   try {
     const response = await fetch("/api/leave-categories");
-    if (!response.ok) {
-      return [];
-    }
-
+    if (!response.ok) return [];
     const json = await response.json();
     const items = Array.isArray(json?.data) ? json.data : [];
     return items
       .filter((item: { status?: string }) => item.status === "ACTIVE")
       .map((item: { id?: number; name?: string }) => ({
         id: Number(item.id),
-        name: String(item.name ?? ""),
+        name: String(item.name ?? "").toUpperCase(),
       }));
   } catch {
     return [];
@@ -146,10 +140,7 @@ const fetchLeaveCategoryOptions = async (): Promise<LeaveCategoryOption[]> => {
 const fetchLeaveGroups = async (): Promise<LeaveGroup[]> => {
   try {
     const response = await fetch("/api/leave-requests");
-    if (!response.ok) {
-      return [];
-    }
-
+    if (!response.ok) return [];
     const json = await response.json();
     return Array.isArray(json?.data) ? json.data.map(mapApiLeaveGroup) : [];
   } catch {
@@ -185,19 +176,19 @@ function LeaveTypeMultiSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((current) => !current)}
-        className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 outline-none transition focus:border-blue-300 ${
+        className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 ${
           disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"
         }`}
       >
         <div className="flex flex-1 flex-wrap gap-2">
           {values.length > 0 ? (
             values.map((value) => (
-              <span key={value} className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700">
+              <span key={value} className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold uppercase text-blue-700">
                 {value}
               </span>
             ))
           ) : (
-            <span className="text-slate-400">Select leave types</span>
+            <span className="text-slate-400">SELECT LEAVE TYPES</span>
           )}
         </div>
 
@@ -207,7 +198,7 @@ function LeaveTypeMultiSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+        <div className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
           {options.length > 0 ? (
             options.map((option) => {
               const checked = values.includes(option.value);
@@ -215,7 +206,7 @@ function LeaveTypeMultiSelect({
               return (
                 <label
                   key={option.value}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 uppercase hover:bg-slate-50"
                 >
                   <input
                     type="checkbox"
@@ -235,7 +226,7 @@ function LeaveTypeMultiSelect({
               );
             })
           ) : (
-            <div className="px-2 py-3 text-sm text-slate-500">No leave types available</div>
+            <div className="px-2 py-3 text-sm uppercase text-slate-500">NO LEAVE TYPES AVAILABLE</div>
           )}
         </div>
       )}
@@ -247,25 +238,11 @@ const today = new Date().toISOString().split("T")[0];
 const maxEffectiveFrom = "2100-12-31";
 
 function sanitizeDateInput(value: string): string {
-  if (!value) return "";
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return "";
-  }
-
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  if (parsed < new Date(`${today}T00:00:00.000Z`)) {
-    return "";
-  }
-
-  if (parsed > new Date(`${maxEffectiveFrom}T00:00:00.000Z`)) {
-    return "";
-  }
-
+  if (Number.isNaN(parsed.getTime())) return "";
+  if (parsed < new Date(`${today}T00:00:00.000Z`)) return "";
+  if (parsed > new Date(`${maxEffectiveFrom}T00:00:00.000Z`)) return "";
   return value;
 }
 
@@ -275,7 +252,7 @@ export default function StudentLeaveRequestsPage() {
   const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>([]);
   const [leaveCategoryOptions, setLeaveCategoryOptions] = useState<LeaveCategoryOption[]>([]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [statusFilter, setStatusFilter] = useState("ALL STATUS");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<LeaveGroupForm>({
     code: "",
@@ -284,7 +261,7 @@ export default function StudentLeaveRequestsPage() {
     leaveTypes: [],
     categoryId: "",
     effectiveFrom: "",
-    status: "Active",
+    status: "ACTIVE",
   });
 
   useEffect(() => {
@@ -303,28 +280,28 @@ export default function StudentLeaveRequestsPage() {
       }
     };
 
-    loadData();
+    void loadData();
   }, []);
 
   const filteredGroups = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = search.trim().toUpperCase();
 
     return groups.filter((group) => {
       const matchesSearch =
         !query ||
-        group.code.toLowerCase().includes(query) ||
-        group.name.toLowerCase().includes(query) ||
-        group.categoryName?.toLowerCase().includes(query) ||
-        group.leaveTypes.some((type) => type.toLowerCase().includes(query));
+        group.code.toUpperCase().includes(query) ||
+        group.name.toUpperCase().includes(query) ||
+        (group.categoryName && group.categoryName.toUpperCase().includes(query)) ||
+        group.leaveTypes.some((type) => type.toUpperCase().includes(query));
 
-      const matchesStatus = statusFilter === "All Status" || group.status === statusFilter;
+      const matchesStatus = statusFilter === "ALL STATUS" || group.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [groups, search, statusFilter]);
 
   const handleCreateGroup = async () => {
     const nextCode = form.code.trim().toUpperCase();
-    const nextName = form.name.trim();
+    const nextName = form.name.trim().toUpperCase();
     const categoryId = Number(form.categoryId);
     const nextEffectiveFrom = sanitizeDateInput(form.effectiveFrom);
 
@@ -340,11 +317,11 @@ export default function StudentLeaveRequestsPage() {
       body: JSON.stringify({
         code: nextCode,
         name: nextName,
-        description: form.description.trim(),
-        leaveTypeCodes: form.leaveTypes,
+        description: form.description.trim().toUpperCase(),
+        leaveTypeCodes: form.leaveTypes.map((t) => t.toUpperCase()),
         categoryId,
         effectiveFrom: nextEffectiveFrom,
-        status: form.status.toUpperCase(),
+        status: form.status,
       }),
     });
 
@@ -363,7 +340,7 @@ export default function StudentLeaveRequestsPage() {
       leaveTypes: [],
       categoryId: "",
       effectiveFrom: "",
-      status: "Active",
+      status: "ACTIVE",
     });
     setIsModalOpen(false);
   };
@@ -397,46 +374,46 @@ export default function StudentLeaveRequestsPage() {
         <div className="mx-auto max-w-[1400px]">
           {/* Header matched to Leave Eligibility banner */}
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800">Leave Group</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-800">LEAVE GROUP</h1>
           </header>
 
-          {/* Inline Filter & Action bar styled matching Maternity Leave / Leave Eligibility */}
+          {/* Inline Filter & Action bar */}
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Search Bar - matching Maternity Leave input style */}
+              {/* Search Bar in UPPERCASE */}
               <div className="relative flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by group code, name, or leave type..."
+                  placeholder="SEARCH BY GROUP CODE, NAME, OR LEAVE TYPE..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm normal-case text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  onChange={(e) => setSearch(e.target.value.toUpperCase())}
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
-              {/* Status Dropdown - matching Stream/Department filter button size */}
+              {/* Status Dropdown in UPPERCASE */}
               <div className="relative min-w-[170px]">
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 pr-9 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  onChange={(e) => setStatusFilter(e.target.value.toUpperCase())}
+                  className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 pr-9 text-sm uppercase text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 >
-                  <option>All Status</option>
-                  <option>Active</option>
-                  <option>Inactive</option>
+                  <option value="ALL STATUS">ALL STATUS</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
                 </select>
                 <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
 
-              {/* Create Button - inline with search & status filter */}
+              {/* Create Button in UPPERCASE */}
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c]"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium uppercase text-white transition-colors hover:bg-[#294f9c]"
               >
                 <Plus size={16} />
-                Create Leave Group
+                CREATE LEAVE GROUP
               </button>
             </div>
           </div>
@@ -445,20 +422,20 @@ export default function StudentLeaveRequestsPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left">
                 <thead>
-                  <tr className="bg-[#f8fafc] text-sm font-semibold text-slate-700">
-                    <th className="border-b border-slate-200 px-5 py-4">Sno</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Group Code</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Group Name</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Leave Category</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Leave Types</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Effective From</th>
-                    <th className="border-b border-slate-200 px-5 py-4">Status</th>
-                    <th className="border-b border-slate-200 px-5 py-4 text-right">Actions</th>
+                  <tr className="bg-[#f8fafc] text-xs font-semibold uppercase text-slate-600 sm:text-sm">
+                    <th className="border-b border-slate-200 px-5 py-4">SNO</th>
+                    <th className="border-b border-slate-200 px-5 py-4">GROUP CODE</th>
+                    <th className="border-b border-slate-200 px-5 py-4">GROUP NAME</th>
+                    <th className="border-b border-slate-200 px-5 py-4">LEAVE CATEGORY</th>
+                    <th className="border-b border-slate-200 px-5 py-4">LEAVE TYPES</th>
+                    <th className="border-b border-slate-200 px-5 py-4">EFFECTIVE FROM</th>
+                    <th className="border-b border-slate-200 px-5 py-4">STATUS</th>
+                    <th className="border-b border-slate-200 px-5 py-4 text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredGroups.map((group, index) => (
-                    <tr key={group.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
+                    <tr key={group.id} className="bg-white text-sm uppercase text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.name}</td>
@@ -468,7 +445,7 @@ export default function StudentLeaveRequestsPage() {
                           {group.leaveTypes.map((type) => (
                             <span
                               key={`${group.id}-${type}`}
-                              className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
+                              className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold uppercase text-blue-700"
                             >
                               {type}
                             </span>
@@ -480,12 +457,12 @@ export default function StudentLeaveRequestsPage() {
                           day: "2-digit",
                           month: "short",
                           year: "numeric",
-                        })}
+                        }).toUpperCase()}
                       </td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                            group.status === "Active"
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${
+                            group.status === "ACTIVE"
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-slate-200 text-slate-600"
                           }`}
@@ -498,15 +475,15 @@ export default function StudentLeaveRequestsPage() {
                           onView={() => handleViewGroup(group)}
                           onEdit={() => handleEditGroup(group)}
                           onDelete={() => handleDeleteGroup(group.id)}
-                          isDeleteDisabled={group.status === "Inactive" || Boolean(group.isUsed)}
+                          isDeleteDisabled={group.status === "INACTIVE" || Boolean(group.isUsed)}
                         />
                       </td>
                     </tr>
                   ))}
                   {filteredGroups.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-sm normal-case text-slate-500">
-                        No leave groups match your filter criteria.
+                      <td colSpan={8} className="px-5 py-12 text-center text-sm uppercase text-slate-500">
+                        NO LEAVE GROUPS MATCH YOUR FILTER CRITERIA.
                       </td>
                     </tr>
                   )}
@@ -514,8 +491,8 @@ export default function StudentLeaveRequestsPage() {
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm text-slate-500">
-              <div>Showing 1 to {filteredGroups.length} of {filteredGroups.length} entries</div>
+            <div className="flex items-center justify-between border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm uppercase text-slate-500">
+              <div>SHOWING 1 TO {filteredGroups.length} OF {filteredGroups.length} ENTRIES</div>
 
               <div className="flex items-center gap-2">
                 <button type="button" className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-500 disabled:opacity-50" aria-label="Previous page">
@@ -547,7 +524,7 @@ export default function StudentLeaveRequestsPage() {
               }}
             >
               <div className="flex items-center justify-between px-6 py-5">
-                <h2 className="text-[22px] font-bold text-slate-800">Create Leave Group</h2>
+                <h2 className="text-[22px] font-bold uppercase text-slate-800">CREATE LEAVE GROUP</h2>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -561,38 +538,38 @@ export default function StudentLeaveRequestsPage() {
               <div className="px-6 pb-6 pt-2">
                 <div className="grid grid-cols-2 gap-5">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Group Code <span className="text-red-500">*</span>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      GROUP CODE <span className="text-red-500">*</span>
                     </label>
                     <input
                       required
                       value={form.code}
                       onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase().slice(0, 5) }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
                       maxLength={5}
                       placeholder="GEN"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Group Name <span className="text-red-500">*</span>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      GROUP NAME <span className="text-red-500">*</span>
                     </label>
                     <input
                       required
                       value={form.name}
-                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
                       maxLength={32}
-                      placeholder="General Leave"
+                      placeholder="GENERAL LEAVE"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-5">
                   <div className="mt-5">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Leave Types <span className="text-red-500">*</span>
+                    <label className="mb-2 block text-sm font-medium uppercase text-slate-700">
+                      LEAVE TYPES <span className="text-red-500">*</span>
                     </label>
 
                     <input
@@ -608,24 +585,24 @@ export default function StudentLeaveRequestsPage() {
                       onChange={(nextValues) =>
                         setForm((prev) => ({
                           ...prev,
-                          leaveTypes: nextValues,
+                          leaveTypes: nextValues.map((t) => t.toUpperCase()),
                         }))
                       }
                     />
 
-                    <div className="mt-2 text-xs text-slate-500">Select one or more leave types</div>
+                    <div className="mt-2 text-xs uppercase text-slate-500">SELECT ONE OR MORE LEAVE TYPES</div>
                   </div>
                   <div className="mt-5">
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Leave Category <span className="text-red-500">*</span>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      LEAVE CATEGORY <span className="text-red-500">*</span>
                     </label>
                     <select
                       required
                       value={form.categoryId}
                       onChange={(event) => setForm((prev) => ({ ...prev, categoryId: event.target.value }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
                     >
-                      <option value="">Select category name</option>
+                      <option value="">SELECT CATEGORY NAME</option>
                       {leaveCategoryOptions.map((category) => (
                         <option key={category.id} value={category.id}>{category.name}</option>
                       ))}
@@ -635,8 +612,8 @@ export default function StudentLeaveRequestsPage() {
 
                 <div className="mt-5 grid grid-cols-2 gap-5">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Effective From <span className="text-red-500">*</span>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      EFFECTIVE FROM <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
@@ -653,48 +630,48 @@ export default function StudentLeaveRequestsPage() {
                           const nextValue = sanitizeDateInput(event.target.value);
                           setForm((prev) => ({ ...prev, effectiveFrom: nextValue }));
                         }}
-                        className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-base text-slate-700 outline-none focus:border-blue-300"
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Status</label>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">STATUS</label>
                     <select
                       value={form.status}
-                      onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "Active" | "Inactive" }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                      onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value.toUpperCase() as "ACTIVE" | "INACTIVE" }))}
+                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
                     >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="INACTIVE">INACTIVE</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="mt-5">
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
+                  <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DESCRIPTION</label>
                   <textarea
                     value={form.description}
-                    onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                    className="min-h-[78px] w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
+                    onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
+                    className="min-h-[78px] w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
                     maxLength={61}
-                    placeholder="Group for general purpose leaves like Casual, Annual and Earned Leave."
+                    placeholder="GROUP FOR GENERAL PURPOSE LEAVES LIKE CASUAL, ANNUAL AND EARNED LEAVE."
                   />
                 </div>
 
-                <div className="mt-6 flex justify-end gap-3">
+                <div className="mt-6 flex justify-end gap-3 uppercase">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium uppercase text-slate-700 transition hover:bg-slate-50"
                   >
-                    Cancel
+                    CANCEL
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#294f9c]"
+                    className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium uppercase text-white transition hover:bg-[#294f9c]"
                   >
-                    Create
+                    CREATE
                   </button>
                 </div>
               </div>
