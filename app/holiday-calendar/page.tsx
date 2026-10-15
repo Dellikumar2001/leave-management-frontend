@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  Bell,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
+  FileSpreadsheet,
   FileText,
   FileUp,
   Image as ImageIcon,
@@ -14,6 +15,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -21,6 +23,7 @@ import LeaveSidebar from "../components/LeaveSidebar";
 
 type HolidayType = "national" | "festival" | "special";
 type HolidayStatus = "active" | "inactive";
+
 type Holiday = {
   id: number;
   name: string;
@@ -31,6 +34,7 @@ type Holiday = {
   status: HolidayStatus;
   isHoliday: boolean;
 };
+
 type ParsedHoliday = {
   name: string;
   date: string;
@@ -46,9 +50,9 @@ const holidayTypeLabels: Record<HolidayType, string> = {
 };
 
 const holidayTypeColors: Record<HolidayType, string> = {
-  national: "bg-red-50 text-red-600",
-  festival: "bg-emerald-50 text-emerald-700",
-  special: "bg-blue-50 text-blue-700",
+  national: "bg-red-50 text-red-600 border border-red-200",
+  festival: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  special: "bg-blue-50 text-blue-700 border border-blue-200",
 };
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -95,9 +99,8 @@ export default function HolidayCalendarPage() {
   const [editingHolidayId, setEditingHolidayId] = useState<number | null>(null);
 
   // Import State
-  const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadMode, setUploadMode] = useState<"pdf" | "image" | "link">("pdf");
+  const [uploadMode, setUploadMode] = useState<"file" | "link">("file");
   const [linkUrl, setLinkUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState("");
@@ -176,9 +179,13 @@ export default function HolidayCalendarPage() {
     };
   });
 
-  const baseRecords = recordsScope === "month"
-    ? monthHolidays
-    : holidays.filter((holiday) => holiday.isHoliday).map((h) => ({ ...h, displayDate: h.date })).sort((a, b) => a.displayDate.localeCompare(b.displayDate));
+  const baseRecords =
+    recordsScope === "month"
+      ? monthHolidays
+      : holidays
+          .filter((holiday) => holiday.isHoliday)
+          .map((h) => ({ ...h, displayDate: h.date }))
+          .sort((a, b) => a.displayDate.localeCompare(b.displayDate));
 
   const filteredHolidays = baseRecords.filter((holiday) => {
     const query = search.trim().toLowerCase();
@@ -214,9 +221,11 @@ export default function HolidayCalendarPage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Unable to save holiday.");
       const savedHoliday = result as Holiday;
-      setHolidays((current) => isEditing
-        ? current.map((holiday) => holiday.id === savedHoliday.id ? savedHoliday : holiday)
-        : [...current, savedHoliday]);
+      setHolidays((current) =>
+        isEditing
+          ? current.map((holiday) => (holiday.id === savedHoliday.id ? savedHoliday : holiday))
+          : [...current, savedHoliday]
+      );
     } catch (saveError) {
       setHolidayError(saveError instanceof Error ? saveError.message : "Unable to save holiday.");
       return;
@@ -308,8 +317,8 @@ export default function HolidayCalendarPage() {
       setUploadError("Enter a valid calendar URL first.");
       return;
     }
-    if ((uploadMode === "pdf" || uploadMode === "image") && !selectedFile) {
-      setUploadError(`Choose a ${uploadMode === "image" ? "image" : "PDF"} file first.`);
+    if (uploadMode === "file" && !selectedFile) {
+      setUploadError("Choose a calendar file first (PDF, Excel, CSV, or Image).");
       return;
     }
 
@@ -317,10 +326,8 @@ export default function HolidayCalendarPage() {
     setUploadError("");
     setUploadProgress(
       uploadMode === "link"
-        ? "Fetching and analyzing link with Gemini AI..."
-        : uploadMode === "image"
-        ? "Scanning image with Gemini AI..."
-        : "Analyzing PDF with Gemini AI..."
+        ? "Fetching and analyzing link..."
+        : "Extracting holidays automatically using smart document parser..."
     );
 
     try {
@@ -365,7 +372,6 @@ export default function HolidayCalendarPage() {
         throw new Error("All detected holidays are already present in your calendar.");
       }
 
-      // Format clean payload for database insertion matching parseHolidayInput requirements
       const imported = candidates.map((row: ParsedHoliday) => {
         const rowType = row.type === "national" || row.type === "festival" ? row.type : "special";
         return {
@@ -415,427 +421,625 @@ export default function HolidayCalendarPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#e9edf3] text-slate-800">
+    <div className="min-h-screen bg-[#e9edf3] text-slate-800">
       <LeaveSidebar activePage="holiday-calendar" />
-      <div className="ml-0 min-w-0 w-full min-[801px]:ml-[175px] min-[801px]:w-[calc(100%-175px)]">
-        <header className="flex h-[66px] items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-[22px]">
-          <span className="text-[13px] font-semibold text-slate-700">Leave Management</span>
-          <div className="flex items-center gap-3 text-[13px] text-slate-700 sm:gap-[15px]">
-            <span className="hidden sm:inline">Admin</span>
-            <span className="relative grid place-items-center" aria-label="Notifications">
-              <Bell size={17} />
-              <i className="absolute right-0 top-0 size-1.5 rounded-full bg-red-500" />
-            </span>
-            <span className="grid size-7 place-items-center rounded-full bg-[#173c6b] text-xs text-white" aria-label="Administrator">A</span>
-          </div>
-        </header>
 
-        <main className="mx-auto max-w-[1600px] px-[18px] pb-[30px] pt-[14px] max-sm:px-[9px]">
-          <div className="mb-[7px] text-[11px] text-slate-500">
-            Dashboard <span className="mx-[7px]">›</span> Holidays <span className="mx-[7px]">›</span> <b className="text-slate-700">Calendar</b>
-          </div>
-
-          <header className="mb-[13px] flex flex-col justify-between gap-3 md:flex-row md:items-end">
+      <div className="p-4 min-[801px]:ml-[175px]">
+        <div className="mx-auto max-w-[1400px] space-y-4">
+          {/* Header Card matching Leave Administration system */}
+          <header className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h1 className="mb-1 text-3xl font-bold text-slate-800">Holiday Calendar</h1>
-              <p className="m-0 text-sm text-slate-600">Official recognized holidays across the academic year.</p>
+              <div className="flex items-center gap-2 text-xs font-medium text-emerald-800">
+                <span>Leave Admin</span>
+                <span>/</span>
+                <span className="font-semibold text-slate-800">Holiday Calendar</span>
+              </div>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
+                Holiday Calendar
+              </h1>
             </div>
+
+            {/* Top Toolbar: Month, Year, Import, Reset, Add Holiday */}
             <div className="flex flex-wrap items-center gap-2.5">
-              <label className="sr-only" htmlFor="calendar-month">Month</label>
-              <select
-                id="calendar-month"
-                value={monthIndex}
-                onChange={(event) => {
-                  const value = `${year}-${String(Number(event.target.value) + 1).padStart(2, "0")}`;
-                  setMonth(value);
-                  setSelectedDate(`${value}-01`);
-                }}
-                className="h-10 min-w-[120px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none"
-              >
-                {months.map((monthName, index) => (
-                  <option key={monthName} value={index}>{monthName}</option>
-                ))}
-              </select>
-
-              <label className="sr-only" htmlFor="calendar-year">Year</label>
-              <select
-                id="calendar-year"
-                value={year}
-                onChange={(event) => {
-                  const value = `${event.target.value}-${String(monthIndex + 1).padStart(2, "0")}`;
-                  setMonth(value);
-                  setSelectedDate(`${value}-01`);
-                }}
-                className="h-10 min-w-[90px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none"
-              >
-                {years.sort((first, second) => first - second).map((yearOption) => (
-                  <option key={yearOption} value={yearOption}>{yearOption}</option>
-                ))}
-              </select>
-
-              {/* DROPDOWN IMPORT BUTTON */}
+              {/* Month selector */}
               <div className="relative">
-                <button
-                  type="button"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  onClick={() => { setShowImportDropdown(!showImportDropdown); setShowForm(false); }}
+                <label className="sr-only" htmlFor="calendar-month">Month</label>
+                <select
+                  id="calendar-month"
+                  value={monthIndex}
+                  onChange={(event) => {
+                    const value = `${year}-${String(Number(event.target.value) + 1).padStart(2, "0")}`;
+                    setMonth(value);
+                    setSelectedDate(`${value}-01`);
+                  }}
+                  className="h-10 cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
                 >
-                  <FileUp size={16} />Import
-                </button>
-
-                {showImportDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowImportDropdown(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-44 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg z-50">
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => { setUploadMode("link"); setShowUpload(true); setShowImportDropdown(false); }}
-                      >
-                        <LinkIcon size={14} className="text-slate-400" /> From Link
-                      </button>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 border-t border-slate-100"
-                        onClick={() => { setUploadMode("image"); setShowUpload(true); setShowImportDropdown(false); }}
-                      >
-                        <ImageIcon size={14} className="text-slate-400" /> From Image
-                      </button>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 border-t border-slate-100"
-                        onClick={() => { setUploadMode("pdf"); setShowUpload(true); setShowImportDropdown(false); }}
-                      >
-                        <FileText size={14} className="text-slate-400" /> From PDF
-                      </button>
-                    </div>
-                  </>
-                )}
+                  {months.map((monthName, index) => (
+                    <option key={monthName} value={index}>{monthName}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
 
+              {/* Year selector */}
+              <div className="relative">
+                <label className="sr-only" htmlFor="calendar-year">Year</label>
+                <select
+                  id="calendar-year"
+                  value={year}
+                  onChange={(event) => {
+                    const value = `${event.target.value}-${String(monthIndex + 1).padStart(2, "0")}`;
+                    setMonth(value);
+                    setSelectedDate(`${value}-01`);
+                  }}
+                  className="h-10 cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
+                >
+                  {years.sort((first, second) => first - second).map((yearOption) => (
+                    <option key={yearOption} value={yearOption}>{yearOption}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+
+              {/* Import Button */}
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                onClick={() => {
+                  setShowUpload(true);
+                  setShowForm(false);
+                  setUploadError("");
+                  setUploadSuccess("");
+                }}
+              >
+                <FileUp size={16} aria-hidden="true" />
+                <span>Import</span>
+              </button>
+
+              {/* Reset Button */}
               <button
                 type="button"
                 disabled={holidays.length === 0}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3.5 text-sm font-semibold text-red-700 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={resetHolidays}
               >
-                <RotateCcw size={16} />Reset
+                <RotateCcw size={15} aria-hidden="true" />
+                <span>Reset</span>
               </button>
+
+              {/* Add Holiday Button */}
               <button
                 type="button"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-800 px-4 text-sm font-medium text-white hover:bg-slate-700"
-                onClick={() => { setShowForm(true); setShowUpload(false); }}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 active:scale-[0.98]"
+                onClick={() => {
+                  setShowForm(true);
+                  setShowUpload(false);
+                }}
               >
-                <Plus size={16} />Add holiday
+                <Plus size={16} aria-hidden="true" />
+                <span>Add holiday</span>
               </button>
             </div>
           </header>
 
-          {holidayError && <p role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{holidayError}</p>}
+          {holidayError && (
+            <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+              {holidayError}
+            </p>
+          )}
 
-          <section className="grid min-h-[390px] grid-cols-1 overflow-hidden rounded-lg border border-slate-200 bg-white xl:grid-cols-[minmax(0,1fr)_340px]" aria-label="Holiday calendar">
-            <div className="min-w-0 p-[13px_10px_10px]">
-              <div className="relative mb-1.5 flex min-h-10 flex-wrap items-center justify-center gap-2.5 max-sm:justify-start">
-                <button
-                  type="button"
-                  className="grid size-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  aria-label="Previous month"
-                  onClick={() => changeMonth(-1)}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <h2 className="m-0 min-w-[125px] text-center text-lg font-semibold max-sm:min-w-0">{monthTitle}</h2>
-                <button
-                  type="button"
-                  className="grid size-7 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  aria-label="Next month"
-                  onClick={() => changeMonth(1)}
-                >
-                  <ChevronRight size={16} />
-                </button>
-
-                <div className="ml-auto flex overflow-hidden rounded-md border border-slate-200 max-sm:ml-0 max-sm:w-full max-sm:justify-center" role="group" aria-label="Calendar view">
-                  {(["month", "list", "year"] as const).map((viewOption) => (
+          {/* Calendar Showcase Card */}
+          <section
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+            aria-label="Holiday calendar"
+          >
+            <div className="grid min-h-[440px] grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
+              {/* Left Calendar Grid View */}
+              <div className="min-w-0 p-5">
+                {/* Month title & View switcher */}
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
                     <button
-                      key={viewOption}
                       type="button"
-                      aria-pressed={view === viewOption}
-                      onClick={() => setView(viewOption)}
-                      className={`h-8 border-r border-slate-200 bg-white px-3 text-sm text-slate-700 last:border-0 ${view === viewOption ? "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-400" : ""}`}
+                      className="grid size-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
+                      aria-label="Previous month"
+                      onClick={() => changeMonth(-1)}
                     >
-                      {viewOption[0].toUpperCase() + viewOption.slice(1)}
+                      <ChevronLeft size={16} />
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              {view === "month" && (
-                <div className="grid grid-cols-7 border-l border-t border-slate-200">
-                  {weekdays.map((day) => (
-                    <div className="flex h-10 items-center justify-center border-b border-r border-slate-200 text-sm font-semibold text-slate-700" key={day}>
-                      {day}
-                    </div>
-                  ))}
-                  {days.map((day, index) => {
-                    const value = day ? `${shownMonth}-${String(day).padStart(2, "0")}` : "";
-                    const dayHolidays = monthHolidays.filter((holiday) => holiday.displayDate === value && holiday.status === "active");
-                    const today = value === dateKey(new Date());
-
-                    return (
-                      <div key={index} className={`relative min-h-[96px] border-b border-r border-slate-200 bg-white p-2 max-sm:min-h-[84px] max-sm:p-1.5 ${selectedDate === value ? "bg-emerald-50" : ""}`}>
-                        {day && (
-                          <>
-                            <button
-                              type="button"
-                              className={`mb-1 block border-0 bg-transparent p-0 text-sm font-medium text-slate-700 ${today ? "font-bold text-emerald-800" : ""}`}
-                              aria-label={`Select ${value}`}
-                              aria-pressed={selectedDate === value}
-                              onClick={() => setSelectedDate(value)}
-                            >
-                              {day}
-                            </button>
-                            <div className="flex flex-col gap-1">
-                              {dayHolidays.slice(0, 2).map((holiday) => (
-                                <span
-                                  key={holiday.id}
-                                  className={`block max-w-full truncate rounded px-1.5 py-0.5 text-sm font-medium ${holidayTypeColors[holiday.type]}`}
-                                  title={cleanHolidayTitle(holiday.name)}
-                                >
-                                  {cleanHolidayTitle(holiday.name)}
-                                </span>
-                              ))}
-                              {dayHolidays.length > 2 && <span className="text-sm text-slate-500">+{dayHolidays.length - 2} more</span>}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {view === "list" && (
-                <div className="h-[616px] overflow-y-auto overscroll-contain p-3 max-sm:h-[544px]" aria-label={`Daily schedule for ${monthTitle}`}>
-                  <div className="mb-2 flex items-center justify-between border-b border-slate-200 px-2 py-3">
-                    <h3 className="m-0 text-base font-semibold text-slate-800">Daily schedule · {monthTitle}</h3>
-                    <span className="text-sm text-slate-500">{daysCount} days</span>
+                    <h2 className="min-w-[140px] text-center text-lg font-bold text-slate-800">
+                      {monthTitle}
+                    </h2>
+                    <button
+                      type="button"
+                      className="grid size-8 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 active:scale-95"
+                      aria-label="Next month"
+                      onClick={() => changeMonth(1)}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
-                  <div className="grid grid-cols-[72px_90px_minmax(0,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-2 py-2 text-sm font-medium text-slate-600 max-sm:grid-cols-[64px_76px_minmax(0,1fr)]">
-                    <span>Date</span><span>Day</span><span>Holiday</span>
-                  </div>
-                  {listDays.map((listDay) => {
-                    const dayHolidays = listDay.holidays;
-                    return (
-                      <div className="grid min-h-12 grid-cols-[72px_90px_minmax(0,1fr)] items-center gap-3 border-b border-slate-100 px-2 py-2 text-sm max-sm:grid-cols-[64px_76px_minmax(0,1fr)]" key={listDay.date}>
-                        <time dateTime={listDay.date} className="font-medium text-slate-800">
-                          {formatDate(listDay.date, { day: "numeric", month: "short" })}
-                        </time>
-                        <span className="text-slate-600">{formatDate(listDay.date, { weekday: "short" })}</span>
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          {dayHolidays.map((holiday) => (
-                            <span
-                              key={holiday.id}
-                              className={`max-w-full truncate rounded px-2 py-1 text-sm ${holidayTypeColors[holiday.type]}`}
-                              title={`${cleanHolidayTitle(holiday.name)}${holiday.status === "inactive" ? " (inactive)" : ""}`}
-                            >
-                              {cleanHolidayTitle(holiday.name)}{holiday.status === "inactive" ? " · Inactive" : ""}
-                            </span>
-                          ))}
-                          {dayHolidays.length === 0 && <span className="text-slate-400">-</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
-              {view === "year" && (
-                <div className="grid min-h-[330px] grid-cols-2 gap-3 p-[18px] sm:grid-cols-3 xl:grid-cols-4">
-                  {months.map((monthName, index) => {
-                    const monthKey = `${year}-${String(index + 1).padStart(2, "0")}`;
-                    const count = holidays.filter((holiday) => holiday.isHoliday && holiday.status === "active" && (holiday.repeatEveryYear ? holiday.date.slice(5, 7) === monthKey.slice(5, 7) : holiday.date.startsWith(monthKey))).length;
-                    return (
+                  {/* View Switcher Pills */}
+                  <div className="inline-flex items-center rounded-lg bg-slate-100 p-1" role="group" aria-label="Calendar view">
+                    {(["month", "list", "year"] as const).map((viewOption) => (
                       <button
-                        key={monthName}
+                        key={viewOption}
                         type="button"
-                        className="min-h-[100px] rounded-md border border-slate-200 bg-white p-3 text-left text-slate-700 hover:border-emerald-300 hover:bg-emerald-50"
-                        onClick={() => { setMonth(monthKey); setSelectedDate(`${monthKey}-01`); setView("month"); }}
+                        aria-pressed={view === viewOption}
+                        onClick={() => setView(viewOption)}
+                        className={`rounded-md px-3.5 py-1.5 text-xs font-semibold capitalize transition-all ${
+                          view === viewOption
+                            ? "bg-white text-emerald-800 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
                       >
-                        <strong className="mb-2 block text-xs font-semibold text-slate-800">{monthName}</strong>
-                        <span className="text-[10px] text-slate-500">{count} {count === 1 ? "holiday" : "holidays"}</span>
+                        {viewOption}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <aside className="border-t border-slate-200 bg-white px-[13px] pt-[13px] xl:border-l xl:border-t-0" aria-label={`Holidays in ${monthTitle}`}>
-              <div className="mb-[15px] flex items-center justify-between gap-2">
-                <h3 className="m-0 text-base font-semibold">Holidays</h3>
-                <span className="text-xs text-slate-500">{monthTitle} · {monthHolidays.length}</span>
-              </div>
-              <div className="grid grid-cols-[68px_minmax(0,1fr)_85px_28px] gap-[5px] border-b border-slate-100 pb-[7px] text-sm font-medium text-slate-600 xl:grid-cols-[76px_minmax(0,1fr)_100px_28px]">
-                <span>Date</span><span>Holiday</span><span>Type</span><span />
-              </div>
-              {monthHolidays.length ? monthHolidays.map((holiday) => (
-                <div className="grid min-h-[68px] grid-cols-[68px_minmax(0,1fr)_85px_28px] items-center gap-[5px] border-b border-slate-100 text-sm xl:grid-cols-[76px_minmax(0,1fr)_100px_28px]" key={holiday.id}>
-                  <div className="flex flex-col">
-                    <b className="text-sm text-slate-700">{formatDate(holiday.displayDate, { day: "numeric", month: "short" })}</b>
-                    <small className="mt-0.5 text-xs text-slate-500">{formatDate(holiday.displayDate, { weekday: "short" })}</small>
+                {/* 1. Month View */}
+                {view === "month" && (
+                  <div className="overflow-hidden rounded-lg border border-slate-200">
+                    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+                      {weekdays.map((day) => (
+                        <div
+                          className="flex h-10 items-center justify-center text-xs font-semibold uppercase tracking-wider text-slate-600"
+                          key={day}
+                        >
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 divide-x divide-y divide-slate-200 bg-white">
+                      {days.map((day, index) => {
+                        const value = day ? `${shownMonth}-${String(day).padStart(2, "0")}` : "";
+                        const dayHolidays = monthHolidays.filter(
+                          (holiday) => holiday.displayDate === value && holiday.status === "active"
+                        );
+                        const today = value === dateKey(new Date());
+                        const isSelected = selectedDate === value;
+
+                        return (
+                          <div
+                            key={index}
+                            className={`min-h-[105px] p-2 transition-colors ${
+                              !day ? "bg-slate-50/60" : isSelected ? "bg-emerald-50/60 ring-2 ring-inset ring-emerald-500" : "bg-white hover:bg-slate-50/40"
+                            }`}
+                          >
+                            {day && (
+                              <>
+                                <div className="flex items-center justify-between">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedDate(value)}
+                                    className={`size-6 rounded-full text-xs font-semibold transition-colors ${
+                                      today
+                                        ? "bg-emerald-600 text-white"
+                                        : isSelected
+                                        ? "bg-slate-800 text-white"
+                                        : "text-slate-700 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    {day}
+                                  </button>
+                                  {dayHolidays.length > 0 && (
+                                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                                  )}
+                                </div>
+                                <div className="mt-1.5 flex flex-col gap-1">
+                                  {dayHolidays.slice(0, 2).map((holiday) => (
+                                    <span
+                                      key={holiday.id}
+                                      className={`block truncate rounded px-1.5 py-0.5 text-[11px] font-medium leading-tight ${
+                                        holidayTypeColors[holiday.type]
+                                      }`}
+                                      title={cleanHolidayTitle(holiday.name)}
+                                    >
+                                      {cleanHolidayTitle(holiday.name)}
+                                    </span>
+                                  ))}
+                                  {dayHolidays.length > 2 && (
+                                    <span className="text-[10px] font-medium text-slate-500">
+                                      +{dayHolidays.length - 2} more
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <span className="truncate" title={cleanHolidayTitle(holiday.name)}>{cleanHolidayTitle(holiday.name)}</span>
-                  <span className={`w-fit truncate rounded px-1.5 py-1 text-xs ${holidayTypeColors[holiday.type]}`}>{holidayTypeLabels[holiday.type]}</span>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      className="grid size-6 place-items-center rounded border border-red-100 bg-red-50 text-red-500 hover:bg-red-100"
-                      aria-label={`Remove ${holiday.name}`}
-                      onClick={() => deleteHoliday(holiday.id)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                )}
+
+                {/* 2. List View */}
+                {view === "list" && (
+                  <div className="h-[600px] overflow-y-auto rounded-lg border border-slate-200">
+                    <div className="grid grid-cols-[80px_100px_minmax(0,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                      <span>Date</span>
+                      <span>Day</span>
+                      <span>Holiday</span>
+                    </div>
+                    {listDays.map((listDay) => {
+                      const dayHolidays = listDay.holidays;
+                      return (
+                        <div
+                          className="grid min-h-12 grid-cols-[80px_100px_minmax(0,1fr)] items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-sm hover:bg-slate-50/60"
+                          key={listDay.date}
+                        >
+                          <time dateTime={listDay.date} className="font-medium text-slate-800">
+                            {formatDate(listDay.date, { day: "numeric", month: "short" })}
+                          </time>
+                          <span className="text-slate-500">
+                            {formatDate(listDay.date, { weekday: "short" })}
+                          </span>
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            {dayHolidays.map((holiday) => (
+                              <span
+                                key={holiday.id}
+                                className={`rounded px-2 py-0.5 text-xs font-medium ${holidayTypeColors[holiday.type]}`}
+                                title={`${cleanHolidayTitle(holiday.name)}${holiday.status === "inactive" ? " (inactive)" : ""}`}
+                              >
+                                {cleanHolidayTitle(holiday.name)}
+                                {holiday.status === "inactive" ? " · Inactive" : ""}
+                              </span>
+                            ))}
+                            {dayHolidays.length === 0 && <span className="text-slate-400">—</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+
+                {/* 3. Year View */}
+                {view === "year" && (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                    {months.map((monthName, index) => {
+                      const monthKey = `${year}-${String(index + 1).padStart(2, "0")}`;
+                      const count = holidays.filter(
+                        (holiday) =>
+                          holiday.isHoliday &&
+                          holiday.status === "active" &&
+                          (holiday.repeatEveryYear
+                            ? holiday.date.slice(5, 7) === monthKey.slice(5, 7)
+                            : holiday.date.startsWith(monthKey))
+                      ).length;
+
+                      return (
+                        <button
+                          key={monthName}
+                          type="button"
+                          className="flex min-h-[95px] flex-col justify-between rounded-lg border border-slate-200 bg-white p-3.5 text-left transition-all hover:border-emerald-300 hover:bg-emerald-50/50"
+                          onClick={() => {
+                            setMonth(monthKey);
+                            setSelectedDate(`${monthKey}-01`);
+                            setView("month");
+                          }}
+                        >
+                          <strong className="text-sm font-bold text-slate-800">{monthName}</strong>
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                            <span className="size-2 rounded-full bg-emerald-500" />
+                            {count} {count === 1 ? "holiday" : "holidays"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Aside: Holidays in Selected Month */}
+              <aside
+                className="border-t border-slate-200 bg-slate-50/50 p-5 xl:border-l xl:border-t-0"
+                aria-label={`Holidays in ${monthTitle}`}
+              >
+                <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h3 className="text-base font-bold text-slate-800">Month Holidays</h3>
+                  <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                    {monthHolidays.length}
+                  </span>
                 </div>
-              )) : (
-                <p className="px-1 py-6 text-center text-sm text-slate-500">No holidays in this month.</p>
-              )}
-            </aside>
+
+                <div className="space-y-2.5 overflow-y-auto max-h-[500px]">
+                  {monthHolidays.length ? (
+                    monthHolidays.map((holiday) => (
+                      <div
+                        key={holiday.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-700">
+                              {formatDate(holiday.displayDate, { day: "numeric", month: "short" })}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {formatDate(holiday.displayDate, { weekday: "short" })}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-xs font-semibold text-slate-900" title={cleanHolidayTitle(holiday.name)}>
+                            {cleanHolidayTitle(holiday.name)}
+                          </p>
+                          <span className={`mt-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${holidayTypeColors[holiday.type]}`}>
+                            {holidayTypeLabels[holiday.type]}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="grid size-7 shrink-0 place-items-center rounded border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                          aria-label={`Remove ${holiday.name}`}
+                          onClick={() => deleteHoliday(holiday.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-12 text-center text-xs text-slate-400">
+                      No holidays declared in {monthTitle}.
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>
           </section>
 
-          <section className="mt-[13px] overflow-hidden rounded-lg border border-slate-200 bg-white" aria-labelledby="holiday-records-title">
-            <div className="flex items-center justify-between px-[13px] pb-2 pt-[13px]">
-              <h2 id="holiday-records-title" className="m-0 text-lg font-semibold">Holiday Records</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Showing:</span>
+          {/* Holiday Records Table Section */}
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="holiday-records-title">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
+              <h2 id="holiday-records-title" className="text-base font-bold text-slate-800">
+                Holiday Records
+              </h2>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500">Showing:</span>
                 <button
                   type="button"
                   onClick={() => setRecordsScope("month")}
-                  className={`rounded px-2.5 py-1 text-xs font-medium ${recordsScope === "month" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  className={`rounded-md px-3 py-1 font-semibold transition-colors ${
+                    recordsScope === "month"
+                      ? "bg-slate-800 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
                 >
                   {monthTitle}
                 </button>
                 <button
                   type="button"
                   onClick={() => setRecordsScope("all")}
-                  className={`rounded px-2.5 py-1 text-xs font-medium ${recordsScope === "all" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  className={`rounded-md px-3 py-1 font-semibold transition-colors ${
+                    recordsScope === "all"
+                      ? "bg-slate-800 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
                 >
                   All Months ({holidays.filter((holiday) => holiday.isHoliday).length})
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5 px-[13px] pb-[13px] pt-[7px] sm:grid-cols-2 xl:grid-cols-[minmax(200px,1fr)_155px_145px_auto]">
-              <label className="flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 text-slate-400">
-                <Search size={16} />
-                <input
-                  aria-label="Search holidays"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search holidays"
-                  className="h-full w-full border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                />
-              </label>
-              <select
-                aria-label="Filter by type"
-                value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value as "all" | HolidayType)}
-                className="h-10 rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700"
-              >
-                <option value="all">All types</option>
-                <option value="national">National Holiday</option>
-                <option value="festival">Festival</option>
-                <option value="special">Public Holiday</option>
-              </select>
-              <select
-                aria-label="Filter by status"
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as "all" | HolidayStatus)}
-                className="h-10 rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700"
-              >
-                <option value="all">All statuses</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+            {/* Filter Bar */}
+            <div className="grid grid-cols-1 items-end gap-3 border-b border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-2 xl:grid-cols-12">
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-5">
+                <label htmlFor="search-holidays" className="text-[11px] font-semibold uppercase text-slate-500">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    id="search-holidays"
+                    aria-label="Search holidays"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search by holiday name or description…"
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
+                <label htmlFor="filter-type" className="text-[11px] font-semibold uppercase text-slate-500">
+                  Holiday Type
+                </label>
+                <div className="relative">
+                  <select
+                    id="filter-type"
+                    aria-label="Filter by type"
+                    value={typeFilter}
+                    onChange={(event) => setTypeFilter(event.target.value as "all" | HolidayType)}
+                    className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="national">National Holiday</option>
+                    <option value="festival">Festival</option>
+                    <option value="special">Public Holiday</option>
+                  </select>
+                  <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+                <label htmlFor="filter-status" className="text-[11px] font-semibold uppercase text-slate-500">
+                  Status
+                </label>
+                <div className="relative">
+                  <select
+                    id="filter-status"
+                    aria-label="Filter by status"
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as "all" | HolidayStatus)}
+                    className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                  <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
               <button
                 type="button"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 active:scale-[0.98] xl:col-span-2"
                 onClick={exportHolidays}
               >
-                <Download size={16} />Export
+                <Download size={15} aria-hidden="true" />
+                <span>Export CSV</span>
               </button>
             </div>
+
+            {/* Semantic Table with Balanced Column Layout */}
             <div className="overflow-x-auto">
-              <div className="min-w-[960px]">
-                <div className="grid h-11 grid-cols-[repeat(7,minmax(0,1fr))] items-center gap-[7px] border-y border-slate-100 bg-slate-50 px-[13px] text-sm font-semibold text-slate-600">
-                  <span>#</span><span>Date</span><span>Holiday</span><span>Type</span><span>Description</span><span>Status</span><span>ACTIONS</span>
-                </div>
-                {filteredHolidays.length ? filteredHolidays.map((holiday, index) => (
-                  <div className="grid min-h-11 grid-cols-[repeat(7,minmax(0,1fr))] items-center gap-[7px] border-b border-slate-100 px-[13px] text-sm text-slate-700" key={holiday.id}>
-                    <span>{index + 1}</span>
-                    <span className="whitespace-nowrap">{formatDate(holiday.displayDate, { day: "numeric", month: "short", year: "numeric" })}</span>
-                    <span className="truncate font-medium" title={cleanHolidayTitle(holiday.name)}>{cleanHolidayTitle(holiday.name)}</span>
-                    <span className={`w-fit truncate rounded px-1.5 py-1 text-sm ${holidayTypeColors[holiday.type]}`}>{holidayTypeLabels[holiday.type]}</span>
-                    <span className="truncate text-slate-500" title={holiday.description}>{holiday.description || "-"}</span>
-                    <span className={`w-fit rounded px-2 py-1 text-sm ${holiday.status === "inactive" ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-700"}`}>
-                      {holiday.status}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <button type="button" onClick={() => editHoliday(holiday)} className="grid size-7 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={`Edit ${holiday.name}`} title="Edit">
-                        <Pencil size={14} />
-                      </button>
-                      <button type="button" onClick={() => deleteHoliday(holiday.id)} className="grid size-7 place-items-center rounded text-red-500 hover:bg-red-50" aria-label={`Delete ${holiday.name}`} title="Delete">
-                        <Trash2 size={14} />
-                      </button>
-                    </span>
-                  </div>
-                )) : isLoadingHolidays ? (
-                  <p role="status" className="px-[13px] py-[22px] text-center text-[11px] text-slate-500">Loading holidays...</p>
-                ) : (
-                  <p className="px-[13px] py-[22px] text-center text-[11px] text-slate-500">No holidays match these filters.</p>
-                )}
-              </div>
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="w-14 px-5 py-3.5 font-semibold text-center border-b border-slate-200">#</th>
+                    <th className="w-36 px-5 py-3.5 font-semibold text-left border-b border-slate-200 whitespace-nowrap">DATE</th>
+                    <th className="w-56 px-5 py-3.5 font-semibold text-left border-b border-slate-200">HOLIDAY NAME</th>
+                    <th className="w-40 px-5 py-3.5 font-semibold text-left border-b border-slate-200">TYPE</th>
+                    <th className="min-w-[200px] px-5 py-3.5 font-semibold text-left border-b border-slate-200">DESCRIPTION</th>
+                    <th className="w-28 px-5 py-3.5 font-semibold text-center border-b border-slate-200">STATUS</th>
+                    <th className="w-24 px-5 py-3.5 font-semibold text-right border-b border-slate-200">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredHolidays.length ? (
+                    filteredHolidays.map((holiday, index) => (
+                      <tr key={holiday.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-5 py-4 text-center text-slate-500 font-medium align-middle">
+                          {index + 1}
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap font-medium text-slate-700 align-middle">
+                          {formatDate(holiday.displayDate, { day: "numeric", month: "short", year: "numeric" })}
+                        </td>
+                        <td className="px-5 py-4 font-semibold text-slate-900 align-middle">
+                          {cleanHolidayTitle(holiday.name)}
+                        </td>
+                        <td className="px-5 py-4 align-middle">
+                          <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${holidayTypeColors[holiday.type]}`}>
+                            {holidayTypeLabels[holiday.type]}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 align-middle">
+                          {holiday.description || "—"}
+                        </td>
+                        <td className="px-5 py-4 text-center align-middle">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              holiday.status === "inactive"
+                                ? "bg-slate-100 text-slate-600 border border-slate-200"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            }`}
+                          >
+                            <span className={`size-1.5 rounded-full ${holiday.status === "inactive" ? "bg-slate-400" : "bg-emerald-500"}`} />
+                            {holiday.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-right align-middle">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => editHoliday(holiday)}
+                              className="grid size-7 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteHoliday(holiday.id)}
+                              className="grid size-7 place-items-center rounded text-red-500 hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : isLoadingHolidays ? (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate-400">
+                        Loading holidays from database…
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate-500">
+                        No holidays match the selected criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
+
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3.5 text-xs text-slate-500">
+              <div>
+                Showing <strong className="text-slate-700">{filteredHolidays.length}</strong> holiday record(s)
+              </div>
+            </footer>
           </section>
-        </main>
+        </div>
       </div>
 
+      {/* ── Add / Edit Holiday Modal ── */}
       {showForm && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5"
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4"
           role="presentation"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) closeHolidayForm(); }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeHolidayForm();
+          }}
         >
-          <section className="max-h-[90vh] w-full max-w-[450px] overflow-y-auto rounded-xl bg-white p-[22px] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="holiday-form-title">
-            <div className="mb-5 flex justify-between gap-3">
+          <section
+            className="max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="holiday-form-title"
+          >
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h2 id="holiday-form-title" className="m-0 text-lg font-semibold text-slate-800">{editingHolidayId ? "Edit holiday" : "New holiday"}</h2>
-                <p className="mt-1 text-[11px] text-slate-500">{editingHolidayId ? "Update this holiday." : "Add a date-specific holiday."}</p>
+                <h2 id="holiday-form-title" className="text-lg font-bold text-slate-800">
+                  {editingHolidayId ? "Edit Holiday" : "New Holiday"}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {editingHolidayId ? "Update official holiday record." : "Add a recognized date-specific holiday."}
+                </p>
               </div>
               <button
                 type="button"
-                aria-label="Close holiday form"
+                aria-label="Close form"
                 onClick={closeHolidayForm}
-                className="grid size-[30px] place-items-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200"
+                className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               >
                 <X size={17} />
               </button>
             </div>
-            <form onSubmit={addHoliday}>
-              <label className="mb-[13px] block text-[11px] font-semibold text-slate-700">
-                Holiday name
+
+            <form onSubmit={addHoliday} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-600">
+                  Holiday Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   required
                   maxLength={80}
                   value={name}
                   onChange={(event) => setName(cleanHolidayTitle(event.target.value))}
-                  placeholder="e.g. Pongal"
-                  className="mt-1.5 w-full rounded-md border border-slate-300 px-2.5 py-2 text-xs font-normal outline-none focus:border-emerald-500"
+                  placeholder="e.g. Independence Day, Pongal"
+                  className="mt-1.5 h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
                 />
-              </label>
+              </div>
 
-              <label className="mb-[13px] block text-[11px] font-semibold text-slate-700">
-                Holiday date
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-600">
+                  Holiday Date <span className="text-red-500">*</span>
+                </label>
                 <input
                   required
                   type="date"
@@ -845,92 +1049,77 @@ export default function HolidayCalendarPage() {
                     setSelectedDate(value);
                     if (value) setMonth(value.slice(0, 7));
                   }}
-                  className="mt-1.5 w-full rounded-md border border-slate-300 px-2.5 py-2 text-xs font-normal outline-none focus:border-emerald-500"
+                  className="mt-1.5 h-10 w-full cursor-pointer rounded-md border border-slate-300 px-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
                 />
-              </label>
+              </div>
 
-              <label className="mb-[13px] block text-[11px] font-semibold text-slate-700">
-                Holiday type
-                <select
-                  required
-                  value={holidayType}
-                  onChange={(event) => setHolidayType(event.target.value as HolidayType)}
-                  className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs font-normal outline-none focus:border-emerald-500"
-                >
-                  <option value="national">National Holiday</option>
-                  <option value="festival">Festival</option>
-                  <option value="special">Public Holiday</option>
-                </select>
-              </label>
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-600">
+                  Holiday Type <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    required
+                    value={holidayType}
+                    onChange={(event) => setHolidayType(event.target.value as HolidayType)}
+                    className="mt-1.5 h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
+                  >
+                    <option value="national">National Holiday</option>
+                    <option value="festival">Festival</option>
+                    <option value="special">Public Holiday</option>
+                  </select>
+                  <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
 
-              <label className="mb-[13px] block text-[11px] font-semibold text-slate-700">
-                Description
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-600">
+                  Description
+                </label>
                 <textarea
                   maxLength={500}
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
-                  placeholder="Holiday description"
-                  className="mt-1.5 h-[75px] w-full resize-y rounded-md border border-slate-300 px-2.5 py-2 text-xs font-normal outline-none focus:border-emerald-500"
+                  placeholder="Additional context or official gazette notes…"
+                  className="mt-1.5 h-20 w-full resize-none rounded-md border border-slate-300 p-2.5 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
                 />
-              </label>
+              </div>
 
-              <div className="mb-[13px] flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-700">Repeating every year</span>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div>
+                  <span className="block text-xs font-semibold text-slate-800">Repeat Every Year</span>
+                  <span className="text-[11px] text-slate-500">Automatically recurs on the same month & day</span>
+                </div>
                 <button
                   type="button"
                   role="switch"
-                  aria-label="Repeating every year"
                   aria-checked={repeatEveryYear}
-                  className={`relative h-[22px] w-10 rounded-full border-0 ${repeatEveryYear ? "bg-emerald-700" : "bg-slate-300"}`}
+                  className={`relative h-6 w-11 rounded-full transition-colors ${
+                    repeatEveryYear ? "bg-emerald-600" : "bg-slate-300"
+                  }`}
                   onClick={() => setRepeatEveryYear((value) => !value)}
                 >
-                  <span className={`absolute top-[3px] size-4 rounded-full bg-white transition-transform ${repeatEveryYear ? "translate-x-[18px]" : "left-[3px]"}`} />
+                  <span
+                    className={`absolute top-0.5 size-5 rounded-full bg-white transition-transform ${
+                      repeatEveryYear ? "translate-x-5" : "left-0.5"
+                    }`}
+                  />
                 </button>
               </div>
 
-              <fieldset className="mb-3 border-0 p-0">
-                <legend className="mb-2 text-[11px] font-semibold text-slate-700">Status</legend>
-                <div className="flex gap-2">
-                  <label className={`flex flex-1 items-center gap-2 rounded-md border px-2.5 py-2 text-[11px] font-medium ${status === "active" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-300 text-slate-700"}`}>
-                    <input
-                      required
-                      type="radio"
-                      name="holiday-status"
-                      value="active"
-                      checked={status === "active"}
-                      onChange={() => setStatus("active")}
-                      className="size-4 accent-emerald-700"
-                    />
-                    Active
-                  </label>
-                  <label className={`flex flex-1 items-center gap-2 rounded-md border px-2.5 py-2 text-[11px] font-medium ${status === "inactive" ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-300 text-slate-700"}`}>
-                    <input
-                      required
-                      type="radio"
-                      name="holiday-status"
-                      value="inactive"
-                      checked={status === "inactive"}
-                      onChange={() => setStatus("inactive")}
-                      className="size-4 accent-emerald-700"
-                    />
-                    Inactive
-                  </label>
-                </div>
-              </fieldset>
-
-              <div className="mt-[18px] flex justify-end gap-2">
+              <div className="pt-2 flex justify-end gap-2.5 border-t border-slate-100">
                 <button
                   type="button"
-                  className="h-8 rounded-md border border-slate-300 bg-white px-3.5 text-[11px] text-slate-700 hover:bg-slate-50"
+                  className="h-10 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   onClick={closeHolidayForm}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-800 px-3.5 text-[11px] font-semibold text-white hover:bg-slate-700"
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-800 px-5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-700"
                 >
-                  {editingHolidayId ? "Save changes" : <><Plus size={14} />Create holiday</>}
+                  {editingHolidayId ? "Save Changes" : "Create Holiday"}
                 </button>
               </div>
             </form>
@@ -938,94 +1127,180 @@ export default function HolidayCalendarPage() {
         </div>
       )}
 
+      {/* ── Import Holiday Calendar Modal ── */}
       {showUpload && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5"
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4"
           role="presentation"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) setShowUpload(false); }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowUpload(false);
+          }}
         >
-          <section className="max-h-[90vh] w-full max-w-[450px] overflow-y-auto rounded-xl bg-white p-[22px] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="holiday-upload-title">
-            <div className="mb-5 flex justify-between gap-3">
-              <div>
-                <h2 id="holiday-upload-title" className="m-0 text-lg font-semibold text-slate-800">
-                  {uploadMode === "link" ? "Import from Link" : uploadMode === "image" ? "Import from Image" : "Import from PDF"}
-                </h2>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {uploadMode === "link" ? "Enter a valid URL to extract holidays via AI." : `Read official holidays from an uploaded ${uploadMode === "image" ? "image" : "PDF"} file.`}
-                </p>
+          <section
+            className="max-h-[92vh] w-full max-w-[520px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="holiday-upload-title"
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <FileUp size={18} />
+                </span>
+                <div>
+                  <h2 id="holiday-upload-title" className="text-base font-bold text-slate-800">
+                    Import Holiday Calendar
+                  </h2>
+                </div>
               </div>
               <button
                 type="button"
                 aria-label="Close file import"
                 onClick={() => setShowUpload(false)}
-                className="grid size-[30px] place-items-center rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200"
+                className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               >
                 <X size={17} />
               </button>
             </div>
 
-            {uploadMode === "link" ? (
-              <div className="mb-4">
-                <label className="block text-[11px] font-semibold text-slate-700">Calendar URL</label>
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => {
-                    setLinkUrl(e.target.value);
-                    setUploadError("");
-                    setUploadSuccess("");
-                  }}
-                  placeholder="https://example.com/calendar.pdf"
-                  className="mt-1.5 w-full rounded-md border border-slate-300 px-2.5 py-2 text-xs outline-none focus:border-emerald-500"
-                />
+            {/* Source Tab Switcher */}
+            <div className="mb-4 flex rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadMode("file");
+                  setUploadError("");
+                  setUploadSuccess("");
+                }}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold transition-all ${
+                  uploadMode === "file" ? "bg-white text-slate-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <FileSpreadsheet size={14} />
+                <span>File (PDF / Excel / CSV / Image)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadMode("link");
+                  setUploadError("");
+                  setUploadSuccess("");
+                }}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold transition-all ${
+                  uploadMode === "link" ? "bg-white text-slate-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <LinkIcon size={14} />
+                <span>Web URL</span>
+              </button>
+            </div>
+
+            {/* File Upload Tab */}
+            {uploadMode === "file" ? (
+              <div className="space-y-3">
+                <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/70 p-6 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/30">
+                  <div className="flex items-center gap-2 text-slate-500 mb-2">
+                    <FileText size={20} />
+                    <FileSpreadsheet size={20} />
+                    <ImageIcon size={20} />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">
+                    Click to browse or drop calendar file
+                  </span>
+                  <span className="mt-1 text-[11px] text-slate-400">
+                    Supports .PDF, .XLSX, .XLS, .CSV, and image files (.PNG, .JPG)
+                  </span>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setSelectedFile(file);
+                      setUploadError("");
+                      setUploadSuccess("");
+                    }}
+                    className="sr-only"
+                  />
+                </label>
+
+                {selectedFile && (
+                  <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3.5 py-2.5 text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-semibold text-slate-800 truncate">{selectedFile.name}</span>
+                      <span className="text-slate-400">({Math.round(selectedFile.size / 1024)} KB)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="text-slate-400 hover:text-red-500"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <label className="block rounded-md border border-dashed border-slate-400 bg-slate-50 p-4 text-center text-[11px] text-slate-600">
-                {uploadMode === "image" ? <ImageIcon size={20} className="mx-auto mb-2 text-slate-500" /> : <FileUp size={20} className="mx-auto mb-2 text-slate-500" />}
-                Choose calendar {uploadMode === "image" ? "image" : "PDF"}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={uploadMode === "image" ? "image/png,image/jpeg,image/webp" : ".pdf,application/pdf"}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    if (file) {
-                      if (uploadMode === "pdf" && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-                        setSelectedFile(null);
-                        setUploadError("Only PDF files are supported.");
-                        setUploadSuccess("");
-                        event.target.value = "";
-                        return;
-                      }
-                      if (uploadMode === "image" && !file.type.startsWith("image/")) {
-                        setSelectedFile(null);
-                        setUploadError("Only image files are supported.");
-                        setUploadSuccess("");
-                        event.target.value = "";
-                        return;
-                      }
-                    }
-                    setSelectedFile(file);
-                    setUploadError("");
-                    setUploadSuccess("");
-                  }}
-                  className="mt-2 w-full text-[11px]"
-                />
-              </label>
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-600 mb-1.5">
+                  Calendar Document URL
+                </label>
+                <div className="relative">
+                  <LinkIcon size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="url"
+                    value={linkUrl}
+                    onChange={(e) => {
+                      setLinkUrl(e.target.value);
+                      setUploadError("");
+                      setUploadSuccess("");
+                    }}
+                    placeholder="https://example.com/calendar.pdf"
+                    className="h-10 w-full rounded-md border border-slate-300 pl-9 pr-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
+                  />
+                </div>
+              </div>
             )}
 
+            {/* Action Button */}
             <button
               type="button"
-              className="mt-3 inline-flex w-full h-9 items-center justify-center gap-1.5 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-800 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isReadingFile || (uploadMode === "link" ? !linkUrl.trim() : !selectedFile)}
               onClick={readUpload}
             >
-              {uploadMode === "link" ? <LinkIcon size={14} /> : uploadMode === "image" ? <ImageIcon size={14} /> : <FileUp size={14} />}
-              {isReadingFile ? "Extracting..." : "Read & Import"}
+              {isReadingFile ? (
+                <>
+                  <Sparkles size={15} className="animate-spin" />
+                  <span>{uploadProgress || "Extracting Holidays…"}</span>
+                </>
+              ) : (
+                <>
+                  <FileUp size={15} />
+                  <span>Read & Import Holidays</span>
+                </>
+              )}
             </button>
-            {uploadError && <p role="alert" className="mt-2.5 text-[11px] text-red-700">{uploadError}</p>}
-            {uploadProgress && <p role="status" className="mt-2.5 text-[11px] text-slate-600">{uploadProgress}</p>}
-            {uploadSuccess && <p role="status" className="mt-2.5 text-[11px] text-emerald-700">{uploadSuccess}</p>}
+
+            {/* Status alerts */}
+            {uploadError && (
+              <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+                {uploadError}
+              </p>
+            )}
+            {uploadProgress && (
+              <p role="status" className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-700">
+                {uploadProgress}
+              </p>
+            )}
+            {uploadSuccess && (
+              <p role="status" className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
+                {uploadSuccess}
+              </p>
+            )}
           </section>
         </div>
       )}

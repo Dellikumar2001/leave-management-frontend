@@ -93,6 +93,7 @@ model Employee {
   name                      String
   stream                    String
   department                String
+  status                    String                     @default("Approved")
   gender                    String
   designation               String?
   mobileNumber              String?                    @map("mobile_number")

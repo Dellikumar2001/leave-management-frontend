@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { jsPDF } from "jspdf";
 import {
   ArrowRight,
   Check,
   ChevronDown,
   Download,
   Eye,
+  FileCheck,
   FileSpreadsheet,
   FileText,
+  RefreshCw,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 
@@ -541,9 +541,6 @@ export default function StatutoryReport() {
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
             Statutory Leave Report
           </h1>
-          <p className="mt-0.5 text-[13px] text-slate-500">
-            Generate and track statutory leave compliance for Maternity and Paternity leave records.
-          </p>
         </div>
       </header>
 
@@ -706,13 +703,18 @@ export default function StatutoryReport() {
                 ? `Preview Statutory Report for ${visibleEmployees.length} employees from ${startDate} to ${endDate}`
                 : "Select a stream, department, start date, and end date to enable Generate"
             }
-            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:col-span-1 xl:col-span-2 ${canGenerate
-                ? "bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:scale-[0.98]"
-                : "cursor-not-allowed bg-slate-200 text-slate-400"
-              }`}
+            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:col-span-1 xl:col-span-2 ${
+              !canGenerate
+                ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                : "bg-slate-800 text-white shadow-sm hover:bg-slate-700"
+            }`}
           >
-            <Sparkles size={16} aria-hidden="true" />
-            <span>Generate</span>
+            {isLoading ? (
+              <RefreshCw size={15} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <FileCheck size={15} aria-hidden="true" />
+            )}
+            <span>{isLoading ? "Generating…" : "Generate"}</span>
           </button>
         </div>
       </section>

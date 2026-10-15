@@ -142,11 +142,11 @@ async function main() {
 
   const applications = [
     // EMP-001 (Anandh)
-    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-02-10"), endDate: new Date("2026-02-11"), daysCount: 2, reason: "Family Function", status: "Approved", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Granted as requested." },
-    { employeeId: "EMP-001", typeCode: "ML", startDate: new Date("2026-04-05"), endDate: new Date("2026-04-07"), daysCount: 3, reason: "Viral fever and recovery", status: "Approved", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Medical certificate verified." },
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-02-10"), endDate: new Date("2026-02-11"), daysCount: 2, reason: "Family Function", status: "Approved", reviewedBy: "CS HOD", remarks: "Granted as requested." },
+    { employeeId: "EMP-001", typeCode: "ML", startDate: new Date("2026-04-05"), endDate: new Date("2026-04-07"), daysCount: 3, reason: "Viral fever and recovery", status: "Approved", reviewedBy: "CS HOD", remarks: "Medical certificate verified." },
     { employeeId: "EMP-001", typeCode: "EL", startDate: new Date("2026-07-15"), endDate: new Date("2026-07-20"), daysCount: 6, reason: "Annual family travel", status: "Approved", reviewedBy: "Dean of Academics", remarks: "Approved with alternate class arrangement." },
-    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-09-02"), endDate: new Date("2026-09-03"), daysCount: 2, reason: "Personal urgent errands", status: "Approved", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Approved." },
-    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-10-20"), endDate: new Date("2026-10-21"), daysCount: 2, reason: "Attending tech conference", status: "Pending", reviewedBy: "Dr. K. Sharma (HOD)", remarks: "Under review." },
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-09-02"), endDate: new Date("2026-09-03"), daysCount: 2, reason: "Personal urgent errands", status: "Approved", reviewedBy: "CS HOD", remarks: "Approved." },
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-10-20"), endDate: new Date("2026-10-21"), daysCount: 2, reason: "Attending tech conference", status: "Pending", reviewedBy: "CS HOD", remarks: "Under review." },
     // EMP-002 (Arjun)
     { employeeId: "EMP-002", typeCode: "CL", startDate: new Date("2026-01-15"), endDate: new Date("2026-01-16"), daysCount: 2, reason: "Personal commitment", status: "Approved", reviewedBy: "Commerce HOD", remarks: "Approved." },
     { employeeId: "EMP-002", typeCode: "ML", startDate: new Date("2026-03-12"), endDate: new Date("2026-03-14"), daysCount: 3, reason: "Severe migraine and rest", status: "Approved", reviewedBy: "Commerce HOD", remarks: "Approved." },
