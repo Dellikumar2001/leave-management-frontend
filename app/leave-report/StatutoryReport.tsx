@@ -68,7 +68,8 @@ const reportColumns: { key: keyof ReportRow; label: string; weight: number }[] =
   { key: "remarks", label: "REMARKS", weight: 0.8 },
 ];
 
-function createReportPdf(rows: ReportRow[], reportDate: string, reportTitle: string) {
+async function createReportPdf(rows: ReportRow[], reportDate: string, reportTitle: string) {
+  const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "landscape", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -227,13 +228,12 @@ export function MultiSelect({
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`flex h-10 w-full items-center justify-between gap-1.5 rounded-md border bg-white px-3 text-left text-sm normal-case transition-colors outline-none ${
-          disabled
+        className={`flex h-10 w-full items-center justify-between gap-1.5 rounded-md border bg-white px-3 text-left text-sm normal-case transition-colors outline-none ${disabled
             ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
             : open
-            ? "border-blue-400 ring-2 ring-blue-100"
-            : "border-slate-300 hover:border-slate-400 focus:border-blue-400 cursor-pointer"
-        }`}
+              ? "border-blue-400 ring-2 ring-blue-100"
+              : "border-slate-300 hover:border-slate-400 focus:border-blue-400 cursor-pointer"
+          }`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap">
           {selected.length === 0 ? (
@@ -298,16 +298,14 @@ export function MultiSelect({
                     role="option"
                     aria-selected={isSelected}
                     onClick={() => toggleOption(option)}
-                    className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] transition-colors ${
-                      isSelected
+                    className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] transition-colors ${isSelected
                         ? "bg-emerald-50 font-medium text-emerald-800"
                         : "text-slate-700 hover:bg-slate-50"
-                    }`}
+                      }`}
                   >
                     <span
-                      className={`grid size-4 shrink-0 place-items-center rounded border transition-colors ${
-                        isSelected ? "border-emerald-600 bg-emerald-600" : "border-slate-300"
-                      }`}
+                      className={`grid size-4 shrink-0 place-items-center rounded border transition-colors ${isSelected ? "border-emerald-600 bg-emerald-600" : "border-slate-300"
+                        }`}
                     >
                       {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
                     </span>
@@ -480,9 +478,10 @@ export default function StatutoryReport() {
 
   const reportBaseName = `${activeTab}-leave-report-${startDate || currentDateStr}-${endDate || currentDateStr}`;
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!previewRows) return;
-    downloadBlob(createReportPdf(previewRows, startDate || currentDateStr, reportTitle), `${reportBaseName}.pdf`);
+    const blob = await createReportPdf(previewRows, startDate || currentDateStr, reportTitle);
+    downloadBlob(blob, `${reportBaseName}.pdf`);
   };
 
   const handleDownloadCsv = () => {
@@ -556,11 +555,10 @@ export default function StatutoryReport() {
               type="button"
               id="tab-maternity-leave"
               onClick={() => handleTabChange("maternity")}
-              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
-                activeTab === "maternity"
+              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${activeTab === "maternity"
                   ? "bg-white text-emerald-800 shadow-sm font-semibold"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               <span className="size-2 rounded-full bg-pink-500" />
               <span>Maternity Leave</span>
@@ -570,11 +568,10 @@ export default function StatutoryReport() {
               type="button"
               id="tab-paternity-leave"
               onClick={() => handleTabChange("paternity")}
-              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
-                activeTab === "paternity"
+              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${activeTab === "paternity"
                   ? "bg-white text-emerald-800 shadow-sm font-semibold"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               <span className="size-2 rounded-full bg-blue-500" />
               <span>Paternity Leave</span>
@@ -706,11 +703,10 @@ export default function StatutoryReport() {
                 ? `Preview Statutory Report for ${visibleEmployees.length} employees from ${startDate} to ${endDate}`
                 : "Select a stream, department, start date, and end date to enable Generate"
             }
-            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:col-span-1 xl:col-span-2 ${
-              canGenerate
+            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:col-span-1 xl:col-span-2 ${canGenerate
                 ? "bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:scale-[0.98]"
                 : "cursor-not-allowed bg-slate-200 text-slate-400"
-            }`}
+              }`}
           >
             <Sparkles size={16} aria-hidden="true" />
             <span>Generate</span>

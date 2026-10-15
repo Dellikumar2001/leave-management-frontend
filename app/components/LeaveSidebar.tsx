@@ -24,6 +24,7 @@ export type LeaveSidebarPage =
   | "leave-requests"
   | "leave-types"
   | "eligibility"
+  | "create-eligibility"
   | "holiday-calendar"
   | "settings"
   | "leave-refresh"
@@ -31,6 +32,7 @@ export type LeaveSidebarPage =
   | "block-leave"
   | "credit-leave"
   | "individual-report"
+  | "my-report"
   | "leave-report"
   | "statutory-report"
   | "paternity-leave"
@@ -79,6 +81,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     id: "eligibility",
     label: "Leave eligibility",
     href: "/leave-eligibility",
+    Icon: Users,
+  },
+  {
+    id: "create-eligibility",
+    label: "Create leave eligibility",
+    href: "/create-eligibility",
     Icon: Users,
   },
   {
@@ -356,7 +364,6 @@ export default function LeaveSidebar({
           label="Leave Settings"
           items={leaveSettingsNavigation}
           activePage={activePage}
-          defaultOpen={true}
         />
 
         <SidebarGroup
@@ -364,15 +371,26 @@ export default function LeaveSidebar({
           label="Leave Admin"
           items={leaveAdminNavigation}
           activePage={activePage}
-          defaultOpen={true}
         />
 
         <SidebarGroup
           icon={FileBarChart}
-          label="Leave Report"
+          label="Leave Reports"
           items={leaveReportNavigation}
           activePage={activePage}
         />
+
+        <Link
+          href="/my-report"
+          aria-current={activePage === "my-report" ? "page" : undefined}
+          className={`flex min-h-[38px] items-center gap-[11px] rounded-md px-3 text-[13px] font-medium no-underline transition-colors ${activePage === "my-report"
+              ? "bg-emerald-50 font-semibold text-emerald-800"
+              : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+        >
+          <FileText size={16} className={activePage === "my-report" ? "text-emerald-700" : "text-slate-500"} />
+          <span>My Report</span>
+        </Link>
       </nav>
     </aside>
   );

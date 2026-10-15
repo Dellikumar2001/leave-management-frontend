@@ -10,9 +10,9 @@ BEGIN
     IF to_regclass('public."LeaveType"') IS NULL AND to_regclass('public.leave_types') IS NOT NULL THEN
         ALTER TABLE "leave_types" RENAME TO "LeaveType";
     END IF;
-    IF to_regclass('public."LeaveCategoryDefinition"') IS NULL
-       AND to_regclass('public."LeaveCategoryMaster"') IS NOT NULL THEN
-        ALTER TABLE "LeaveCategoryMaster" RENAME TO "LeaveCategoryDefinition";
+    IF to_regclass('public."LeaveCategoryMaster"') IS NULL
+       AND to_regclass('public."LeaveCategoryDefinition"') IS NOT NULL THEN
+        ALTER TABLE "LeaveCategoryDefinition" RENAME TO "LeaveCategoryMaster";
     END IF;
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -61,7 +61,7 @@ BEGIN
     END IF;
 END $$;
 
-ALTER TABLE "LeaveCategoryDefinition"
+ALTER TABLE "LeaveCategoryMaster"
 ADD COLUMN IF NOT EXISTS "isPaid" BOOLEAN NOT NULL DEFAULT true;
 
 CREATE TABLE IF NOT EXISTS "blocked_leaves" (

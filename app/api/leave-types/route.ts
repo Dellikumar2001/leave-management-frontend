@@ -17,7 +17,14 @@ export async function GET(request: Request) {
         groupItems: {
           include: {
             leaveGroup: {
-              select: { id: true, name: true },
+              select: {
+                id: true,
+                name: true,
+                categoryId: true,
+                category: {
+                  select: { id: true, name: true, code: true },
+                },
+              },
             },
           },
         },
@@ -43,16 +50,33 @@ export async function POST(request: Request) {
   if (!input) return Response.json({ error: "Please provide valid leave type details." }, { status: 400 });
 
   try {
-    const { leaveGroupId, ...leaveTypeData } = input;
-    const group = leaveGroupId === undefined
+    const { leaveGroupId, leaveCategoryId, ...leaveTypeData } = input;
+    let group = leaveGroupId === undefined
       ? null
       : await prisma.leaveGroup.findFirst({
           where: { id: leaveGroupId, status: "ACTIVE" },
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            categoryId: true,
+            category: { select: { id: true, name: true, code: true } },
+          },
         });
 
     if (leaveGroupId !== undefined && !group) {
       return Response.json({ error: "Select an active leave group." }, { status: 400 });
+    }
+
+    if (!group && leaveCategoryId !== undefined) {
+      group = await prisma.leaveGroup.findFirst({
+        where: { categoryId: leaveCategoryId, status: "ACTIVE" },
+        select: {
+          id: true,
+          name: true,
+          categoryId: true,
+          category: { select: { id: true, name: true, code: true } },
+        },
+      });
     }
 
     const employees = await prisma.employee.findMany({ select: { employeeId: true } });
@@ -81,7 +105,14 @@ export async function POST(request: Request) {
         groupItems: {
           include: {
             leaveGroup: {
-              select: { id: true, name: true },
+              select: {
+                id: true,
+                name: true,
+                categoryId: true,
+                category: {
+                  select: { id: true, name: true, code: true },
+                },
+              },
             },
           },
         },
