@@ -10,6 +10,8 @@ type LeaveType = {
   name: string;
   leaveGroup: string;
   leaveGroupId: number | null;
+  leaveCategory?: string | null;
+  leaveCategoryId?: number | null;
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
@@ -20,12 +22,26 @@ type LeaveTypeForm = {
   code: string;
   name: string;
   leaveGroupId: string;
+  leaveCategoryId: string;
   daysAllowed: number;
   description: string;
   status: LeaveType["status"];
 };
 
 type LeaveGroupOption = {
+  id: number;
+  code: string;
+  name: string;
+  status: "ACTIVE" | "INACTIVE";
+  categoryId?: number | null;
+  category?: {
+    id: number;
+    name: string;
+    code: string;
+  } | null;
+};
+
+type LeaveCategoryOption = {
   id: number;
   code: string;
   name: string;
@@ -112,6 +128,7 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 export default function LeaveTypePage() {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveGroups, setLeaveGroups] = useState<LeaveGroupOption[]>([]);
+  const [leaveCategories, setLeaveCategories] = useState<LeaveCategoryOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -123,6 +140,7 @@ export default function LeaveTypePage() {
     code: "",
     name: "",
     leaveGroupId: "",
+    leaveCategoryId: "",
     daysAllowed: 1,
     description: "",
     status: "ACTIVE",
@@ -171,6 +189,26 @@ export default function LeaveTypePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/leave-categories")
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Unable to load leave categories.");
+        if (!Array.isArray(result?.data)) return [];
+        return result.data as LeaveCategoryOption[];
+      })
+      .then((categories) => {
+        if (isMounted) setLeaveCategories(categories.filter((c) => c.status === "ACTIVE"));
+      })
+      .catch((loadError: unknown) => {
+        console.error("Unable to load leave categories:", loadError);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const filteredLeaveTypes = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -179,7 +217,8 @@ export default function LeaveTypePage() {
         !query ||
         leaveType.code.toLowerCase().includes(query) ||
         leaveType.name.toLowerCase().includes(query) ||
-        leaveType.leaveGroup.toLowerCase().includes(query);
+        leaveType.leaveGroup.toLowerCase().includes(query) ||
+        (leaveType.leaveCategory && leaveType.leaveCategory.toLowerCase().includes(query));
 
       return matchesSearch;
     });
@@ -188,13 +227,24 @@ export default function LeaveTypePage() {
   const handleSaveType = async () => {
     const nextCode = form.code.trim().toUpperCase();
     const nextName = form.name.trim().toUpperCase();
-    const leaveGroupId = Number(form.leaveGroupId);
-    const selectedGroup = leaveGroups.find((group) => group.id === leaveGroupId);
+    const leaveGroupId = form.leaveGroupId ? Number(form.leaveGroupId) : undefined;
+    const leaveCategoryId = form.leaveCategoryId ? Number(form.leaveCategoryId) : undefined;
+    const selectedGroup = leaveGroupId ? leaveGroups.find((group) => group.id === leaveGroupId) : undefined;
 
+    // Previously mandatory validation:
+    // if (
+    //   !nextCode ||
+    //   !nextName ||
+    //   !selectedGroup ||
+    //   !Number.isSafeInteger(form.daysAllowed) ||
+    //   form.daysAllowed < 1
+    // ) {
+    //   return;
+    // }
+
+    // Leave type name and leave group are optional:
     if (
       !nextCode ||
-      !nextName ||
-      !selectedGroup ||
       !Number.isSafeInteger(form.daysAllowed) ||
       form.daysAllowed < 1
     ) {
@@ -204,8 +254,9 @@ export default function LeaveTypePage() {
     const newLeaveType = {
       code: nextCode,
       name: nextName,
-      leaveGroup: selectedGroup.name,
-      leaveGroupId,
+      leaveGroup: selectedGroup ? selectedGroup.name : "",
+      ...(leaveGroupId ? { leaveGroupId } : {}),
+      ...(leaveCategoryId ? { leaveCategoryId } : {}),
       daysAllowed: form.daysAllowed,
       description: form.description.trim().toUpperCase(),
       status: form.status,
@@ -241,6 +292,7 @@ export default function LeaveTypePage() {
       code: "",
       name: "",
       leaveGroupId: "",
+      leaveCategoryId: "",
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
@@ -271,10 +323,15 @@ export default function LeaveTypePage() {
       group.name.toUpperCase() === leaveType.leaveGroup.toUpperCase() ||
       group.code.toUpperCase() === leaveType.leaveGroup.toUpperCase(),
     );
+    const groupId = leaveType.leaveGroupId ?? legacyGroup?.id ?? null;
+    const matchedGroup = leaveGroups.find((g) => g.id === groupId);
+    const categoryId = leaveType.leaveCategoryId ?? matchedGroup?.categoryId ?? null;
+
     setForm({
       code: leaveType.code,
       name: leaveType.name,
-      leaveGroupId: String(leaveType.leaveGroupId ?? legacyGroup?.id ?? ""),
+      leaveGroupId: String(groupId ?? ""),
+      leaveCategoryId: String(categoryId ?? ""),
       daysAllowed: leaveType.daysAllowed,
       description: leaveType.description,
       status: leaveType.status,
@@ -290,6 +347,7 @@ export default function LeaveTypePage() {
       code: "",
       name: "",
       leaveGroupId: "",
+      leaveCategoryId: "",
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
@@ -391,6 +449,7 @@ export default function LeaveTypePage() {
                     <th className="border-b border-slate-200 px-5 py-4">Code</th>
                     <th className="border-b border-slate-200 px-5 py-4">Leave Type</th>
                     <th className="border-b border-slate-200 px-5 py-4">Leave Group</th>
+                    <th className="border-b border-slate-200 px-5 py-4">Leave Category</th>
                     <th className="border-b border-slate-200 px-5 py-4">Days Allowed</th>
                     <th className="border-b border-slate-200 px-5 py-4">Status</th>
                     <th className="border-b border-slate-200 px-5 py-4 text-right">Actions</th>
@@ -399,20 +458,21 @@ export default function LeaveTypePage() {
 
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={7} className="bg-white px-5 py-10 text-center text-sm text-slate-500">Loading leave types...</td></tr>
+                    <tr><td colSpan={8} className="bg-white px-5 py-10 text-center text-sm text-slate-500">Loading leave types...</td></tr>
                   ) : filteredLeaveTypes.length === 0 ? (
-                    <tr><td colSpan={7} className="bg-white px-5 py-10 text-center text-sm text-slate-500">No leave types match your current search.</td></tr>
+                    <tr><td colSpan={8} className="bg-white px-5 py-10 text-center text-sm text-slate-500">No leave types match your current search.</td></tr>
                   ) : filteredLeaveTypes.map((leaveType, index) => (
                     <tr key={leaveType.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc]">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-semibold text-slate-700">{leaveType.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <div>
-                          <p className="font-medium text-slate-800">{leaveType.name}</p>
+                          <p className="font-medium text-slate-800">{leaveType.name || "—"}</p>
                           <p className="mt-1 text-xs text-slate-500">{leaveType.description}</p>
                         </div>
                       </td>
-                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{leaveType.leaveGroup}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{leaveType.leaveGroup || "—"}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{leaveType.leaveCategory || "—"}</td>
                       <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{leaveType.daysAllowed}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${leaveType.status === "ACTIVE"
@@ -477,9 +537,9 @@ export default function LeaveTypePage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave type name <span className="text-red-500">*</span></label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave type name {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}</label>
                 <input
-                  required
+                  /* required attribute commented out to allow empty name */
                   value={form.name}
                   readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
@@ -489,17 +549,29 @@ export default function LeaveTypePage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave group <span className="text-red-500">*</span></label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave group {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}</label>
                 <select
-                  required
+                  /* required attribute commented out to allow empty leave group */
                   value={form.leaveGroupId}
                   disabled={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, leaveGroupId: event.target.value }))}
+                  onChange={(event) => {
+                    const nextGroupId = event.target.value;
+                    const group = leaveGroups.find((g) => String(g.id) === nextGroupId);
+                    setForm((prev) => ({
+                      ...prev,
+                      leaveGroupId: nextGroupId,
+                      ...(group?.categoryId ? { leaveCategoryId: String(group.categoryId) } : {}),
+                    }));
+                  }}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
                 >
                   <option value="">Select a leave group</option>
                   {leaveGroups
-                    .filter((group) => group.status === "ACTIVE" || String(group.id) === form.leaveGroupId)
+                    .filter((group) => {
+                      const isActive = group.status === "ACTIVE" || String(group.id) === form.leaveGroupId;
+                      if (!form.leaveCategoryId) return isActive;
+                      return isActive && (group.categoryId === Number(form.leaveCategoryId) || String(group.id) === form.leaveGroupId);
+                    })
                     .map((group) => (
                       <option key={group.id} value={group.id} disabled={group.status !== "ACTIVE"}>
                         {group.name} ({group.code}){group.status !== "ACTIVE" ? " - INACTIVE" : ""}
@@ -509,6 +581,34 @@ export default function LeaveTypePage() {
                 {leaveGroups.every((group) => group.status !== "ACTIVE") && modalMode === "create" && (
                   <p className="mt-1.5 text-xs text-slate-500">Create an active leave group before adding a leave type.</p>
                 )}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave category</label>
+                <select
+                  value={form.leaveCategoryId}
+                  disabled={modalMode === "view"}
+                  onChange={(event) => {
+                    const nextCatId = event.target.value;
+                    setForm((prev) => {
+                      const currentGroup = leaveGroups.find((g) => String(g.id) === prev.leaveGroupId);
+                      const groupMatches = nextCatId && currentGroup?.categoryId === Number(nextCatId);
+                      return {
+                        ...prev,
+                        leaveCategoryId: nextCatId,
+                        leaveGroupId: groupMatches ? prev.leaveGroupId : "",
+                      };
+                    });
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
+                >
+                  <option value="">Select a leave category</option>
+                  {leaveCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name} ({category.code})
+                    </option>
+                  ))}
+                </select>
               </div>
 
 

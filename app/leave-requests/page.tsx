@@ -362,10 +362,15 @@ export default function StudentLeaveRequestsPage() {
   const handleCreateGroup = async () => {
     const nextCode = form.code.trim().toUpperCase();
     const nextName = form.name.trim();
-    const categoryId = Number(form.categoryId);
+    const categoryId = form.categoryId ? Number(form.categoryId) : null;
     const nextEffectiveFrom = sanitizeDateInput(form.effectiveFrom);
 
-    if (!nextCode || !nextName || form.leaveTypes.length === 0 || !categoryId || !nextEffectiveFrom) {
+    // Mandatory validation commented out to allow creating a leave group without Group Name, Leave Types, or Leave Category:
+    // if (!nextCode || !nextName || form.leaveTypes.length === 0 || !categoryId || !nextEffectiveFrom) {
+    //   return;
+    // }
+
+    if (!nextCode || !nextEffectiveFrom) {
       return;
     }
 
@@ -545,18 +550,22 @@ export default function StudentLeaveRequestsPage() {
                     <tr key={group.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc]">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.name}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.name || "—"}</td>
                       <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.categoryName ?? "—"}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <div className="flex flex-wrap gap-2">
-                          {group.leaveTypes.map((type) => (
-                            <span
-                              key={`${group.id}-${type}`}
-                              className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
-                            >
-                              {type}
-                            </span>
-                          ))}
+                          {group.leaveTypes.length > 0 ? (
+                            group.leaveTypes.map((type) => (
+                              <span
+                                key={`${group.id}-${type}`}
+                                className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
+                              >
+                                {type}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
                         </div>
                       </td>
                       <td className="border-b border-slate-200 px-5 py-4 text-slate-700">
@@ -652,10 +661,10 @@ export default function StudentLeaveRequestsPage() {
 
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Group Name <span className="text-red-500">*</span>
+                      Group Name {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
                     </label>
                     <input
-                      required
+                      /* required attribute commented out to allow empty group name */
                       value={form.name}
                       onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                       className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"
@@ -668,15 +677,16 @@ export default function StudentLeaveRequestsPage() {
                 <div className="grid grid-cols-2 gap-5">
                   <div className="mt-5">
                     <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Leave Types <span className="text-red-500">*</span>
+                      Leave Types {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
                     </label>
 
+                    {/* Previously required validation for leave types:
                     <input
                       type="hidden"
                       required
                       value={form.leaveTypes.join(",")}
                       aria-label="Leave types required"
-                    />
+                    /> */}
 
                     <LeaveTypeMultiSelect
                       values={form.leaveTypes}
@@ -693,10 +703,10 @@ export default function StudentLeaveRequestsPage() {
                   </div>
                   <div className="mt-5">
                     <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Leave Category <span className="text-red-500">*</span>
+                      Leave Category {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
                     </label>
                     <select
-                      required
+                      /* required attribute commented out to allow empty category */
                       value={form.categoryId}
                       onChange={(event) => setForm((prev) => ({ ...prev, categoryId: event.target.value }))}
                       className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300"

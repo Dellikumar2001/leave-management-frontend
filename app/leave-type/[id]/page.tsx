@@ -10,6 +10,8 @@ type LeaveType = {
   name: string;
   leaveGroup: string;
   leaveGroupId: number | null;
+  leaveCategory?: string | null;
+  leaveCategoryId?: number | null;
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
@@ -17,6 +19,19 @@ type LeaveType = {
 };
 
 type LeaveGroupOption = {
+  id: number;
+  code: string;
+  name: string;
+  status: "ACTIVE" | "INACTIVE";
+  categoryId?: number | null;
+  category?: {
+    id: number;
+    name: string;
+    code: string;
+  } | null;
+};
+
+type LeaveCategoryOption = {
   id: number;
   code: string;
   name: string;
@@ -33,6 +48,7 @@ export default function LeaveTypeDetailsPage() {
   const [leaveType, setLeaveType] = useState<LeaveType | null>(null);
   const [form, setForm] = useState<LeaveType | null>(null);
   const [leaveGroups, setLeaveGroups] = useState<LeaveGroupOption[]>([]);
+  const [leaveCategories, setLeaveCategories] = useState<LeaveCategoryOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -50,15 +66,30 @@ export default function LeaveTypeDetailsPage() {
         if (!Array.isArray(result?.data)) throw new Error("Unable to load leave groups.");
         return result.data as LeaveGroupOption[];
       }),
+      fetch("/api/leave-categories").then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Unable to load leave categories.");
+        if (!Array.isArray(result?.data)) return [];
+        return result.data as LeaveCategoryOption[];
+      }),
     ])
-      .then(([record, groups]) => {
+      .then(([record, groups, categories]) => {
         if (!isMounted) return;
         const legacyGroup = groups.find((group) =>
           group.name.toUpperCase() === record.leaveGroup.toUpperCase() ||
           group.code.toUpperCase() === record.leaveGroup.toUpperCase(),
         );
-        const recordWithGroup = { ...record, leaveGroupId: record.leaveGroupId ?? legacyGroup?.id ?? null };
+        const resolvedGroupId = record.leaveGroupId ?? legacyGroup?.id ?? null;
+        const matchedGroup = groups.find((g) => g.id === resolvedGroupId);
+        const resolvedCategoryId = record.leaveCategoryId ?? matchedGroup?.categoryId ?? null;
+
+        const recordWithGroup = {
+          ...record,
+          leaveGroupId: resolvedGroupId,
+          leaveCategoryId: resolvedCategoryId,
+        };
         setLeaveGroups(groups);
+        setLeaveCategories(categories.filter((c) => c.status === "ACTIVE"));
         setLeaveType(recordWithGroup);
         setForm(recordWithGroup);
       })
@@ -79,10 +110,19 @@ export default function LeaveTypeDetailsPage() {
 
   const handleSave = async () => {
     if (!form || !leaveType) return;
+    // Previously mandatory validation:
+    // if (
+    //   !form.code.trim() ||
+    //   !form.name.trim() ||
+    //   !form.leaveGroupId ||
+    //   !form.status ||
+    //   !Number.isSafeInteger(form.daysAllowed) ||
+    //   form.daysAllowed < 1
+    // ) return;
+
+    // Leave type name and leave group are optional:
     if (
       !form.code.trim() ||
-      !form.name.trim() ||
-      !form.leaveGroupId ||
       !form.status ||
       !Number.isSafeInteger(form.daysAllowed) ||
       form.daysAllowed < 1
@@ -93,7 +133,11 @@ export default function LeaveTypeDetailsPage() {
       const response = await fetch(`/api/leave-types/${form.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          leaveGroupId: form.leaveGroupId ?? undefined,
+          leaveCategoryId: form.leaveCategoryId ?? undefined,
+        }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Unable to update the leave type.");
@@ -160,21 +204,68 @@ export default function LeaveTypeDetailsPage() {
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">LEAVE TYPE NAME <span className="text-red-600">*</span></span>
-            <input required={!isViewMode} value={form.name} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("name", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
+            <span className="text-sm font-medium text-slate-700">LEAVE TYPE NAME {/* Mandatory indicator commented out: <span className="text-red-600">*</span> */}</span>
+            <input /* required={!isViewMode} */ value={form.name} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("name", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">LEAVE GROUP <span className="text-red-600">*</span></span>
-            <select required={!isViewMode} value={form.leaveGroupId ?? ""} disabled={isViewMode} onChange={(e) => handleChange("leaveGroupId", e.target.value ? Number(e.target.value) : null)} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500">
+            <span className="text-sm font-medium text-slate-700">LEAVE GROUP {/* Mandatory indicator commented out: <span className="text-red-600">*</span> */}</span>
+            <select
+              /* required={!isViewMode} */
+              value={form.leaveGroupId ?? ""}
+              disabled={isViewMode}
+              onChange={(e) => {
+                const nextGroupId = e.target.value ? Number(e.target.value) : null;
+                const group = leaveGroups.find((g) => g.id === nextGroupId);
+                setForm((prev) => (prev ? {
+                  ...prev,
+                  leaveGroupId: nextGroupId,
+                  ...(group?.categoryId ? { leaveCategoryId: group.categoryId } : {}),
+                } : prev));
+              }}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+            >
               <option value="">Select a leave group</option>
               {leaveGroups
-                .filter((group) => group.status === "ACTIVE" || group.id === form.leaveGroupId)
+                .filter((group) => {
+                  const isActive = group.status === "ACTIVE" || group.id === form.leaveGroupId;
+                  if (!form.leaveCategoryId) return isActive;
+                  return isActive && (group.categoryId === form.leaveCategoryId || group.id === form.leaveGroupId);
+                })
                 .map((group) => (
                   <option key={group.id} value={group.id} disabled={group.status !== "ACTIVE"}>
                     {group.name} ({group.code}){group.status !== "ACTIVE" ? " - INACTIVE" : ""}
                   </option>
                 ))}
+            </select>
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">LEAVE CATEGORY</span>
+            <select
+              value={form.leaveCategoryId ?? ""}
+              disabled={isViewMode}
+              onChange={(e) => {
+                const nextCatId = e.target.value ? Number(e.target.value) : null;
+                setForm((prev) => {
+                  if (!prev) return prev;
+                  const currentGroup = leaveGroups.find((g) => g.id === prev.leaveGroupId);
+                  const groupMatches = nextCatId && currentGroup?.categoryId === nextCatId;
+                  return {
+                    ...prev,
+                    leaveCategoryId: nextCatId,
+                    leaveGroupId: groupMatches ? prev.leaveGroupId : null,
+                  };
+                });
+              }}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+            >
+              <option value="">Select a leave category</option>
+              {leaveCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name} ({category.code})
+                </option>
+              ))}
             </select>
           </label>
 

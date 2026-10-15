@@ -75,28 +75,39 @@ export async function POST(request: NextRequest) {
     const selectedCodes = Array.isArray(b.leaveTypeCodes)
       ? [...new Set(b.leaveTypeCodes.map((code: unknown) => String(code)))] as string[]
       : [];
-    const categoryId = Number(b.categoryId);
+    const categoryId = b.categoryId ? Number(b.categoryId) : null;
 
-    if (!b.code || !b.name || !b.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
-      return Response.json({ error: "Code, name, category, and effective from are required." }, { status: 400 });
+    // Previously mandatory validation:
+    // if (!b.code || !b.name || !b.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
+    //   return Response.json({ error: "Code, name, category, and effective from are required." }, { status: 400 });
+    // }
+
+    // Code and effective from remain required, while name, category, and leave types are optional:
+    if (!b.code || !b.effectiveFrom) {
+      return Response.json({ error: "Code and effective from are required." }, { status: 400 });
     }
 
-    const category = await prisma.leaveCategoryMaster.findFirst({
-      where: { id: categoryId, status: "ACTIVE" },
-    });
-    if (!category) {
-      return Response.json({ error: "Select an active leave category." }, { status: 400 });
+    let category = null;
+    if (categoryId && Number.isInteger(categoryId) && categoryId > 0) {
+      category = await prisma.leaveCategoryMaster.findFirst({
+        where: { id: categoryId, status: "ACTIVE" },
+      });
+      if (!category) {
+        return Response.json({ error: "Select an active leave category." }, { status: 400 });
+      }
     }
 
-    const leaveTypes = await prisma.leaveType.findMany({
-      where: {
-        status: "ACTIVE",
-        code: {
-          in: selectedCodes,
-        },
-      },
-    });
-    if (leaveTypes.length !== selectedCodes.length) {
+    const leaveTypes = selectedCodes.length > 0
+      ? await prisma.leaveType.findMany({
+          where: {
+            status: "ACTIVE",
+            code: {
+              in: selectedCodes,
+            },
+          },
+        })
+      : [];
+    if (selectedCodes.length > 0 && leaveTypes.length !== selectedCodes.length) {
       return Response.json({ error: "Select active leave types only." }, { status: 400 });
     }
 
@@ -106,9 +117,9 @@ export async function POST(request: NextRequest) {
     const leaveGroup = await prisma.leaveGroup.create({
       data: {
         code: String(b.code).trim(),
-        name: String(b.name).trim(),
+        name: b.name ? String(b.name).trim() : "",
         description: b.description ? String(b.description).trim() : null,
-        category: { connect: { id: categoryId } },
+        ...(category ? { category: { connect: { id: category.id } } } : {}),
         effectiveFrom,
         status,
         items: {
