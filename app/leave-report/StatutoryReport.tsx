@@ -542,9 +542,6 @@ export default function StatutoryReport() {
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
             Statutory Leave Report
           </h1>
-          <p className="mt-0.5 text-[13px] text-slate-500">
-            Generate and track statutory leave compliance for Maternity and Paternity leave records.
-          </p>
         </div>
       </header>
 

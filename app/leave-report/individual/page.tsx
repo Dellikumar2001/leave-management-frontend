@@ -474,7 +474,6 @@ export default function IndividualLeaveReportPage() {
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm print:hidden">
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Leave Report</p>
             <h1 className="text-3xl font-bold text-slate-800">Individual Report</h1>
-            <p className="mt-1 text-sm text-slate-500">Review an employee’s leave allocation, history, and usage analytics.</p>
           </header>
 
           <section aria-label="Employee and report filters" className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
