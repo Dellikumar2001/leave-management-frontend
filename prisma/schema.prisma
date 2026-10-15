@@ -89,21 +89,22 @@ model LeaveEligibility {
 }
 
 model Employee {
-  employeeId     String                     @id @map("employee_id")
-  name           String
-  stream         String
-  department     String
-  gender         String
-  designation    String?
-  mobileNumber   String?                    @map("mobile_number")
-  workEmail      String?                    @map("work_email")
-  leaveRecords   EmployeeLeaveEligibility[]
-  maternityLeave MaternityLeave?
-  paternityLeaves PaternityLeave[]
-  leaveBalances  EmployeeLeaveBalance[]
-  blockedLeaves  BlockedLeave[]
-  leaveCredits   LeaveCredit[]
-  notifications  EmployeeNotification[]
+  employeeId                String                     @id @map("employee_id")
+  name                      String
+  stream                    String
+  department                String
+  gender                    String
+  designation               String?
+  mobileNumber              String?                    @map("mobile_number")
+  workEmail                 String?                    @map("work_email")
+  leaveRecords              EmployeeLeaveEligibility[]
+  maternityLeave            MaternityLeave?
+  paternityLeaves           PaternityLeave[]
+  leaveBalances             EmployeeLeaveBalance[]
+  blockedLeaves             BlockedLeave[]
+  leaveCredits              LeaveCredit[]
+  notifications             EmployeeNotification[]
+  employeeLeaveApplications EmployeeLeaveApplication[]
 
   @@map("employees")
 }
@@ -115,7 +116,7 @@ model Employee {
 //   department      String
 //   status          String                     @default("Approved")
 //   leaveRecords    EmployeeLeaveEligibility[]
-  
+
 //   maternityLeaves MaternityLeave[]
 
 //   
@@ -127,7 +128,6 @@ model Employee {
 //   stream        String
 //   department    String
 //   leaveRecords  EmployeeLeaveEligibility[]
-
 
 //   @@map("employees")
 // }
@@ -157,7 +157,7 @@ model MaternityLeave {
   remarks      String?   @map("remarks")
   status       String    @default("Active")
   createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
   employee     Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
   @@index([employeeId])
@@ -370,7 +370,7 @@ model PaternityLeave {
   remarks      String?   @map("remarks")
   status       String    @default("Active")
   createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
   employee     Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
   @@index([employeeId])
