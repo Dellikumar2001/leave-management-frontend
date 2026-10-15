@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   FileText,
   RefreshCw,
+  Search,
   X,
 } from "lucide-react";
 import LeaveSidebar from "../../components/LeaveSidebar";
@@ -70,8 +71,6 @@ function getEmployeeRemark(employee: Employee): string {
   return "—";
 }
 
-/* ─── Build flat rows for export & preview (Columns including STATUS) ─ */
-
 function buildExportRows(
   visibleEmployees: Employee[],
   startDate: string,
@@ -89,34 +88,158 @@ function buildExportRows(
   return { headers, rows };
 }
 
+/* ─── Reusable MultiSelect Dropdown with Checkbox format ─────── */
+
+function MultiSelectDropdown({
+  label,
+  options,
+  selectedValues,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  options: string[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const displayLabel = disabled
+    ? `Select ${label}`
+    : selectedValues.length === 0
+    ? `All ${label}`
+    : selectedValues.length === 1
+    ? selectedValues[0]
+    : `${selectedValues.length} ${label} selected`;
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-sm transition-colors ${
+          disabled
+            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+            : isOpen
+            ? "border-blue-400 ring-1 ring-blue-300 text-slate-800"
+            : "border-slate-300 text-slate-700 hover:border-slate-400"
+        }`}
+      >
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[220px] rounded-md border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-2">
+            <div className="flex items-center gap-2 rounded bg-slate-50 px-2 py-1.5 text-xs text-slate-500 border border-slate-200">
+              <Search size={13} className="shrink-0 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-52 overflow-y-auto p-1.5">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option)}
+                    onChange={(e) => {
+                      onChange(
+                        e.target.checked
+                          ? [...selectedValues, option]
+                          : selectedValues.filter((v) => v !== option)
+                      );
+                    }}
+                    className="size-3.5 rounded border-slate-300 text-blue-600 focus:ring-0"
+                  />
+                  <span className="truncate">{option}</span>
+                </label>
+              ))
+            ) : (
+              <p className="py-3 text-center text-xs text-slate-400">No options found</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs">
+            <button
+              type="button"
+              onClick={() => onChange(Array.from(new Set([...selectedValues, ...filteredOptions])))}
+              className="font-medium text-emerald-700 hover:text-emerald-800"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Leave Status Report Page ───────────────────────────────── */
 
 export default function LeaveStatusReportPage() {
-  // Dropdown options source
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
 
-  // Generated report state
   const [reportEmployees, setReportEmployees] = useState<Employee[]>([]);
   const [hasGenerated, setHasGenerated] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
-  // Preview state
   const [showExportPreview, setShowExportPreview] = useState<boolean>(false);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // Filters
-  const [streamFilter, setStreamFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [employeeFilter, setEmployeeFilter] = useState("");
+  // ── Cascading Checkbox Filter States
+  const [streamFilters, setStreamFilters] = useState<string[]>([]);
+  const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeFilters, setEmployeeFilters] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
 
-  // Date range
+  // ── Date range
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [dateError, setDateError] = useState("");
 
-  // Load initial dropdown options on mount
   useEffect(() => {
     let mounted = true;
     async function loadOptions() {
@@ -136,21 +259,71 @@ export default function LeaveStatusReportPage() {
     };
   }, []);
 
-  // Derived options for filter selects
-  const allStreams = useMemo(
+  // ── Step 1: All unique Streams
+  const streams = useMemo(
     () => [...new Set(allEmployees.map((e) => e.stream))].filter(Boolean).sort(),
     [allEmployees]
   );
-  const allDepartments = useMemo(() => {
-    const src = streamFilter ? allEmployees.filter((e) => e.stream === streamFilter) : allEmployees;
-    return [...new Set(src.map((e) => e.department))].filter(Boolean).sort();
-  }, [allEmployees, streamFilter]);
-  const allEmployeeOptions = useMemo(() => {
-    let src = allEmployees;
-    if (streamFilter) src = src.filter((e) => e.stream === streamFilter);
-    if (departmentFilter) src = src.filter((e) => e.department === departmentFilter);
-    return [...src].sort((a, b) => a.name.localeCompare(b.name));
-  }, [allEmployees, streamFilter, departmentFilter]);
+
+  // ── Step 2: Departments disabled until Stream is chosen
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const departments = useMemo(() => {
+    if (isDepartmentDisabled) return [];
+    return [
+      ...new Set(
+        allEmployees
+          .filter((e) => streamFilters.includes(e.stream))
+          .map((e) => e.department)
+      ),
+    ].filter(Boolean).sort();
+  }, [allEmployees, isDepartmentDisabled, streamFilters]);
+
+  // ── Step 3: Employees disabled until Department is chosen
+  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const availableEmployees = useMemo(() => {
+    if (isEmployeeDisabled) return [];
+    return allEmployees.filter(
+      (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+    );
+  }, [allEmployees, isEmployeeDisabled, departmentFilters, streamFilters]);
+
+  const employeeNames = useMemo(
+    () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
+    [availableEmployees]
+  );
+
+  // ── Step 4: Date accessible ONLY after selecting Stream, Department, and Employee
+  const isDateAccessible =
+    streamFilters.length > 0 &&
+    departmentFilters.length > 0 &&
+    employeeFilters.length > 0;
+
+  // ── Cascading Handlers
+  const handleStreamChange = (newStreams: string[]) => {
+    setStreamFilters(newStreams);
+    setDepartmentFilters([]);
+    setEmployeeFilters([]);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
+  };
+
+  const handleDepartmentChange = (newDepts: string[]) => {
+    setDepartmentFilters(newDepts);
+    setEmployeeFilters([]);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
+  };
+
+  const handleEmployeeChange = (newNames: string[]) => {
+    setEmployeeFilters(newNames);
+    if (newNames.length === 0) {
+      setStartDate("");
+      setEndDate("");
+      setDateError("");
+    }
+  };
 
   // Date range validation
   const handleStartDate = (value: string) => {
@@ -165,38 +338,9 @@ export default function LeaveStatusReportPage() {
     else setDateError("");
   };
 
-  // Date accessibility: only accessible after selecting stream, department, and employee
-  const isDateAccessible = Boolean(streamFilter && departmentFilter && employeeFilter);
-
-  // Reset dependent filters and dates when parent changes
-  const handleStreamChange = (v: string) => {
-    setStreamFilter(v);
-    setDepartmentFilter("");
-    setEmployeeFilter("");
-    setStartDate("");
-    setEndDate("");
-    setDateError("");
-  };
-  const handleDepartmentChange = (v: string) => {
-    setDepartmentFilter(v);
-    setEmployeeFilter("");
-    setStartDate("");
-    setEndDate("");
-    setDateError("");
-  };
-  const handleEmployeeChange = (v: string) => {
-    setEmployeeFilter(v);
-    if (!v) {
-      setStartDate("");
-      setEndDate("");
-      setDateError("");
-    }
-  };
-
-  // Generate button handler: fetches report matching the selected filters and showcases table
+  // Generate button handler
   const handleGenerate = async () => {
-    // Validate that date range is only used after selecting required filters
-    if ((startDate || endDate) && (!streamFilter || !departmentFilter || !employeeFilter)) {
+    if ((startDate || endDate) && !isDateAccessible) {
       setError("Please select stream, department, and employee before applying a date range.");
       return;
     }
@@ -207,9 +351,9 @@ export default function LeaveStatusReportPage() {
 
     try {
       const params = new URLSearchParams();
-      if (streamFilter) params.set("stream", streamFilter);
-      if (departmentFilter) params.set("department", departmentFilter);
-      if (employeeFilter) params.set("employeeId", employeeFilter);
+      if (streamFilters.length > 0) params.set("stream", streamFilters.join(","));
+      if (departmentFilters.length > 0) params.set("department", departmentFilters.join(","));
+      if (employeeFilters.length > 0) params.set("employeeNames", employeeFilters.join(","));
       if (statusFilter) params.set("status", statusFilter);
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
@@ -228,18 +372,17 @@ export default function LeaveStatusReportPage() {
     }
   };
 
-  // Visible rows after status filter applied to generated report
+  // Filtered rows for display
   const visibleEmployees = useMemo(() => {
     return reportEmployees.filter((e) => {
-      if (streamFilter && e.stream !== streamFilter) return false;
-      if (departmentFilter && e.department !== departmentFilter) return false;
-      if (employeeFilter && e.employeeId !== employeeFilter) return false;
+      if (streamFilters.length > 0 && !streamFilters.includes(e.stream)) return false;
+      if (departmentFilters.length > 0 && !departmentFilters.includes(e.department)) return false;
+      if (employeeFilters.length > 0 && !employeeFilters.includes(e.name)) return false;
       if (statusFilter && e.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
       return true;
     });
-  }, [reportEmployees, streamFilter, departmentFilter, employeeFilter, statusFilter]);
+  }, [reportEmployees, streamFilters, departmentFilters, employeeFilters, statusFilter]);
 
-  // Toggle preview and smoothly scroll down to it
   const handleToggleExportPreview = () => {
     setShowExportPreview((prev) => {
       const next = !prev;
@@ -251,11 +394,6 @@ export default function LeaveStatusReportPage() {
       return next;
     });
   };
-
-  // ────────────────────────────────────────────
-  // ── Export handlers (Showcase current date in top left, followed by:
-  //    EMPLOYEE ID, NAME, DATE FROM, DATE TO, REMARKS)
-  // ────────────────────────────────────────────
 
   const handleCsv = () => {
     const { headers, rows } = buildExportRows(visibleEmployees, startDate, endDate);
@@ -292,7 +430,6 @@ export default function LeaveStatusReportPage() {
       views: [{ showGridLines: true }],
     });
 
-    // ── Row 1: Header Title Banner "Leave Status Report"
     worksheet.mergeCells("A1:F1");
     const titleCell = worksheet.getCell("A1");
     titleCell.value = "Leave Status Report";
@@ -300,12 +437,11 @@ export default function LeaveStatusReportPage() {
     titleCell.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF0F172A" }, // Dark Slate/Navy
+      fgColor: { argb: "FF0F172A" },
     };
     titleCell.alignment = { vertical: "middle", horizontal: "center" };
     worksheet.getRow(1).height = 36;
 
-    // ── Row 2: Sub-info row (Date only)
     worksheet.mergeCells("A2:F2");
     const infoCell = worksheet.getCell("A2");
     infoCell.value = `Date: ${currentDate}`;
@@ -318,10 +454,8 @@ export default function LeaveStatusReportPage() {
     infoCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
     worksheet.getRow(2).height = 22;
 
-    // ── Row 3: Blank separator row
     worksheet.getRow(3).height = 10;
 
-    // ── Row 4: Highlighted Column Headers (EMPLOYEE ID, NAME, DATE FROM, DATE TO, STATUS, REMARKS)
     const headerRow = worksheet.getRow(4);
     headerRow.values = headers;
     headerRow.height = 28;
@@ -332,12 +466,12 @@ export default function LeaveStatusReportPage() {
         name: "Segoe UI",
         size: 11,
         bold: true,
-        color: { argb: "FFFFFFFF" }, // White bold text
+        color: { argb: "FFFFFFFF" },
       };
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FF1E293B" }, // Highlighted dark background
+        fgColor: { argb: "FF1E293B" },
       };
       cell.alignment = {
         vertical: "middle",
@@ -351,7 +485,6 @@ export default function LeaveStatusReportPage() {
       };
     });
 
-    // ── Row 5+: Data rows
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rows.forEach((row: any[], rowIndex: number) => {
       const dataRow = worksheet.addRow(row);
@@ -379,7 +512,6 @@ export default function LeaveStatusReportPage() {
       });
     });
 
-    // Column widths
     worksheet.columns = [
       { key: "empId", width: 20 },
       { key: "name", width: 30 },
@@ -413,12 +545,10 @@ export default function LeaveStatusReportPage() {
 
     const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
 
-    // Document Title (Top)
     doc.setFontSize(14);
     doc.setTextColor(30, 41, 59);
     doc.text("Leave Status Report", 40, 42);
 
-    // Date (Below Title)
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
     doc.text(`Date: ${currentDate}`, 40, 58);
@@ -450,7 +580,6 @@ export default function LeaveStatusReportPage() {
 
   const currentDateStr = new Date().toISOString().split("T")[0];
 
-  /* ── Render ─────────────────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-[#e9edf3] text-slate-800">
       <LeaveSidebar activePage="leave-status-report" />
@@ -477,81 +606,54 @@ export default function LeaveStatusReportPage() {
             </div>
           </header>
 
-          {/* ── Filter Bar */}
+          {/* ── Filter Bar with Sequential Checkbox Dropdowns */}
           <section
             aria-label="Report filters"
             className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-13">
-              {/* Stream */}
+              {/* Step 1: Stream Dropdown (Checkbox format) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
-                <label htmlFor="filter-stream" className="text-[11px] font-semibold uppercase text-slate-500">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Stream
-                </label>
-                <div className="relative">
-                  <select
-                    id="filter-stream"
-                    aria-label="Filter by stream"
-                    value={streamFilter}
-                    onChange={(e) => handleStreamChange(e.target.value)}
-                    className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
-                  >
-                    <option value="">All Streams</option>
-                    {allStreams.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                </div>
+                </span>
+                <MultiSelectDropdown
+                  label="Streams"
+                  options={streams}
+                  selectedValues={streamFilters}
+                  onChange={handleStreamChange}
+                />
               </div>
 
-              {/* Department */}
+              {/* Step 2: Department Dropdown (Checkbox format, unlocked after Stream chosen) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
-                <label htmlFor="filter-department" className="text-[11px] font-semibold uppercase text-slate-500">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Departments
-                </label>
-                <div className="relative">
-                  <select
-                    id="filter-department"
-                    aria-label="Filter by department"
-                    value={departmentFilter}
-                    onChange={(e) => handleDepartmentChange(e.target.value)}
-                    className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
-                  >
-                    <option value="">All Departments</option>
-                    {allDepartments.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                </div>
+                </span>
+                <MultiSelectDropdown
+                  label="Departments"
+                  options={departments}
+                  selectedValues={departmentFilters}
+                  onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
+                />
               </div>
 
-              {/* Employee */}
+              {/* Step 3: Employee Names Dropdown (Checkbox format, unlocked after Department chosen) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
-                <label htmlFor="filter-employee" className="text-[11px] font-semibold uppercase text-slate-500">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Employee Names
-                </label>
-                <div className="relative">
-                  <select
-                    id="filter-employee"
-                    aria-label="Filter by employee"
-                    value={employeeFilter}
-                    onChange={(e) => handleEmployeeChange(e.target.value)}
-                    className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
-                  >
-                    <option value="">All Employees</option>
-                    {allEmployeeOptions.map((emp) => (
-                      <option key={emp.employeeId} value={emp.employeeId}>
-                        {emp.name} ({emp.employeeId})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                </div>
+                </span>
+                <MultiSelectDropdown
+                  label="Employees"
+                  options={employeeNames}
+                  selectedValues={employeeFilters}
+                  onChange={handleEmployeeChange}
+                  disabled={isEmployeeDisabled}
+                />
               </div>
 
-              {/* Date Range — Accessible only after selecting stream, department, and employee */}
+              {/* Step 4: Date Range — Accessible only after selecting Stream, Department, and Employee */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">Date Range</span>
                 <div className="flex min-w-0 items-center gap-2">
@@ -632,14 +734,12 @@ export default function LeaveStatusReportPage() {
               </button>
             </div>
 
-            {/* Date validation error */}
             {dateError && (
               <p role="alert" className="mt-2 text-xs text-red-600">
                 {dateError}
               </p>
             )}
           </section>
-
 
           {/* ── Table Showcase OR Placeholder */}
           {!hasGenerated ? (
@@ -659,7 +759,6 @@ export default function LeaveStatusReportPage() {
                 </p>
               )}
 
-              {/* ── Main Report Table (leave status, days allowed, and balance removed) */}
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-600">
@@ -735,7 +834,6 @@ export default function LeaveStatusReportPage() {
                 </table>
               </div>
 
-              {/* ── Footer Export Trigger Button */}
               {!isGenerating && !error && visibleEmployees.length > 0 && (
                 <div className="flex items-center justify-end border-t border-slate-100 px-5 py-3">
                   <button
@@ -752,14 +850,13 @@ export default function LeaveStatusReportPage() {
             </main>
           )}
 
-          {/* ── Export Preview Section (Showcased below the table upon clicking Export) */}
+          {/* ── Export Preview Section */}
           {hasGenerated && showExportPreview && (
             <section
               ref={previewRef}
               aria-label="Export file preview"
               className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all"
             >
-              {/* Preview Header Banner */}
               <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-[#f5f7fa] px-5 py-4 text-slate-800">
                 <div className="flex items-center gap-2.5">
                   <span className="grid size-8 place-items-center rounded-md bg-emerald-100 text-emerald-700">
@@ -778,10 +875,8 @@ export default function LeaveStatusReportPage() {
                 </button>
               </div>
 
-              {/* Preview Sheet Container (Looks like the actual generated report file) */}
               <div className="bg-[#f5f7fa] p-4 sm:p-6">
                 <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-                  {/* Top Left Current Date Display */}
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                     <div>
                       <h4 className="text-lg font-bold text-slate-800">Leave Status Report</h4>
@@ -794,7 +889,6 @@ export default function LeaveStatusReportPage() {
                     </span>
                   </div>
 
-                  {/* Preview Table with export columns */}
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-left text-xs">
                       <thead className="bg-slate-50 font-semibold text-slate-600">
@@ -847,7 +941,6 @@ export default function LeaveStatusReportPage() {
                     </table>
                   </div>
 
-                  {/* Bottom Action Footer */}
                   <footer className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-slate-500">
                       Ready to download in your preferred format:
@@ -879,7 +972,6 @@ export default function LeaveStatusReportPage() {
                       </button>
                     </div>
                   </footer>
-
                 </div>
               </div>
             </section>

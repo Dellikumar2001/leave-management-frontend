@@ -1,9 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
-const { PrismaPg } = require("@prisma/adapter-pg");
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
+const prisma = new PrismaClient();
 
 const employees = [
   { employeeId: "EMP-001", name: "Anandh", stream: "SFS", department: "Computer Science", gender: "Male" },

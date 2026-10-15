@@ -120,7 +120,7 @@ async function downloadExcel(report: EmployeeReportData) {
   const headerRow = worksheet.getRow(10);
   headerRow.values = headers;
   headerRow.height = 26;
-  headerRow.eachCell((cell) => {
+  headerRow.eachCell((cell: any) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F5C4A" } };
     cell.alignment = { vertical: "middle", wrapText: true };
@@ -136,7 +136,7 @@ async function downloadExcel(report: EmployeeReportData) {
       leave.reason || "—",
     ]);
     row.alignment = { vertical: "top", wrapText: true };
-    row.eachCell((cell) => {
+    row.eachCell((cell: any) => {
       cell.border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } };
     });
   });

@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 
 const CLIENT_VERSION = "2026-10-13-status";
 const globalForPrisma = globalThis as typeof globalThis & {
@@ -17,7 +16,6 @@ export const prisma =
   !isStale && globalForPrisma.prisma
     ? globalForPrisma.prisma
     : new PrismaClient({
-        adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
         log: ["query", "error", "warn"],
       });
 
