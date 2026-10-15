@@ -87,17 +87,26 @@ export function serializeLeaveType<T extends {
   description: string | null;
   status: string;
   isUsed: boolean;
+  categoryMaster?: { id: number; name: string; code: string } | null;
   groupItems?: {
     leaveGroup: {
       id: number;
       name: string;
       categoryId?: number | null;
       category?: { id: number; name: string } | null;
+      categories?: {
+        categoryId: number;
+        category?: { id: number; name: string } | null;
+      }[];
     };
   }[];
 }>(leaveType: T) {
   const groups = leaveType.groupItems?.map((item) => item.leaveGroup) ?? [];
-  const category = groups.find((g) => g.category?.name)?.category ?? null;
+  const category = leaveType.categoryMaster ?? groups
+    .flatMap((group) => [
+      ...(group.category?.name ? [group.category] : []),
+      ...(group.categories?.map((item) => item.category).filter((item) => item?.name) ?? []),
+    ])[0] ?? null;
 
   return {
     id: leaveType.id,
@@ -106,7 +115,7 @@ export function serializeLeaveType<T extends {
     leaveGroup: groups.length ? groups.map((group) => group.name).join(", ") : leaveType.leaveGroup,
     leaveGroupId: groups[0]?.id ?? null,
     leaveCategory: category?.name ?? null,
-    leaveCategoryId: category?.id ?? groups[0]?.categoryId ?? null,
+    leaveCategoryId: leaveType.categoryMaster?.id ?? category?.id ?? groups[0]?.categoryId ?? null,
     paymentType: leaveType.paymentType === "UNPAID" ? "UNPAID" : "PAID",
     daysAllowed: leaveType.daysAllowed,
     description: leaveType.description ?? "",

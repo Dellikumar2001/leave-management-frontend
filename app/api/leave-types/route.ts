@@ -14,6 +14,9 @@ export async function GET(request: Request) {
     const leaveTypes = await prisma.leaveType.findMany({
       where: status ? { status } : undefined,
       include: {
+        categoryMaster: {
+          select: { id: true, name: true, code: true },
+        },
         groupItems: {
           include: {
             leaveGroup: {
@@ -23,6 +26,12 @@ export async function GET(request: Request) {
                 categoryId: true,
                 category: {
                   select: { id: true, name: true, code: true },
+                },
+                categories: {
+                  select: {
+                    categoryId: true,
+                    category: { select: { id: true, name: true, code: true } },
+                  },
                 },
               },
             },
@@ -51,6 +60,17 @@ export async function POST(request: Request) {
 
   try {
     const { leaveGroupId, leaveCategoryId, ...leaveTypeData } = input;
+    const categoryMaster = leaveCategoryId === undefined
+      ? null
+      : await prisma.leaveCategoryMaster.findFirst({
+          where: { id: leaveCategoryId, status: "ACTIVE" },
+          select: { id: true },
+        });
+
+    if (leaveCategoryId !== undefined && !categoryMaster) {
+      return Response.json({ error: "Select an active leave category." }, { status: 400 });
+    }
+
     let group = leaveGroupId === undefined
       ? null
       : await prisma.leaveGroup.findFirst({
@@ -60,6 +80,12 @@ export async function POST(request: Request) {
             name: true,
             categoryId: true,
             category: { select: { id: true, name: true, code: true } },
+            categories: {
+              select: {
+                categoryId: true,
+                category: { select: { id: true, name: true, code: true } },
+              },
+            },
           },
         });
 
@@ -69,12 +95,24 @@ export async function POST(request: Request) {
 
     if (!group && leaveCategoryId !== undefined) {
       group = await prisma.leaveGroup.findFirst({
-        where: { categoryId: leaveCategoryId, status: "ACTIVE" },
+        where: {
+          status: "ACTIVE",
+          OR: [
+            { categoryId: leaveCategoryId },
+            { categories: { some: { categoryId: leaveCategoryId } } },
+          ],
+        },
         select: {
           id: true,
           name: true,
           categoryId: true,
           category: { select: { id: true, name: true, code: true } },
+          categories: {
+            select: {
+              categoryId: true,
+              category: { select: { id: true, name: true, code: true } },
+            },
+          },
         },
       });
     }
@@ -83,6 +121,7 @@ export async function POST(request: Request) {
     const leaveType = await prisma.leaveType.create({
       data: {
         ...leaveTypeData,
+        ...(categoryMaster ? { categoryMaster: { connect: { id: categoryMaster.id } } } : {}),
         employeeEligibility: {
           create: employees.map(({ employeeId }) => ({
             employee: { connect: { employeeId } },
@@ -102,6 +141,9 @@ export async function POST(request: Request) {
           : {}),
       },
       include: {
+        categoryMaster: {
+          select: { id: true, name: true, code: true },
+        },
         groupItems: {
           include: {
             leaveGroup: {
@@ -111,6 +153,12 @@ export async function POST(request: Request) {
                 categoryId: true,
                 category: {
                   select: { id: true, name: true, code: true },
+                },
+                categories: {
+                  select: {
+                    categoryId: true,
+                    category: { select: { id: true, name: true, code: true } },
+                  },
                 },
               },
             },

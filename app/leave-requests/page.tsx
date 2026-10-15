@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
+import LeaveCategoryMultiSelect from "../components/LeaveCategoryMultiSelect";
 
 type LeaveGroup = {
   id: number;
   code: string;
   name: string;
-  categoryName: string | null;
+  description: string;
+  categoryNames: string[];
   leaveTypes: string[];
   effectiveFrom: string;
   status: "ACTIVE" | "INACTIVE";
@@ -21,7 +23,7 @@ type LeaveGroupForm = {
   name: string;
   description: string;
   leaveTypes: string[];
-  categoryId: string;
+  categoryIds: string[];
   effectiveFrom: string;
   status: "ACTIVE" | "INACTIVE";
 };
@@ -35,7 +37,9 @@ type ApiLeaveGroup = {
   id: number;
   code: string;
   name: string;
-  category?: { name?: string | null } | null;
+  description?: string | null;
+  category?: { id?: number; name?: string | null } | null;
+  categories?: { categoryId?: number; category?: { id?: number; name?: string | null } | null }[];
   items?: { leaveType?: { code?: string | null; status?: string } | null }[];
   effectiveFrom: string | Date;
   status: string;
@@ -75,9 +79,8 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${
-                isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-              }`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
+                }`}
               title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
@@ -94,11 +97,14 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   id: Number(group.id),
   code: String(group.code ?? "").toUpperCase(),
   name: String(group.name ?? "").toUpperCase(),
-  categoryName: group.category?.name ? String(group.category.name).toUpperCase() : null,
+  description: String(group.description ?? ""),
+  categoryNames: Array.isArray(group.categories) && group.categories.length > 0
+    ? group.categories.map((link) => String(link.category?.name ?? "").toUpperCase()).filter(Boolean)
+    : group.category?.name ? [String(group.category.name).toUpperCase()] : [],
   leaveTypes: Array.isArray(group.items)
     ? group.items
-        .filter((item) => item.leaveType?.status === "ACTIVE")
-        .map((item) => String(item.leaveType?.code ?? "").toUpperCase())
+      .filter((item) => item.leaveType?.status === "ACTIVE")
+      .map((item) => String(item.leaveType?.code ?? "").toUpperCase())
     : [],
   effectiveFrom: new Date(group.effectiveFrom).toISOString().split("T")[0],
   status: group.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
@@ -176,9 +182,8 @@ function LeaveTypeMultiSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((current) => !current)}
-        className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 ${
-          disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"
-        }`}
+        className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"
+          }`}
       >
         <div className="flex flex-1 flex-wrap gap-2">
           {values.length > 0 ? (
@@ -259,7 +264,7 @@ export default function StudentLeaveRequestsPage() {
     name: "",
     description: "",
     leaveTypes: [],
-    categoryId: "",
+    categoryIds: [],
     effectiveFrom: "",
     status: "ACTIVE",
   });
@@ -291,7 +296,8 @@ export default function StudentLeaveRequestsPage() {
         !query ||
         group.code.toUpperCase().includes(query) ||
         group.name.toUpperCase().includes(query) ||
-        (group.categoryName && group.categoryName.toUpperCase().includes(query)) ||
+        group.description.toUpperCase().includes(query) ||
+        group.categoryNames.some((category) => category.includes(query)) ||
         group.leaveTypes.some((type) => type.toUpperCase().includes(query));
 
       const matchesStatus = statusFilter === "ALL STATUS" || group.status === statusFilter;
@@ -302,7 +308,6 @@ export default function StudentLeaveRequestsPage() {
   const handleCreateGroup = async () => {
     const nextCode = form.code.trim().toUpperCase();
     const nextName = form.name.trim();
-    const categoryId = form.categoryId ? Number(form.categoryId) : null;
     const nextEffectiveFrom = sanitizeDateInput(form.effectiveFrom);
 
     // Mandatory validation commented out to allow creating a leave group without Group Name, Leave Types, or Leave Category:
@@ -324,7 +329,7 @@ export default function StudentLeaveRequestsPage() {
         name: nextName,
         description: form.description.trim().toUpperCase(),
         leaveTypeCodes: form.leaveTypes.map((t) => t.toUpperCase()),
-        categoryId,
+        categoryIds: form.categoryIds.map(Number),
         effectiveFrom: nextEffectiveFrom,
         status: form.status,
       }),
@@ -343,7 +348,7 @@ export default function StudentLeaveRequestsPage() {
       name: "",
       description: "",
       leaveTypes: [],
-      categoryId: "",
+      categoryIds: [],
       effectiveFrom: "",
       status: "ACTIVE",
     });
@@ -443,8 +448,28 @@ export default function StudentLeaveRequestsPage() {
                     <tr key={group.id} className="bg-white text-sm uppercase text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.name || "—"}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">{group.categoryName ?? "—"}</td>
+                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">
+                        <div>{group.name || "—"}</div>
+                        {group.description && (
+                          <div className="mt-1 text-xs font-normal text-slate-500">{group.description}</div>
+                        )}
+                      </td>
+                      <td className="border-b border-slate-200 px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {group.categoryNames.length > 0 ? (
+                            group.categoryNames.map((type) => (
+                              <span
+                                key={`${group.id}-${type}`}
+                                className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
+                              >
+                                {type}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <div className="flex flex-wrap gap-2">
                           {group.leaveTypes.length > 0 ? (
@@ -470,11 +495,10 @@ export default function StudentLeaveRequestsPage() {
                       </td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${
-                            group.status === "ACTIVE"
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${group.status === "ACTIVE"
                               ? "bg-emerald-100 text-emerald-700"
                               : "bg-slate-200 text-slate-600"
-                          }`}
+                            }`}
                         >
                           {group.status}
                         </span>
@@ -553,9 +577,9 @@ export default function StudentLeaveRequestsPage() {
                     <input
                       required
                       value={form.code}
-                      onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase().slice(0, 5) }))}
+                      onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase().slice(0, 6) }))}
                       className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
-                      maxLength={5}
+                      maxLength={6}
                       placeholder="GEN"
                     />
                   </div>
@@ -606,17 +630,11 @@ export default function StudentLeaveRequestsPage() {
                     <label className="mb-1.5 block text-sm font-medium text-slate-700">
                       Leave Category {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
                     </label>
-                    <select
-                      /* required attribute commented out to allow empty category */
-                      value={form.categoryId}
-                      onChange={(event) => setForm((prev) => ({ ...prev, categoryId: event.target.value }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
-                    >
-                      <option value="">SELECT CATEGORY NAME</option>
-                      {leaveCategoryOptions.map((category) => (
-                        <option key={category.id} value={category.id}>{category.name}</option>
-                      ))}
-                    </select>
+                    <LeaveCategoryMultiSelect
+                      values={form.categoryIds}
+                      options={leaveCategoryOptions}
+                      onChange={(categoryIds) => setForm((prev) => ({ ...prev, categoryIds }))}
+                    />
                   </div>
                 </div>
 

@@ -24,7 +24,13 @@ export function isLeaveTypeForCategory(
   leaveType: {
     category: LeaveCategory | null;
     leaveGroup: string;
-    groupItems: { leaveGroup: { name: string; category: { name: string; code: string } | null } }[];
+    groupItems: {
+      leaveGroup: {
+        name: string;
+        category: { name: string; code: string } | null;
+        categories: { category: { name: string; code: string } }[];
+      };
+    }[];
   },
   category: LeaveCategory,
 ) {
@@ -36,6 +42,7 @@ export function isLeaveTypeForCategory(
       leaveGroup.name,
       leaveGroup.category?.name ?? "",
       leaveGroup.category?.code ?? "",
+      ...leaveGroup.categories.flatMap(({ category }) => [category.name, category.code]),
     ]),
   ];
   const categoryWord = category === "ANNUAL" ? "ANNUAL" : "MEDICAL";
@@ -58,6 +65,7 @@ export async function findBalanceLeaveType(
             select: {
               name: true,
               category: { select: { name: true, code: true } },
+              categories: { select: { category: { select: { name: true, code: true } } } },
             },
           },
         },
