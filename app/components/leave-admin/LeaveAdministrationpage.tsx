@@ -101,17 +101,19 @@ async function fetchPageData(category: Category) {
 
 /* ─── Reusable MultiSelect Dropdown (Maternity Leave Pattern) ──── */
 
-function MultiSelectDropdown({
+export function MultiSelectDropdown({
   label,
   options,
   selectedValues,
   onChange,
+  onOpen,
   disabled = false,
 }: {
   label: string;
   options: string[];
   selectedValues: string[];
   onChange: (values: string[]) => void;
+  onOpen?: () => void;
   disabled?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -145,7 +147,10 @@ function MultiSelectDropdown({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          if (!isOpen) onOpen?.();
+          setIsOpen((prev) => !prev);
+        }}
         className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${
           disabled
             ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"

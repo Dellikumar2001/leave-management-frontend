@@ -33,6 +33,7 @@ export type LeaveSidebarPage =
   | "individual-report"
   | "my-report"
   | "leave-report"
+  | "credit-leave-report"
   | "statutory-report"
   | "paternity-leave"
   | "leave-status-report";
@@ -123,6 +124,12 @@ const leaveAdminNavigation: readonly NavItem[] = [
 ];
 
 const leaveReportNavigation: readonly NavItem[] = [
+  {
+    id: "credit-leave-report",
+    label: "Credit Leave Report",
+    href: "/leave-report/credit",
+    Icon: Coins,
+  },
   {
     id: "individual-report",
     label: "Individual Report",
