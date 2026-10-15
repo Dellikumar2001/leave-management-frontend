@@ -433,8 +433,8 @@ export default function LeaveStatusReportPage() {
         alternateRowStyles: { fillColor: [241, 245, 249] },
         margin: { left: 40, right: 40 },
       });
-    } else if (typeof (doc as any).autoTable === "function") {
-      (doc as any).autoTable({
+    } else if (typeof (doc as unknown as { autoTable?: (options: unknown) => void }).autoTable === "function") {
+      (doc as unknown as { autoTable: (options: unknown) => void }).autoTable({
         head: [headers],
         body: rows,
         startY: 75,
@@ -471,9 +471,6 @@ export default function LeaveStatusReportPage() {
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
                 Leave Status Report
               </h1>
-              <p className="mt-0.5 text-[13px] text-slate-500">
-                Select your filters and click Generate to view leave status report.
-              </p>
             </div>
           </header>
 

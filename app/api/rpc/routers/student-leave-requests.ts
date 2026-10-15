@@ -1,20 +1,20 @@
-export const getStudentLeaveRequests = async ({ input }: any) => ({
+export const getStudentLeaveRequests = async ({ input }: { input?: unknown }) => ({
   success: true,
   data: [],
   input,
 });
 
-export const createStudentLeaveRequest = async ({ input }: any) => ({
+export const createStudentLeaveRequest = async ({ input }: { input?: unknown }) => ({
   success: true,
   data: input,
 });
 
-export const updateStudentLeaveRequestStatus = async ({ input }: any) => ({
+export const updateStudentLeaveRequestStatus = async ({ input }: { input?: unknown }) => ({
   success: true,
   data: input,
 });
 
-export const deleteStudentLeaveRequest = async ({ input }: any) => ({
+export const deleteStudentLeaveRequest = async ({ input }: { input?: unknown }) => ({
   success: true,
   data: input,
 });

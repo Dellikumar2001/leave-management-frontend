@@ -54,30 +54,64 @@ model LeaveType {
   name                String
   leaveGroup          String                     @default("") @map("leave_group")
   paymentType         String?                    @map("payment_type")
+  category            LeaveCategory?
   daysAllowed         Int                        @default(1) @map("days_allowed")
-  description         String                     @default("")
+  description         String?                    @default("")
   status              String                     @default("ACTIVE")
+  applicableTo        EmployeeCategory[]         @default([STUDENT])
   isUsed              Boolean                    @default(false) @map("is_used")
   createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
   employeeEligibility EmployeeLeaveEligibility[]
   groupItems          LeaveGroupItem[]
+  leaveCredits        LeaveCredit[]
+  leaveApplications   EmployeeLeaveApplication[]
 
   @@map("leave_types")
 }
 
 model Employee {
-  employeeId      String                     @id @map("employee_id")
-  name            String
-  stream          String
-  department      String
-  status          String                     @default("Approved")
-  leaveRecords    EmployeeLeaveEligibility[]
-  paternityLeaves PaternityLeave[]
-  maternityLeaves MaternityLeave[]
+  employeeId        String                     @id @map("employee_id")
+  name              String
+  stream            String
+  department        String
+  status            String                     @default("Approved")
+  gender            String?    
+  leaveRecords      EmployeeLeaveEligibility[]
+  maternityLeave    MaternityLeave?
+  paternityLeaves   PaternityLeave[]
+  leaveBalances     EmployeeLeaveBalance[]
+  blockedLeaves     BlockedLeave[]
+  leaveCredits      LeaveCredit[]
+  notifications     EmployeeNotification[]
+  leaveApplications EmployeeLeaveApplication[]
 
   @@map("employees")
 }
+
+// model Employee {
+//   employeeId      String                     @id @map("employee_id")
+//   name            String
+//   stream          String
+//   department      String
+//   status          String                     @default("Approved")
+//   leaveRecords    EmployeeLeaveEligibility[]
+  
+//   maternityLeaves MaternityLeave[]
+
+//   
+// }
+
+// model Employee {
+//   employeeId    String                     @id @map("employee_id")
+//   name          String
+//   stream        String
+//   department    String
+//   leaveRecords  EmployeeLeaveEligibility[]
+
+
+//   @@map("employees")
+// }
 
 model EmployeeLeaveEligibility {
   employeeId   String    @map("employee_id")
@@ -85,6 +119,7 @@ model EmployeeLeaveEligibility {
   isEligible   Boolean   @default(true) @map("is_eligible")
   daysAllowed  Int       @default(0) @map("days_allowed")
   leaveBalance Int       @default(0) @map("leave_balance")
+  creditedDays Int       @default(0) @map("credited_days")
   joiningDate  DateTime  @default(dbgenerated("(DATE '2026-01-01' + FLOOR(RANDOM() * 364)::INTEGER)")) @map("joining_date") @db.Date
   gender       String    @default("") @map("gender")
   employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
@@ -93,6 +128,75 @@ model EmployeeLeaveEligibility {
   @@id([employeeId, leaveTypeId])
   @@index([leaveTypeId])
   @@map("employee_leave_eligibilities")
+}
+
+model MaternityLeave {
+  id           Int       @id @default(autoincrement())
+  employeeId   String    @unique @map("employee_id")
+  employeeName String    @map("employee_name")
+  noOfDays     Int       @default(180) @map("no_of_days")
+  remarks      String?   @map("remarks")
+  status       String    @default("Active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  employee     Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("maternity_leaves")
+}
+
+model EmployeeLeaveBalance {
+  employeeId String        @map("employee_id")
+  category   LeaveCategory
+  balance    Int           @default(0)
+  employee   Employee      @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@id([employeeId, category])
+  @@map("employee_leave_balances")
+}
+
+model BlockedLeave {
+  id         Int      @id @default(autoincrement())
+  employeeId String   @map("employee_id")
+  date       DateTime @db.Date
+  createdAt  DateTime @default(now()) @map("created_at")
+  employee   Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@map("blocked_leaves")
+}
+
+model LeaveCredit {
+  id          Int           @id @default(autoincrement())
+  employeeId  String        @map("employee_id")
+  category    LeaveCategory
+  days        Int
+  startDate   DateTime?     @map("start_date") @db.Date
+  endDate     DateTime?     @map("end_date") @db.Date
+  version     Int           @default(1)
+  leaveTypeId Int?          @map("leave_type_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  employee    Employee      @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType   LeaveType?    @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, category, createdAt])
+  @@map("leave_credits")
+}
+
+model EmployeeNotification {
+  id         Int      @id @default(autoincrement())
+  employeeId String   @map("employee_id")
+  title      String
+  content    String
+  type       String
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at")
+  employee   Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@index([employeeId, isRead, createdAt])
+  @@map("employee_notifications")
 }
 
 model LeaveCategoryMaster {
@@ -224,6 +328,7 @@ model ExtensionActivityPosition {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
 model Holiday {
   id              Int      @id @default(autoincrement())
   date            DateTime @db.Date
@@ -253,17 +358,22 @@ model PaternityLeave {
   @@map("paternity_leaves")
 }
 
-model MaternityLeave {
-  id           Int       @id @default(autoincrement())
-  employeeId   String    @map("employee_id")
-  employeeName String    @map("employee_name")
-  noOfDays     Int       @default(180) @map("no_of_days")
-  remarks      String?   @map("remarks")
-  status       String    @default("Active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  employee     Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+model EmployeeLeaveApplication {
+  id          Int       @id @default(autoincrement())
+  employeeId  String    @map("employee_id")
+  leaveTypeId Int       @map("leave_type_id")
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  daysCount   Int       @default(1) @map("days_count")
+  reason      String
+  status      String    @default("Approved")
+  appliedAt   DateTime  @default(now()) @map("applied_at")
+  reviewedBy  String?   @map("reviewed_by")
+  reviewedAt  DateTime? @map("reviewed_at")
+  remarks     String?
+  employee    Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
-  @@index([employeeId])
-  @@map("maternity_leaves")
+  @@index([employeeId, startDate, endDate])
+  @@map("employee_leave_applications")
 }

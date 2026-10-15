@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "db:refresh": "node --env-file=.env scripts/refresh-db.cjs"
+    "db:refresh": "node --env-file=.env scripts/refresh-db.cjs",
+    "db:reset": "prisma migrate reset"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",
@@ -22,7 +23,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.48.0",
-    "next": "16.3.6",
+    "next": "^16.4.0",
     "pdfjs-dist": "^6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -38,7 +39,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "^16.4.0",
     "prisma": "^6.12.0",
     "tailwindcss": "^4",
     "typescript": "^5"

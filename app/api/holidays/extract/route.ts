@@ -26,11 +26,10 @@ Rules:
 4. Do NOT output regular working days, mid-term tests, exam commencement dates, or retreat sessions unless they are explicitly declared holidays.
 `;
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function POST(req: NextRequest) {
     let tempFilePath: string | null = null;
-    let uploadedFileRef: any = null;
+    let uploadedFileRef: { uri?: string; mimeType?: string; name?: string } | null = null;
 
     try {
         if (!apiKey) {
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
         });
 
         const contentType = req.headers.get("content-type") || "";
-        let parts: any[] = [];
+        let parts: Array<Record<string, unknown>> = [];
         let fallbackYear = new Date().getFullYear();
 
         // ------------------------------------------------------------------
@@ -86,8 +85,8 @@ export async function POST(req: NextRequest) {
                 parts = [
                     {
                         fileData: {
-                            fileUri: uploadedFileRef.uri,
-                            mimeType: uploadedFileRef.mimeType,
+                            fileUri: uploadedFileRef?.uri,
+                            mimeType: uploadedFileRef?.mimeType,
                         },
                     },
                     { text: `${PROMPT}\nNote: Year fallback is ${fallbackYear}.` },
@@ -144,8 +143,8 @@ export async function POST(req: NextRequest) {
             parts = [
                 {
                     fileData: {
-                        fileUri: uploadedFileRef.uri,
-                        mimeType: uploadedFileRef.mimeType,
+                        fileUri: uploadedFileRef?.uri,
+                        mimeType: uploadedFileRef?.mimeType,
                     },
                 },
                 { text: `${PROMPT}\nNote: Year fallback is ${fallbackYear}.` },
@@ -185,8 +184,8 @@ export async function POST(req: NextRequest) {
             "gemini-3.7-flash",
             "gemini-3.8-flash",
         ];
-        let response: any = null;
-        let lastError: any = null;
+        let response: { text?: string } | null = null;
+        let lastError: unknown = null;
 
         for (const modelName of modelsToTry) {
             try {
@@ -195,20 +194,21 @@ export async function POST(req: NextRequest) {
                     ...payload,
                 });
                 if (response?.text) break;
-            } catch (err: any) {
+            } catch (err: unknown) {
                 lastError = err;
-                const status = err?.status || err?.code || (err?.message?.includes("503") ? 503 : null);
+                const errObj = err as { status?: number; code?: number | string; message?: string } | undefined;
+                const status = errObj?.status || errObj?.code || (errObj?.message?.includes("503") ? 503 : null);
                 const isUnavailable =
                     status === 503 ||
-                    err?.message?.includes("503") ||
-                    err?.message?.includes("high demand") ||
-                    err?.message?.includes("UNAVAILABLE");
+                    errObj?.message?.includes("503") ||
+                    errObj?.message?.includes("high demand") ||
+                    errObj?.message?.includes("UNAVAILABLE");
 
                 if (isUnavailable) {
                     console.warn(`Model ${modelName} is experiencing high demand (503), failing over to next model...`);
                     continue;
                 }
-                console.warn(`Model ${modelName} failed:`, err?.message || err);
+                console.warn(`Model ${modelName} failed:`, errObj?.message || err);
             }
         }
 
@@ -218,9 +218,10 @@ export async function POST(req: NextRequest) {
 
         const parsedData = JSON.parse(response.text ?? "[]");
         return NextResponse.json(parsedData);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Extraction error:", error);
-        let errorMsg = error?.message || "Failed to extract holidays.";
+        const errObj = error as { message?: string } | undefined;
+        let errorMsg = errObj?.message || "Failed to extract holidays.";
         try {
             const parsed = JSON.parse(errorMsg);
             if (parsed?.error?.message) {

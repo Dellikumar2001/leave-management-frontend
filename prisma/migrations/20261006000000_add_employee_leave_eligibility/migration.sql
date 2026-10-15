@@ -1,6 +1,7 @@
 CREATE TABLE "employees" (
     "employee_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "gender" TEXT NOT NULL,
     "stream" TEXT NOT NULL,
     "department" TEXT NOT NULL,
 
@@ -21,15 +22,15 @@ CREATE TABLE "employee_leave_eligibilities" (
 
 CREATE INDEX "employee_leave_eligibilities_leave_type_id_idx" ON "employee_leave_eligibilities"("leave_type_id");
 
-INSERT INTO "employees" ("employee_id", "name", "stream", "department") VALUES
-    ('EMP-001', 'Anandh', 'SFS', 'Computer Science'),
-    ('EMP-002', 'Arjun', 'AIDED', 'Commerce'),
-    ('EMP-003', 'Diya Menon', 'SFS', 'English'),
-    ('EMP-004', 'cenkatesh', 'AIDED', 'Mathematics'),
-    ('EMP-005', 'Kavya', 'SFS', 'Physics'),
-    ('EMP-006', 'Rohan Das', 'AIDED', 'Computer Science'),
-    ('EMP-007', 'Sneha Thomas', 'SFS', 'Commerce'),
-    ('EMP-008', 'Vikram', 'AIDED', 'English');
+INSERT INTO "employees" ("employee_id", "name", "gender", "stream", "department") VALUES
+    ('EMP-001', 'Anandh', 'Male', 'SFS', 'Computer Science'),
+    ('EMP-002', 'Arjun', 'Male', 'AIDED', 'Commerce'),
+    ('EMP-003', 'Diya Menon', 'Female', 'SFS', 'English'),
+    ('EMP-004', 'cenkatesh', 'Male', 'AIDED', 'Mathematics'),
+    ('EMP-005', 'Kavya', 'Female', 'SFS', 'Physics'),
+    ('EMP-006', 'Rohan Das', 'Male', 'AIDED', 'Computer Science'),
+    ('EMP-007', 'Sneha Thomas', 'Female', 'SFS', 'Commerce'),
+    ('EMP-008', 'Vikram', 'Male', 'AIDED', 'English');
 
 INSERT INTO "employee_leave_eligibilities" ("employee_id", "leave_type_id", "is_eligible", "days_allowed", "leave_balance")
 SELECT

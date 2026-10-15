@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, RefreshCw, Search, Check, ChevronDown, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, RefreshCw, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -49,165 +49,125 @@ async function fetchData(signal?: AbortSignal): Promise<LeaveData> {
   return result as LeaveData;
 }
 
-/* ─── Multi-select Dropdown ──────────────────────────────── */
+/* ─── Reusable MultiSelect Dropdown ───────────────────────── */
 
-type MultiSelectProps = {
-  id: string;
-  placeholder: string;
+function MultiSelectDropdown({
+  label,
+  options,
+  selectedValues,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
   options: string[];
-  selected: string[];
+  selectedValues: string[];
   onChange: (values: string[]) => void;
-};
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-function MultiSelect({ id, placeholder, options, selected, onChange }: MultiSelectProps) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  const filtered = options.filter((o) => o.toLowerCase().includes(search.toLowerCase()));
-
-  const toggleOption = (value: string) => {
-    onChange(
-      selected.includes(value)
-        ? selected.filter((v) => v !== value)
-        : [...selected, value],
-    );
-  };
-
-  const removeOption = (value: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange(selected.filter((v) => v !== value));
-  };
-
-  // Close on outside click
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Focus search when opening
-  useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 0);
-  }, [open]);
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const displayLabel = disabled
+    ? `Select ${label}`
+    : selectedValues.length === 0
+    ? `All ${label}`
+    : selectedValues.length === 1
+    ? selectedValues[0]
+    : `${selectedValues.length} ${label} selected`;
 
   return (
-    <div ref={containerRef} className="relative min-w-[180px]">
-      {/* Trigger */}
+    <div className="relative w-full" ref={dropdownRef}>
       <button
-        id={id}
         type="button"
-        onClick={() => setOpen((p) => !p)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className={`flex h-10 w-full items-center justify-between gap-1 rounded-md border px-3 text-sm transition-colors ${
-          open ? "border-blue-400 ring-1 ring-blue-300" : "border-slate-300"
-        } bg-white text-slate-700 outline-none`}
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${
+          disabled
+            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+            : isOpen
+            ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
+            : "border-slate-300 text-slate-600 hover:border-slate-400"
+        }`}
       >
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 overflow-hidden">
-          {selected.length === 0 ? (
-            <span className="truncate text-slate-400">{placeholder}</span>
-          ) : (
-            selected.map((v) => (
-              <span
-                key={v}
-                className="flex max-w-[110px] shrink-0 items-center gap-0.5 truncate rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800"
-              >
-                <span className="truncate">{v}</span>
-                <X
-                  size={10}
-                  className="shrink-0 cursor-pointer"
-                  onClick={(e) => removeOption(v, e)}
-                  aria-label={`Remove ${v}`}
-                />
-              </span>
-            ))
-          )}
-        </span>
+        <span className="truncate">{displayLabel}</span>
         <ChevronDown
-          size={14}
-          className={`shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
         />
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-full rounded-md border border-slate-200 bg-white shadow-lg">
-          {/* Inner search */}
-          <div className="border-b border-slate-100 px-2 py-1.5">
-            <div className="relative">
-              <Search size={12} className="pointer-events-none absolute left-2 top-2 text-slate-400" />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="h-6 w-full rounded bg-slate-50 pl-6 pr-2 text-[11px] outline-none placeholder:text-slate-400"
-              />
-            </div>
+      {isOpen && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              type="text"
+              placeholder="Filter list..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded bg-slate-50 px-2.5 py-1.5 text-xs normal-case text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400"
+            />
           </div>
 
-          <ul
-            role="listbox"
-            aria-multiselectable="true"
-            className="max-h-52 overflow-y-auto py-1"
-          >
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-[12px] text-slate-400">No results</li>
+          <div className="max-h-52 overflow-y-auto p-1.5">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-xs font-medium normal-case text-slate-700 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option)}
+                    onChange={(e) => {
+                      onChange(
+                        e.target.checked
+                          ? [...selectedValues, option]
+                          : selectedValues.filter((v) => v !== option)
+                      );
+                    }}
+                    className="size-3.5 rounded border-slate-300 text-blue-600 focus:ring-0"
+                  />
+                  <span className="truncate uppercase">{option}</span>
+                </label>
+              ))
             ) : (
-              filtered.map((option) => {
-                const isSelected = selected.includes(option);
-                return (
-                  <li
-                    key={option}
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => toggleOption(option)}
-                    className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] transition-colors ${
-                      isSelected
-                        ? "bg-emerald-50 font-medium text-emerald-800"
-                        : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <span
-                      className={`grid size-4 shrink-0 place-items-center rounded border transition-colors ${
-                        isSelected ? "border-emerald-600 bg-emerald-600" : "border-slate-300"
-                      }`}
-                    >
-                      {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
-                    </span>
-                    <span className="truncate">{option}</span>
-                  </li>
-                );
-              })
+              <p className="py-3 text-center text-xs text-slate-400 normal-case">No options found</p>
             )}
-          </ul>
+          </div>
 
-          {/* Select all / clear */}
-          {options.length > 0 && (
-            <div className="flex items-center justify-between border-t border-slate-100 px-3 py-1.5">
-              <button
-                type="button"
-                onClick={() => onChange([...options])}
-                className="text-[11px] font-medium text-emerald-700 hover:underline"
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="text-[11px] font-medium text-slate-500 hover:underline"
-              >
-                Clear
-              </button>
-            </div>
-          )}
+          <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs normal-case">
+            <button
+              type="button"
+              onClick={() => onChange(Array.from(new Set([...selectedValues, ...filteredOptions])))}
+              className="text-emerald-700 hover:text-emerald-800 font-medium"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -224,59 +184,94 @@ export default function LeaveRefreshPage() {
   const [error, setError] = useState("");
   const [recalcSuccess, setRecalcSuccess] = useState("");
 
-  // ── Filter states
-  const [streamFilter, setStreamFilter] = useState("");
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
-  const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
+  // ── Sequential Cascading Filter states
+  const [streamFilters, setStreamFilters] = useState<string[]>([]);
+  const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
 
-  // ── Derived option lists (all unique values)
-  const allDepartments = [...new Set(employees.map((e) => e.department))].sort();
-  const allEmployeeIds = [...new Set(employees.map((e) => e.employeeId))].sort();
-  const allEmployeeNames = [...new Set(employees.map((e) => e.name))].sort();
+  // ── Step 1: All unique Streams
+  const streams = [...new Set(employees.map((e) => e.stream))].filter(Boolean).sort();
+
+  // ── Step 2: Departments disabled until Stream is chosen
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const departments = isDepartmentDisabled
+    ? []
+    : [
+        ...new Set(
+          employees
+            .filter((e) => streamFilters.includes(e.stream))
+            .map((e) => e.department)
+        ),
+      ].filter(Boolean).sort();
+
+  // ── Step 3: Employees disabled until Department is chosen
+  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const availableEmployees = isEmployeeDisabled
+    ? []
+    : employees.filter(
+        (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+      );
+
+  const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
+
+  // ── Cascading change handlers with cleanup
+  const handleStreamChange = (newStreams: string[]) => {
+    setStreamFilters(newStreams);
+    setDepartmentFilters([]);
+    setEmployeeNameFilters([]);
+  };
+
+  const handleDepartmentChange = (newDepts: string[]) => {
+    setDepartmentFilters(newDepts);
+    setEmployeeNameFilters([]);
+  };
+
+  const handleEmployeeNameChange = (newNames: string[]) => {
+    setEmployeeNameFilters(newNames);
+  };
 
   const leaveTypeColumnCount = Math.max(leaveTypes.length, 1);
-  const normalizedSearch = search.trim().toLowerCase();
 
-  // ── Filtered employees (multi-select: if nothing selected = show all)
+  // ── Filtered employees for table rendering
   const visibleEmployees = employees.filter((emp) => {
-    if (streamFilter && emp.stream !== streamFilter) return false;
-    if (selectedDepartments.length > 0 && !selectedDepartments.includes(emp.department)) return false;
-    if (selectedEmployeeIds.length > 0 && !selectedEmployeeIds.includes(emp.employeeId)) return false;
-    if (selectedEmployeeNames.length > 0 && !selectedEmployeeNames.includes(emp.name)) return false;
-    if (normalizedSearch && !emp.name.toLowerCase().includes(normalizedSearch) && !emp.employeeId.toLowerCase().includes(normalizedSearch)) return false;
+    if (streamFilters.length > 0 && !streamFilters.includes(emp.stream)) return false;
+    if (departmentFilters.length > 0 && !departmentFilters.includes(emp.department)) return false;
+    if (employeeNameFilters.length > 0 && !employeeNameFilters.includes(emp.name)) return false;
     return true;
   });
 
-  // ── Recalculate is enabled only when at least one employee is visible & selected
   const canRecalculate =
     !isLoading &&
     !isRecalculating &&
     visibleEmployees.length > 0 &&
-    (streamFilter !== "" || selectedDepartments.length > 0 || selectedEmployeeIds.length > 0 || selectedEmployeeNames.length > 0);
-
-  // ── Load data
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const result = await fetchData(signal);
-      setEmployees(result.employees);
-      setLeaveTypes(result.leaveTypes);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Unable to load data.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    (streamFilters.length > 0 || departmentFilters.length > 0 || employeeNameFilters.length > 0);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
-  }, [loadData]);
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        const result = await fetchData(controller.signal);
+        if (!isMounted) return;
+        setEmployees(result.employees);
+        setLeaveTypes(result.leaveTypes);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Unable to load data.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, []);
 
   // ── Recalculate handler
   const handleRecalculate = async () => {
@@ -347,111 +342,55 @@ export default function LeaveRefreshPage() {
         <div className="mx-auto max-w-[1400px]">
 
           {/* Page header */}
-          <header className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-800">Leave Refresh</h1>
-              <p className="mt-1 text-[13px] font-normal normal-case text-slate-500">
-                Recalculate and refresh leave balances in the employee leave eligibilities table.
-              </p>
-            </div>
-            <button
-              type="button"
-              id="leave-recalculate-btn"
-              onClick={handleRecalculate}
-              disabled={!canRecalculate}
-              title={
-                canRecalculate
-                  ? `Recalculate leave balances for ${visibleEmployees.length} filtered employee(s)`
-                  : "Select at least one filter (Stream, Department, Employee ID, or Employee Name) to enable recalculation"
-              }
-              className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${
-                canRecalculate
-                  ? "bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:scale-[0.98]"
-                  : "cursor-not-allowed bg-slate-200 text-slate-400"
-              }`}
-            >
-              <RefreshCw
-                size={16}
-                aria-hidden="true"
-                className={isRecalculating ? "animate-spin" : ""}
-              />
-              {isRecalculating ? "Recalculating…" : "Leave Recalculate"}
-            </button>
+          <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
+            <h1 className="text-3xl font-bold text-slate-800">Leave Refresh</h1>
+            <p className="mt-1 text-[13px] font-normal normal-case text-slate-500">
+              Recalculate and refresh leave balances in the employee leave eligibilities table.
+            </p>
           </header>
 
-          {/* Filter bar */}
+          {/* Equal split filter bar with Export button */}
           <section
             aria-label="Employee filters"
-            className="mt-4 flex flex-wrap items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center"
           >
-            {/* Stream single-select */}
-            <div className="relative min-w-[140px]">
-              <select
-                id="filter-stream"
-                aria-label="Filter by stream"
-                value={streamFilter}
-                onChange={(e) => setStreamFilter(e.target.value)}
-                className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-9 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-blue-400"
-              >
-                <option value="">All Streams</option>
-                <option value="SFS">SFS</option>
-                <option value="AIDED">AIDED</option>
-              </select>
-              <ChevronDown
-                size={14}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            {/* Step 1: Stream Dropdown */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Streams"
+                options={streams}
+                selectedValues={streamFilters}
+                onChange={handleStreamChange}
               />
             </div>
 
-            {/* Departments multi-select */}
-            <MultiSelect
-              id="filter-departments"
-              placeholder="All Departments"
-              options={allDepartments}
-              selected={selectedDepartments}
-              onChange={setSelectedDepartments}
-            />
-
-            {/* Employee IDs multi-select */}
-            {/* <MultiSelect
-              id="filter-employee-ids"
-              placeholder="All Employee IDs"
-              options={allEmployeeIds}
-              selected={selectedEmployeeIds}
-              onChange={setSelectedEmployeeIds}
-            /> */}
-
-            {/* Employee Names multi-select */}
-            <MultiSelect
-              id="filter-employee-names"
-              placeholder="All Employee Names"
-              options={allEmployeeNames}
-              selected={selectedEmployeeNames}
-              onChange={setSelectedEmployeeNames}
-            />
-
-            {/* Search */}
-            {/* <label className="relative min-w-[200px] flex-1">
-              <Search
-                aria-hidden="true"
-                size={16}
-                className="pointer-events-none absolute left-3 top-3 text-slate-400"
+            {/* Step 2: Department Dropdown */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Departments"
+                options={departments}
+                selectedValues={departmentFilters}
+                onChange={handleDepartmentChange}
+                disabled={isDepartmentDisabled}
               />
-              <input
-                type="search"
-                aria-label="Search employees"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search employees"
-                className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm normal-case text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400"
-              />
-            </label> */}
+            </div>
 
-            {/* Export */}
+            {/* Step 3: Employee Name Dropdown */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Employee Names"
+                options={employeeNames}
+                selectedValues={employeeNameFilters}
+                onChange={handleEmployeeNameChange}
+                disabled={isEmployeeDisabled}
+              />
+            </div>
+
+            {/* Export Button */}
             <button
               type="button"
               onClick={handleExport}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-slate-800 px-4 text-sm font-medium text-white hover:bg-slate-700"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-slate-800 px-5 text-sm font-medium text-white hover:bg-slate-700"
             >
               <Download size={16} aria-hidden="true" />
               Export
@@ -464,17 +403,8 @@ export default function LeaveRefreshPage() {
               role="status"
               className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm normal-case text-emerald-800"
             >
-              <Check size={16} className="shrink-0 text-emerald-600" />
               {recalcSuccess}
             </div>
-          )}
-
-          {/* Recalculate hint */}
-          {!canRecalculate && !isLoading && (
-            <p className="mt-3 text-[12px] normal-case text-slate-500">
-              <span className="font-medium text-amber-600">Tip:</span> Select at least one Stream, Department, Employee ID, or Employee Name to enable the{" "}
-              <strong>Leave Recalculate</strong> button.
-            </p>
           )}
 
           {/* Table */}
@@ -563,16 +493,50 @@ export default function LeaveRefreshPage() {
               </table>
             </div>
 
-            {/* Footer row count */}
+            {/* Footer row with count and Recalculate Button aligned beneath Leave Balance */}
             {!isLoading && !error && (
-              <div className="border-t border-slate-100 px-5 py-2.5 text-[12px] normal-case text-slate-400">
-                Showing <strong className="text-slate-600">{visibleEmployees.length}</strong> of{" "}
-                <strong className="text-slate-600">{employees.length}</strong> employee{employees.length !== 1 ? "s" : ""}
-                {canRecalculate && (
-                  <span className="ml-2 text-emerald-600">
-                    · {visibleEmployees.length} employee{visibleEmployees.length !== 1 ? "s" : ""} selected for recalculation
-                  </span>
-                )}
+              <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[12px] normal-case text-slate-400">
+                  Showing <strong className="text-slate-600">{visibleEmployees.length}</strong> of{" "}
+                  <strong className="text-slate-600">{employees.length}</strong> employee{employees.length !== 1 ? "s" : ""}
+                  {canRecalculate && (
+                    <span className="ml-2 text-emerald-600">
+                      · {visibleEmployees.length} employee{visibleEmployees.length !== 1 ? "s" : ""} selected for recalculation
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-start gap-1 sm:items-end">
+                  <button
+                    type="button"
+                    id="leave-recalculate-btn"
+                    onClick={handleRecalculate}
+                    disabled={!canRecalculate}
+                    title={
+                      canRecalculate
+                        ? `Recalculate leave balances for ${visibleEmployees.length} filtered employee(s)`
+                        : "Select at least one filter (Stream, Department, or Employee Name) to enable recalculation"
+                    }
+                    className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${
+                      canRecalculate
+                        ? "bg-emerald-700 text-white shadow-md hover:bg-emerald-800 active:scale-[0.98]"
+                        : "cursor-not-allowed bg-slate-200 text-slate-400"
+                    }`}
+                  >
+                    <RefreshCw
+                      size={15}
+                      aria-hidden="true"
+                      className={isRecalculating ? "animate-spin" : ""}
+                    />
+                    {isRecalculating ? "Recalculating…" : "Leave Recalculate"}
+                  </button>
+
+                  {!canRecalculate && (
+                    <p className="text-[11px] normal-case text-slate-400">
+                      Select at least one filter to enable recalculation
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </main>

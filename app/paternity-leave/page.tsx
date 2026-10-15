@@ -1,897 +1,713 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Baby,
-  ChevronDown,
-  MessageSquare,
-  Paperclip,
-  Trash2,
-  X,
-} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Baby, ChevronDown, Paperclip, Trash2, X } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
-/* ─── Types ─────────────────────────────────────────────── */
-
-type PaternityEmployee = {
+type Employee = {
   employeeId: string;
   name: string;
-  gender: "Male" | "Female";
   stream: string;
   department: string;
-  isEligible: boolean;
-  daysAllowed: number;
-  leaveBalance: number;
+  gender?: string;
 };
 
-type PaternityLeaveType = {
-  code: string;
-  name: string;
-  daysAllowed: number;
-  status: "ACTIVE" | "INACTIVE";
-};
-
-type PaternityApiResponse = {
-  employees: PaternityEmployee[];
-  leaveType?: PaternityLeaveType;
-};
-
-type SubmittedPaternityRecord = {
+type SupportingDocumentRule = {
   id: string;
-  employeeId: string;
   name: string;
-  gender: string;
-  stream: string;
-  department: string;
-  daysAllowed: number;
-  remarkRequired: "yes" | "no";
-  remarkText: string;
-  attachmentRequired: "yes" | "no";
-  medicalCertRequired: boolean;
-  birthCertRequired: boolean;
-  status: "Active";
-  submittedAt: string;
+  required: boolean;
 };
 
-/* ─── Paternity Leave Page ───────────────────────────────── */
+type PaternityRecord = {
+  employeeId: string;
+  employeeName: string;
+  noOfDays: number;
+  remarks: string;
+  status: "Active" | "Inactive";
+};
 
-export default function PaternityLeavePage() {
-  const [employees, setEmployees] = useState<PaternityEmployee[]>([]);
-  const [, setLeaveType] = useState<PaternityLeaveType>({
-    code: "PL",
-    name: "Paternity Leave",
-    daysAllowed: 5,
-    status: "ACTIVE",
-  });
-  const [error, setError] = useState("");
+const FEMALE_NAMES = ["diya", "kavya", "sneha", "ananya", "priya", "pooja", "meera"];
 
-  // ── Filter & Selection states
-  const [streamFilter, setStreamFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [selectedEmployee, setSelectedEmployee] = useState<PaternityEmployee | null>(null);
+function MultiSelectDropdown({
+  label,
+  options,
+  selectedValues,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  options: string[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── Submitted Records State
-  const [submittedRecords, setSubmittedRecords] = useState<SubmittedPaternityRecord[]>([]);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // ── 1. No of Days State
-  const [numberOfDays, setNumberOfDays] = useState<number | string>(5);
-
-  // ── 2. Remarks States (Radio button + Pop-up Modal)
-  const [remarkRequired, setRemarkRequired] = useState<"yes" | "no">("no");
-  const [remarkText, setRemarkText] = useState<string>("");
-  const [isRemarkModalOpen, setIsRemarkModalOpen] = useState<boolean>(false);
-  const [tempRemarkText, setTempRemarkText] = useState<string>("");
-
-  // ── 3. Attachment States (Radio button + Pop-up Modal)
-  const [attachmentRequired, setAttachmentRequired] = useState<"yes" | "no">("no");
-  const [isAttachmentModalOpen, setIsAttachmentModalOpen] = useState<boolean>(false);
-
-  // ── Supporting Documents Toggle States (Inside Attachment Pop-up)
-  const [medicalCertRequired, setMedicalCertRequired] = useState<boolean>(true);
-  const [birthCertRequired, setBirthCertRequired] = useState<boolean>(true);
-  const [tempMedicalCert, setTempMedicalCert] = useState<boolean>(true);
-  const [tempBirthCert, setTempBirthCert] = useState<boolean>(true);
-
-  // ── Derived unique departments list
-  const allDepartments = useMemo(
-    () => [...new Set(employees.map((e) => e.department))].filter(Boolean).sort(),
-    [employees],
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ── Available employees based on Gender (strictly Male), Stream and Department filters
-  const availableEmployees = useMemo(() => {
-    return employees.filter((emp) => {
-      // Paternity Leave is strictly applicable for Male employees only
-      if (emp.gender && emp.gender !== "Male") return false;
-      if (streamFilter && emp.stream !== streamFilter) return false;
-      if (departmentFilter && emp.department !== departmentFilter) return false;
-      return true;
-    });
-  }, [employees, streamFilter, departmentFilter]);
+  const displayLabel = disabled
+    ? `Select ${label}`
+    : selectedValues.length === 0
+    ? `Select ${label}`
+    : selectedValues.length === 1
+    ? selectedValues[0]
+    : `${selectedValues.length} ${label} selected`;
 
-  // ── Load data
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    setError("");
-    try {
-      const response = await fetch("/api/paternity-leave", { cache: "no-store", signal });
-      const result = await response.json();
-      if (!response.ok) throw new Error("Unable to load paternity leave data.");
-      const empList: PaternityEmployee[] = (result.employees ?? []).filter(
-        (e: PaternityEmployee) => !e.gender || e.gender === "Male"
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm transition-colors ${
+          disabled
+            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+            : isOpen
+            ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
+            : "border-slate-300 text-slate-600 hover:border-slate-400"
+        }`}
+      >
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-30 w-full min-w-[200px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              type="text"
+              placeholder="Filter list..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="max-h-52 overflow-y-auto p-1.5">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
+                <label
+                  key={option}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option)}
+                    onChange={(e) => {
+                      onChange(
+                        e.target.checked
+                          ? [...selectedValues, option]
+                          : selectedValues.filter((v) => v !== option)
+                      );
+                    }}
+                    className="size-3.5 rounded border-slate-300 text-blue-600 focus:ring-0"
+                  />
+                  <span className="truncate uppercase">{option}</span>
+                </label>
+              ))
+            ) : (
+              <p className="py-3 text-center text-xs text-slate-400">No options found</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-xs">
+            <button
+              type="button"
+              onClick={() => onChange(Array.from(new Set([...selectedValues, ...filteredOptions])))}
+              className="text-emerald-700 hover:text-emerald-800 font-medium"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToggleSwitch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+        checked ? "bg-blue-600" : "bg-slate-300"
+      }`}
+    >
+      <span
+        className={`inline-block size-4 transform rounded-full bg-white transition-transform ${
+          checked ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+  );
+}
+
+export default function PaternityLeavePage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [error, setError] = useState("");
+
+  const [streamFilters, setStreamFilters] = useState<string[]>([]);
+  const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
+
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
+  const [days, setDays] = useState("");
+  const [hasRemarks, setHasRemarks] = useState<boolean | null>(null);
+  const [remarksText, setRemarksText] = useState("");
+  const [hasAttachments, setHasAttachments] = useState<boolean | null>(null);
+
+  const [documentConfigs, setDocumentConfigs] = useState<SupportingDocumentRule[]>([
+    {
+      id: "medical-cert",
+      name: "Medical Certificate (Expected Delivery Date)",
+      required: true,
+    },
+    {
+      id: "birth-cert",
+      name: "Birth Certificate / Proof (after delivery)",
+      required: true,
+    },
+  ]);
+
+  const [activeDialog, setActiveDialog] = useState<"remarks" | "attachments" | null>(null);
+  const [submittedRecords, setSubmittedRecords] = useState<PaternityRecord[]>([]);
+
+  const maleEmployees = employees.filter((emp) => {
+    if (emp.gender) {
+      return emp.gender.toLowerCase() === "male" || emp.gender.toLowerCase() === "m";
+    }
+    return !FEMALE_NAMES.some((fn) => emp.name.toLowerCase().includes(fn));
+  });
+
+  // Step 1: All available streams for male employees
+  const streams = [...new Set(maleEmployees.map((e) => e.stream))].filter(Boolean).sort();
+
+  // Step 2: Departments only unlocked and computed after Stream is selected
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const departments = isDepartmentDisabled
+    ? []
+    : [
+        ...new Set(
+          maleEmployees
+            .filter((e) => streamFilters.includes(e.stream))
+            .map((e) => e.department)
+        ),
+      ].filter(Boolean).sort();
+
+  // Step 3: Employees only unlocked and computed after Department is selected
+  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const availableEmployees = isEmployeeDisabled
+    ? []
+    : maleEmployees.filter(
+        (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
       );
-      setEmployees(empList);
-      if (result.leaveType) {
-        setLeaveType(result.leaveType);
-      }
-      if (Array.isArray(result.records)) {
-        const mappedFromDb: SubmittedPaternityRecord[] = result.records.map((r: {
-          id: number | string;
-          employeeId: string;
-          employeeName: string;
-          noOfDays: number;
-          remarks: string | null;
-          status: string;
-          createdAt: string;
-        }) => {
-          const emp = empList.find((e) => e.employeeId === r.employeeId);
-          return {
-            id: String(r.id),
-            employeeId: r.employeeId,
-            name: r.employeeName || emp?.name || r.employeeId,
-            gender: "Male",
-            stream: emp?.stream || "SFS",
-            department: emp?.department || "-",
-            daysAllowed: r.noOfDays,
-            remarkRequired: r.remarks ? "yes" : "no",
-            remarkText: r.remarks || "",
-            attachmentRequired: "no",
-            medicalCertRequired: false,
-            birthCertRequired: false,
-            status: "Active",
-            submittedAt: r.createdAt ? new Date(r.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
-          };
-        });
-        setSubmittedRecords(mappedFromDb);
-        try {
-          localStorage.setItem("paternity_submitted_records", JSON.stringify(mappedFromDb));
-        } catch {}
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Unable to load data.");
-    }
-  }, []);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("paternity_submitted_records");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setSubmittedRecords(parsed);
-        }
-      }
-    } catch {}
-  }, []);
+  const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
-  }, [loadData]);
-
-  // ── Remark radio handler (opens popup when clicking "Yes")
-  const handleSelectRemark = (val: "yes" | "no") => {
-    if (val === "yes") {
-      setTempRemarkText(remarkText || "");
-      setIsRemarkModalOpen(true);
-    } else {
-      setRemarkRequired("no");
-    }
-  };
-
-  const handleSaveRemarkModal = () => {
-    const trimmed = tempRemarkText.trim();
-    setRemarkText(trimmed);
-    setRemarkRequired("yes");
-    setIsRemarkModalOpen(false);
-  };
-
-  const handleCloseRemarkModal = () => {
-    if (!remarkText) {
-      setRemarkRequired("no");
-    }
-    setIsRemarkModalOpen(false);
-  };
-
-  // ── Attachment radio handler (opens popup when clicking "Yes")
-  const handleSelectAttachment = (val: "yes" | "no") => {
-    if (val === "yes") {
-      setTempMedicalCert(medicalCertRequired);
-      setTempBirthCert(birthCertRequired);
-      setIsAttachmentModalOpen(true);
-    } else {
-      setAttachmentRequired("no");
-    }
-  };
-
-  const handleSaveAttachmentModal = () => {
-    setMedicalCertRequired(tempMedicalCert);
-    setBirthCertRequired(tempBirthCert);
-    setAttachmentRequired("yes");
-    setIsAttachmentModalOpen(false);
-  };
-
-  const handleCloseAttachmentModal = () => {
-    if (!medicalCertRequired && !birthCertRequired) {
-      setAttachmentRequired("no");
-    }
-    setIsAttachmentModalOpen(false);
-  };
-
-  // ── Handle employee select
-  const handleSelectEmployee = (emp: PaternityEmployee | null) => {
-    setSelectedEmployee(emp);
-    if (!emp) return;
-
-    // Check if this employee already has a submitted record to pre-populate
-    const existing = submittedRecords.find((r) => r.employeeId === emp.employeeId);
-    if (existing) {
-      setNumberOfDays(existing.daysAllowed);
-      setRemarkRequired(existing.remarkRequired);
-      setRemarkText(existing.remarkText);
-      setAttachmentRequired(existing.attachmentRequired);
-      setMedicalCertRequired(existing.medicalCertRequired);
-      setBirthCertRequired(existing.birthCertRequired);
-    } else {
-      setNumberOfDays(5);
-      setRemarkRequired("no");
-      setRemarkText("");
-      setAttachmentRequired("no");
-      setMedicalCertRequired(true);
-      setBirthCertRequired(true);
-    }
-  };
-
-  // ── Submit configuration
-  const handleSubmitConfig = async () => {
-    if (!selectedEmployee) {
-      setError("Please select an employee before submitting.");
-      return;
-    }
-
-    if (selectedEmployee.gender && selectedEmployee.gender !== "Male") {
-      setError("Paternity leave is strictly applicable to male employees only.");
-      return;
-    }
-
-    const empToSubmit = selectedEmployee;
-    const daysToSubmit = Number(numberOfDays) || 5;
-    const remarkToSubmit = remarkRequired === "yes" ? (remarkText || "test") : "";
-
-    const newRecord: SubmittedPaternityRecord = {
-      id: empToSubmit.employeeId,
-      employeeId: empToSubmit.employeeId,
-      name: empToSubmit.name,
-      gender: "Male",
-      stream: empToSubmit.stream,
-      department: empToSubmit.department,
-      daysAllowed: daysToSubmit,
-      remarkRequired,
-      remarkText: remarkToSubmit,
-      attachmentRequired,
-      medicalCertRequired: attachmentRequired === "yes" && medicalCertRequired,
-      birthCertRequired: attachmentRequired === "yes" && birthCertRequired,
-      status: "Active",
-      submittedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-
-    setSubmittedRecords((prev) => {
-      const idx = prev.findIndex((r) => r.employeeId === empToSubmit.employeeId);
-      const updated = idx >= 0 ? [...prev] : [newRecord, ...prev];
-      if (idx >= 0) updated[idx] = newRecord;
-      try {
-        localStorage.setItem("paternity_submitted_records", JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    // Refresh / reset form automatically
+  const handleStreamChange = (newStreams: string[]) => {
+    setStreamFilters(newStreams);
+    // Reset downstream selections when stream changes or is cleared
+    setDepartmentFilters([]);
+    setEmployeeNameFilters([]);
     setSelectedEmployee(null);
-    setNumberOfDays(5);
-    setRemarkRequired("no");
-    setRemarkText("");
-    setTempRemarkText("");
-    setAttachmentRequired("no");
-    setMedicalCertRequired(true);
-    setBirthCertRequired(true);
-    setTempMedicalCert(true);
-    setTempBirthCert(true);
+  };
 
-    // Sync with backend API
+  const handleDepartmentChange = (newDepts: string[]) => {
+    setDepartmentFilters(newDepts);
+    // Reset employee selection when department changes or is cleared
+    setEmployeeNameFilters([]);
+    setSelectedEmployee(null);
+  };
+
+  const handleEmployeeNameChange = (newNames: string[]) => {
+    setEmployeeNameFilters(newNames);
+    if (newNames.length > 0) {
+      const chosenName = newNames[newNames.length - 1];
+      const found = availableEmployees.find((e) => e.name === chosenName) ?? null;
+      setSelectedEmployee(found);
+      setDays("");
+      setHasRemarks(null);
+      setRemarksText("");
+      setHasAttachments(null);
+    } else {
+      setSelectedEmployee(null);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      fetch("/api/leave-eligibility?gender=male", { cache: "no-store" }),
+      fetch("/api/paternity-leave", { cache: "no-store" }),
+    ])
+      .then(async ([employeeResponse, recordResponse]) => {
+        const [employeeResult, recordResult] = await Promise.all([
+          employeeResponse.json(),
+          recordResponse.json(),
+        ]);
+        if (!employeeResponse.ok && !recordResponse.ok) {
+          throw new Error(employeeResult.error || recordResult.error || "Unable to load data.");
+        }
+        return {
+          employees: ((employeeResult.employees || recordResult.employees) ?? []) as Employee[],
+          records: ((recordResult.records || []) ?? []) as PaternityRecord[],
+        };
+      })
+      .then((result) => {
+        if (isMounted) {
+          setEmployees(result.employees);
+          setSubmittedRecords(result.records);
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (isMounted) setError(loadError instanceof Error ? loadError.message : "Unable to load paternity leave data.");
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const toggleDocumentRequirement = (id: string, required: boolean) => {
+    setDocumentConfigs((prev) =>
+      prev.map((doc) => (doc.id === id ? { ...doc, required } : doc))
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedEmployee) {
+      alert("Please select an employee.");
+      return;
+    }
+
+    if (!days || hasRemarks === null || hasAttachments === null) {
+      alert("Please fill all required fields.");
+      return;
+    }
+
     try {
-      const res = await fetch("/api/paternity-leave", {
+      const response = await fetch("/api/paternity-leave", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: empToSubmit.employeeId,
-          employeeName: empToSubmit.name,
-          noOfDays: daysToSubmit,
-          remarks: remarkToSubmit,
+          employeeId: selectedEmployee.employeeId,
+          employeeName: selectedEmployee.name,
+          noOfDays: Number(days),
+          remarks: remarksText.trim() || "No remarks provided",
           status: "Active",
         }),
       });
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Failed to save record to database.");
-      }
-      await loadData();
-    } catch (err: unknown) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to sync with database.");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Unable to save paternity leave record.");
+      setError("");
+      setSubmittedRecords((prev) => [
+        ...prev.filter((item) => item.employeeId !== selectedEmployee.employeeId),
+        result.record as PaternityRecord,
+      ]);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Unable to save paternity leave record.");
     }
   };
 
-  // ── Delete record handler
-  const handleDeleteRecord = async (id: string) => {
-    const recordToDelete = submittedRecords.find((r) => r.id === id);
-    setSubmittedRecords((prev) => {
-      const updated = prev.filter((r) => r.id !== id);
-      try {
-        localStorage.setItem("paternity_submitted_records", JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
+  const handleInactiveAndDelete = async (employeeId: string) => {
     try {
-      const params = new URLSearchParams();
-      if (!isNaN(Number(id))) {
-        params.set("id", id);
-      } else if (recordToDelete?.employeeId) {
-        params.set("employeeId", recordToDelete.employeeId);
-      }
-      await fetch(`/api/paternity-leave?${params.toString()}`, {
+      const response = await fetch(`/api/paternity-leave?employeeId=${encodeURIComponent(employeeId)}`, {
         method: "DELETE",
       });
-    } catch (err) {
-      console.error("Failed to delete record:", err);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Unable to delete paternity leave record.");
+      setError("");
+      setSubmittedRecords((prev) => prev.filter((record) => record.employeeId !== employeeId));
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete paternity leave record.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] text-slate-800">
+    <div className="min-h-screen bg-[#edf1f5] text-slate-800">
       <LeaveSidebar activePage="paternity-leave" />
-
-      <div className="p-4 md:p-6 min-[801px]:ml-[175px]">
-        <div className="mx-auto max-w-[1280px] space-y-4">
-
-          {/* Card 1: Header Card */}
-          <header className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs">
-            <div className="flex items-center gap-3.5">
-              <span className="grid size-11 place-items-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100/80">
-                <Baby size={24} />
-              </span>
+      <div className="p-6 min-[801px]:ml-[175px]">
+        <div className="mx-auto max-w-[1440px]">
+          <header className="mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <Baby aria-hidden="true" size={28} className="text-emerald-700" />
               <div>
-                <h1 className="text-xl font-bold tracking-tight text-slate-900">Paternity Leave</h1>
-                <p className="mt-0.5 text-xs text-slate-500 font-normal">
-                  Applicable only for male employees.
-                </p>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-800">Paternity Leave</h1>
+                <p className="text-xs font-medium text-slate-500">Eligible for male employees only</p>
               </div>
             </div>
           </header>
 
-          {/* Card 2: 3-Dropdown Filter Card */}
-          <section
-            aria-label="Filters"
-            className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs"
+          {/* Sequential 3-Step Selection Row */}
+          <div className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+              {/* Step 1: Streams always active */}
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Streams"
+                  options={streams}
+                  selectedValues={streamFilters}
+                  onChange={handleStreamChange}
+                />
+              </div>
+
+              {/* Step 2: Departments disabled until Stream is chosen */}
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Departments"
+                  options={departments}
+                  selectedValues={departmentFilters}
+                  onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
+                />
+              </div>
+
+              {/* Step 3: Employee Names disabled until Department is chosen */}
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Employee Names"
+                  options={employeeNames}
+                  selectedValues={employeeNameFilters}
+                  onChange={handleEmployeeNameChange}
+                  disabled={isEmployeeDisabled}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Always visible form */}
+          <form
+            onSubmit={handleSubmit}
+            className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Dropdown 1: Stream */}
-              <div className="relative">
-                <select
-                  id="filter-stream"
-                  aria-label="Filter stream"
-                  value={streamFilter}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setStreamFilter(val);
-                    if (selectedEmployee && val && selectedEmployee.stream !== val) {
-                      const match = employees.find((emp) => emp.stream === val);
-                      setSelectedEmployee(match || null);
-                    }
-                  }}
-                  className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3.5 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500"
-                >
-                  <option value="">All Streams</option>
-                  <option value="SFS">SFS</option>
-                  <option value="AIDED">AIDED</option>
-                </select>
-                <ChevronDown
-                  size={14}
-                  className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-              </div>
+            {error && (
+              <p role="alert" className="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
 
-              {/* Dropdown 2: Department */}
-              <div className="relative">
-                <select
-                  id="filter-department"
-                  aria-label="Filter department"
-                  value={departmentFilter}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setDepartmentFilter(val);
-                    if (selectedEmployee && val && selectedEmployee.department !== val) {
-                      const match = employees.find(
-                        (emp) =>
-                          emp.department === val &&
-                          (!streamFilter || emp.stream === streamFilter),
-                      );
-                      setSelectedEmployee(match || null);
-                    }
-                  }}
-                  className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3.5 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500"
-                >
-                  <option value="">All Departments</option>
-                  {allDepartments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={14}
-                  className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-              </div>
-
-              {/* Dropdown 3: Employee Name */}
-              <div className="relative">
-                <select
-                  id="filter-employee"
-                  aria-label="Filter employee name"
-                  value={selectedEmployee?.employeeId || ""}
-                  onChange={(e) => {
-                    const emp = employees.find((x) => x.employeeId === e.target.value) || null;
-                    handleSelectEmployee(emp);
-                  }}
-                  className="h-10 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3.5 pr-8 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-blue-500"
-                >
-                  <option value="">All Employee Names</option>
-                  {availableEmployees.map((emp) => (
-                    <option key={emp.employeeId} value={emp.employeeId}>
-                      {emp.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={14}
-                  className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Feedback messages */}
-          {error && (
-            <div className="rounded-lg bg-red-50 p-3.5 text-sm text-red-700 border border-red-200">
-              {error}
-            </div>
-          )}
-
-
-
-          {/* Card 3: Configuration Card */}
-          <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs">
-            {/* Top employee banner pill */}
-            <div className="rounded-lg bg-[#f8fafc] border border-slate-100 px-4 py-3 text-xs md:text-sm font-semibold text-slate-700">
+            <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
               {selectedEmployee ? (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-800">
-                    {selectedEmployee.name} - {selectedEmployee.employeeId}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
-                    <span className="size-1.5 rounded-full bg-blue-600" />
-                    Gender: Male
-                  </span>
-                </div>
+                `${selectedEmployee.name} - ${selectedEmployee.employeeId}`
               ) : (
-                "Select a Male Employee to Configure"
+                <span className="text-slate-400 font-normal">Select an employee from the dropdown above to continue</span>
               )}
             </div>
 
-            {/* 3 Boxed Cards Grid */}
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Box 1: No of Days * */}
-              <div className="rounded-xl border border-slate-200/80 bg-white p-4">
-                <label htmlFor="no-of-days" className="block text-xs md:text-sm font-bold text-slate-800">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <label htmlFor="no-of-days" className="block text-sm font-semibold text-slate-700">
                   No of Days <span className="text-red-500">*</span>
                 </label>
                 <div className="mt-3">
                   <input
                     id="no-of-days"
                     type="text"
+                    required
                     inputMode="numeric"
-                    value={numberOfDays}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "");
-                      setNumberOfDays(val);
-                    }}
-                    onBlur={() => {
-                      if (!numberOfDays || Number(numberOfDays) <= 0) {
-                        setNumberOfDays(5);
-                      }
-                    }}
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-500"
+                    pattern="[0-9]*"
+                    placeholder="Enter days"
+                    value={days}
+                    onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))}
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
               </div>
 
-              {/* Box 2: Remarks * */}
-              <div className="rounded-xl border border-slate-200/80 bg-white p-4">
-                <span className="block text-xs md:text-sm font-bold text-slate-800">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <span className="block text-sm font-semibold text-slate-700">
                   Remarks <span className="text-red-500">*</span>
                 </span>
-                <div className="mt-3 flex items-center gap-4">
-                  {/* Yes Radio */}
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <div className="mt-4 flex items-center gap-6">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                     <input
                       type="radio"
-                      name="paternity-remark-radio"
-                      value="yes"
-                      checked={remarkRequired === "yes"}
-                      onChange={() => handleSelectRemark("yes")}
-                      className="size-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      name="hasRemarks"
+                      required
+                      checked={hasRemarks === true}
+                      onChange={() => {
+                        setHasRemarks(true);
+                        setActiveDialog("remarks");
+                      }}
+                      className="size-4 accent-slate-800"
                     />
-                    <span className="text-xs md:text-sm text-slate-700">Yes</span>
+                    Yes
                   </label>
-
-                  {/* No Radio */}
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                     <input
                       type="radio"
-                      name="paternity-remark-radio"
-                      value="no"
-                      checked={remarkRequired === "no"}
-                      onChange={() => handleSelectRemark("no")}
-                      className="size-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      name="hasRemarks"
+                      required
+                      checked={hasRemarks === false}
+                      onChange={() => {
+                        setHasRemarks(false);
+                        setRemarksText("");
+                      }}
+                      className="size-4 accent-slate-800"
                     />
-                    <span className="text-xs md:text-sm text-slate-700">No</span>
+                    No
                   </label>
 
-                  {/* Edit link */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempRemarkText(remarkText || "");
-                      setIsRemarkModalOpen(true);
-                    }}
-                    className="text-xs md:text-sm font-medium text-blue-600 hover:underline"
-                  >
-                    Edit
-                  </button>
+                  {hasRemarks && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveDialog("remarks")}
+                      className="text-xs font-medium text-blue-700 underline hover:text-blue-800"
+                    >
+                      {remarksText ? "Edit" : "Add"}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Box 3: Attachments * */}
-              <div className="rounded-xl border border-slate-200/80 bg-white p-4">
-                <span className="block text-xs md:text-sm font-bold text-slate-800">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <span className="block text-sm font-semibold text-slate-700">
                   Attachments <span className="text-red-500">*</span>
                 </span>
-                <div className="mt-3 flex items-center gap-4">
-                  {/* Yes Radio */}
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <div className="mt-4 flex items-center gap-6">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                     <input
                       type="radio"
-                      name="paternity-attachment-radio"
-                      value="yes"
-                      checked={attachmentRequired === "yes"}
-                      onChange={() => handleSelectAttachment("yes")}
-                      className="size-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      name="hasAttachments"
+                      required
+                      checked={hasAttachments === true}
+                      onChange={() => {
+                        setHasAttachments(true);
+                        setActiveDialog("attachments");
+                      }}
+                      className="size-4 accent-slate-800"
                     />
-                    <span className="text-xs md:text-sm text-slate-700">Yes</span>
+                    Yes
                   </label>
-
-                  {/* No Radio */}
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                     <input
                       type="radio"
-                      name="paternity-attachment-radio"
-                      value="no"
-                      checked={attachmentRequired === "no"}
-                      onChange={() => handleSelectAttachment("no")}
-                      className="size-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                      name="hasAttachments"
+                      required
+                      checked={hasAttachments === false}
+                      onChange={() => setHasAttachments(false)}
+                      className="size-4 accent-slate-800"
                     />
-                    <span className="text-xs md:text-sm text-slate-700">No</span>
+                    No
                   </label>
 
-                  {/* Configure link */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempMedicalCert(medicalCertRequired);
-                      setTempBirthCert(birthCertRequired);
-                      setIsAttachmentModalOpen(true);
-                    }}
-                    className="text-xs md:text-sm font-medium text-blue-600 hover:underline"
-                  >
-                    Configure
-                  </button>
+                  {hasAttachments && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveDialog("attachments")}
+                      className="text-xs font-medium text-blue-700 underline hover:text-blue-800"
+                    >
+                      Configure
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Bottom-right Submit Button */}
-            <div className="mt-5 flex justify-end">
+            <div className="mt-8 flex justify-end">
               <button
-                type="button"
-                id="submit-paternity-config-btn"
-                onClick={handleSubmitConfig}
-                className="rounded-lg bg-[#111827] px-6 py-2 text-xs md:text-sm font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 active:scale-[0.98]"
+                type="submit"
+                className="rounded-lg bg-[#1a2332] px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
               >
                 Submit
               </button>
             </div>
-          </section>
+          </form>
 
-          {/* Card 4: Submitted Records Table Card */}
-          <section className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-xs">
-            <h2 className="text-sm md:text-base font-bold text-slate-800">
-              Submitted Paternity Records
-            </h2>
-
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full text-left text-xs md:text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="pb-3 pr-4 font-semibold">EMPLOYEE ID</th>
-                    <th className="pb-3 px-4 font-semibold">EMPLOYEE NAME</th>
-                    <th className="pb-3 px-4 font-semibold">GENDER</th>
-                    <th className="pb-3 px-4 font-semibold">DAYS</th>
-                    <th className="pb-3 px-4 font-semibold">REMARKS</th>
-                    <th className="pb-3 px-4 font-semibold">STATUS</th>
-                    <th className="pb-3 pl-4 text-right font-semibold">ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {submittedRecords.length === 0 ? (
+          {submittedRecords.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-6 py-4">
+                <h2 className="text-base font-semibold text-slate-800">Submitted Paternity Records</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
                     <tr>
-                      <td colSpan={7} className="py-6 text-center text-xs text-slate-400">
-                        No submitted records yet. Select a male employee and click Submit.
-                      </td>
+                      <th className="px-6 py-3.5 font-medium">EMPLOYEE ID</th>
+                      <th className="px-6 py-3.5 font-medium">EMPLOYEE NAME</th>
+                      <th className="px-6 py-3.5 font-medium">DAYS</th>
+                      <th className="px-6 py-3.5 font-medium">REMARKS</th>
+                      <th className="px-6 py-3.5 font-medium">STATUS</th>
+                      <th className="px-6 py-3.5 text-right font-medium">ACTIONS</th>
                     </tr>
-                  ) : (
-                    submittedRecords.map((rec) => (
-                      <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-4 pr-4 font-normal text-slate-600">{rec.employeeId}</td>
-                        <td className="py-4 px-4 font-bold text-slate-900">{rec.name}</td>
-                        <td className="py-4 px-4 font-normal">
-                          <span className="inline-block rounded-md bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 border border-blue-100">
-                            {rec.gender || "Male"}
+                  </thead>
+                  <tbody>
+                    {submittedRecords.map((record) => (
+                      <tr key={record.employeeId} className="border-t border-slate-200 hover:bg-slate-50/60">
+                        <td className="px-6 py-4 font-medium text-slate-700">{record.employeeId}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-800">{record.employeeName}</td>
+                        <td className="px-6 py-4 text-slate-700">{record.noOfDays} days</td>
+                        <td className="max-w-xs truncate px-6 py-4 text-slate-600">{record.remarks}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                            {record.status}
                           </span>
                         </td>
-                        <td className="py-4 px-4 font-normal text-slate-600">{rec.daysAllowed} days</td>
-                        <td className="py-4 px-4 font-normal text-slate-600">
-                          {rec.remarkText || (rec.remarkRequired === "yes" ? "test" : "-")}
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="inline-block rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-100">
-                            Active
-                          </span>
-                        </td>
-                        <td className="py-4 pl-4 text-right">
+                        <td className="px-6 py-4 text-right">
                           <button
                             type="button"
-                            onClick={() => handleDeleteRecord(rec.id)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50/60 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+                            onClick={() => handleInactiveAndDelete(record.employeeId)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100"
                           >
                             <Trash2 size={13} />
                             Inactive &amp; Delete
                           </button>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </section>
-
+          )}
         </div>
       </div>
 
-      {/* ─── 1. Remark Pop-up Modal ─── */}
-      {isRemarkModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="grid size-8 place-items-center rounded-lg bg-blue-50 text-blue-600">
-                  <MessageSquare size={18} />
-                </span>
-                <h3 className="text-base font-bold text-slate-800">Specify Mandatory Remark</h3>
-              </div>
+      {activeDialog === "remarks" && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setActiveDialog(null);
+          }}
+        >
+          <section
+            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800">Paternity Leave Remarks</h2>
               <button
                 type="button"
-                onClick={handleCloseRemarkModal}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                aria-label="Close dialog"
+                onClick={() => setActiveDialog(null)}
+                className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100"
               >
                 <X size={18} />
               </button>
             </div>
-
-            {/* Modal Body */}
-            <div className="mt-4">
-              <label htmlFor="manual-remark-input" className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-                Enter Remark / Instruction Requirement
-              </label>
-              <textarea
-                id="manual-remark-input"
-                rows={4}
-                value={tempRemarkText}
-                onChange={(e) => setTempRemarkText(e.target.value)}
-                placeholder="Enter what remark the applicant must provide..."
-                className="w-full rounded-xl border border-slate-300 p-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-400"
-                autoFocus
-              />
-
-              {/* Quick suggestions */}
-              <div className="mt-3">
-                <span className="text-xs font-medium text-slate-500">Quick templates:</span>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setTempRemarkText("Expected delivery date, hospital name, and physician contact required.")}
-                    className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-200 transition-colors"
-                  >
-                    Hospital & delivery date
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTempRemarkText("Child birth proof and emergency contact information must be specified.")}
-                    className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-200 transition-colors"
-                  >
-                    Birth proof & contact
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTempRemarkText("State exact leave dates requested and expected date of return to duty.")}
-                    className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-200 transition-colors"
-                  >
-                    Duty return date
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+            <textarea
+              autoFocus
+              rows={5}
+              value={remarksText}
+              onChange={(e) => setRemarksText(e.target.value)}
+              placeholder="Enter remarks..."
+              className="w-full rounded-md border border-slate-300 p-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            />
+            <div className="mt-5 flex justify-end">
               <button
                 type="button"
-                onClick={handleCloseRemarkModal}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                onClick={() => setActiveDialog(null)}
+                className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                id="confirm-remark-btn"
-                onClick={handleSaveRemarkModal}
-                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
-              >
-                Save Remark
+                Done
               </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
 
-      {/* ─── 2. Supporting Documents / Attachment Pop-up Modal ─── */}
-      {isAttachmentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+      {/* Supporting Documents Admin Access Pop-up Modal */}
+      {activeDialog === "attachments" && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-5"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setActiveDialog(null);
+          }}
+        >
+          <section
+            className="w-full max-w-xl rounded-xl bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="grid size-8 place-items-center rounded-lg bg-blue-50 text-blue-600">
-                  <Paperclip size={20} className="rotate-[-45deg]" />
-                </span>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 tracking-tight">Supporting Documents</h3>
-                  <p className="text-xs text-slate-500">Configure required document proofs for paternity leave</p>
-                </div>
+                <Paperclip className="size-5 rotate-45 text-blue-600" />
+                <h2 className="text-base font-bold text-slate-900">Supporting Documents</h2>
               </div>
               <button
                 type="button"
-                onClick={handleCloseAttachmentModal}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                aria-label="Close dialog"
+                onClick={() => setActiveDialog(null)}
+                className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Document toggles */}
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm divide-y divide-slate-100">
-              {/* Row 1: Medical Certificate (Expected Delivery Date) */}
-              <div className="flex items-center justify-between px-5 py-3.5">
-                <span className="text-[13.5px] font-medium text-slate-800">
-                  Medical Certificate (Expected Delivery Date)
-                </span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={tempMedicalCert}
-                    onClick={() => setTempMedicalCert(!tempMedicalCert)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      tempMedicalCert ? "bg-[#1877f2]" : "bg-slate-300"
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        tempMedicalCert ? "translate-x-5" : "translate-x-0"
-                      }`}
+            <div className="overflow-hidden rounded-lg border border-slate-200">
+              {documentConfigs.map((doc, idx) => (
+                <div
+                  key={doc.id}
+                  className={`flex items-center justify-between bg-white px-4 py-3.5 ${
+                    idx !== 0 ? "border-t border-slate-100" : ""
+                  }`}
+                >
+                  <span className="text-sm font-medium text-slate-700">{doc.name}</span>
+                  <div className="flex items-center gap-3">
+                    <ToggleSwitch
+                      checked={doc.required}
+                      onChange={(val) => toggleDocumentRequirement(doc.id, val)}
                     />
-                  </button>
-                  <span className="min-w-[65px] text-sm font-normal text-slate-700">
-                    {tempMedicalCert ? "Required" : "Optional"}
-                  </span>
+                    <span className="w-16 text-right text-xs font-medium text-slate-700">
+                      {doc.required ? "Required" : "Optional"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Row 2: Birth Certificate / Proof (after delivery) */}
-              <div className="flex items-center justify-between px-5 py-3.5">
-                <span className="text-[13.5px] font-medium text-slate-800">
-                  Birth Certificate / Proof (after delivery)
-                </span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={tempBirthCert}
-                    onClick={() => setTempBirthCert(!tempBirthCert)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      tempBirthCert ? "bg-[#1877f2]" : "bg-slate-300"
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        tempBirthCert ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                  <span className="min-w-[65px] text-sm font-normal text-slate-700">
-                    {tempBirthCert ? "Required" : "Optional"}
-                  </span>
-                </div>
-              </div>
+              ))}
             </div>
 
-            {/* Modal Footer */}
-            <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+            <div className="mt-6 flex justify-end">
               <button
                 type="button"
-                onClick={handleCloseAttachmentModal}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                onClick={() => setActiveDialog(null)}
+                className="rounded-md bg-slate-800 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                id="confirm-attachments-btn"
-                onClick={handleSaveAttachmentModal}
-                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
-              >
-                Save & Confirm Documents
+                Done
               </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
-
     </div>
   );
 }

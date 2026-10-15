@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Pencil, Eye, Trash2, X } from "lucide-react";
+import { Plus, Search, Pencil, Eye, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveCategory = {
@@ -205,112 +205,59 @@ export default function LeaveCategoryPage() {
       <LeaveSidebar activePage="leave-category" />
       <div className="p-4 min-[801px]:ml-[175px]">
         <div className="mx-auto max-w-350 uppercase">
-          <header className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-[#f5f7fa] px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-
-            {/* Search */}
-            <div className="relative w-full sm:max-w-90">
-              <Search
-                className="pointer-events-none absolute left-3 top-2.5 text-slate-400"
-                size={16}
-              />
-
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search categories..."
-                aria-label="Search leave categories"
-                className="w-full rounded-xl border border-slate-300 bg-[#f8f9fb] py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-300"
-              />
-            </div>
-
-            {/* Right side */}
-            <div className="flex items-center gap-3 self-end sm:self-auto">
-
-              {/* Notification */}
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm"
-                aria-label="Notifications"
-              >
-                <span className="relative">
-                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
-
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    className="h-4 w-4"
-                  >
-                    <path
-                      d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M10 20a2 2 0 0 0 4 0"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
-              </button>
-
-              {/* Profile */}
-              <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d9d9d9] text-xs font-bold text-slate-700">
-                  CA
-                </div>
-                <div className="leading-tight">
-                  <div className="text-sm font-semibold text-slate-700">Charles A</div>
-                  <div className="text-[11px] text-slate-500">Admin</div>
-                </div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-slate-500">
-                  <path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-
-            </div>
+          {/* Header matched to Leave Eligibility banner */}
+          <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-800">Leave Category</h1>
           </header>
 
-          <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-[#f5f7fa] shadow-sm">
-            <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-800 sm:text-[38px]">Leave Category</h1>
-                <p className="mt-1 text-sm text-slate-500 sm:text-base">Create and manage different leave categories.</p>
+          {/* Inline Filter & Action bar styled matching Maternity Leave / Leave Eligibility */}
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm normal-case text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                />
               </div>
-              <button
-                type="button"
-                onClick={() => openDialog("create")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f5fbb] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#294f9c]"
-              >
-                <Plus size={16} />
-                Create Category
-              </button>
-            </div>
 
-            <div className="flex flex-col gap-3 border-t border-slate-200 bg-[#eef2f7] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">{categories.length} categories</p>
-              <label className="relative w-full sm:w-auto">
-                <span className="sr-only">Filter by status</span>
+              {/* Status Dropdown */}
+              <div className="relative min-w-[170px]">
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-4 py-2.5 pr-10 text-sm text-slate-700 outline-none focus:border-blue-300 sm:w-auto"
+                  className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 pr-9 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option>All Status</option>
                   <option>Active</option>
                   <option>Inactive</option>
                 </select>
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500" aria-hidden="true">⌄</span>
-              </label>
-            </div>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
 
-            {error && !mode && <p role="alert" className="border-t border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">{error}</p>}
+              {/* Create Category Button */}
+              <button
+                type="button"
+                onClick={() => openDialog("create")}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c]"
+              >
+                <Plus size={16} />
+                Create Category
+              </button>
+            </div>
+          </div>
+
+          <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {error && !mode && <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">{error}</p>}
 
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left">
                 <thead>
-                  <tr className="bg-[#eef2f7] text-xs font-semibold uppercase text-slate-600 sm:text-sm">
+                  <tr className="bg-[#f8fafc] text-xs font-semibold uppercase text-slate-600 sm:text-sm">
                     <th className="border-b border-slate-200 px-5 py-4">Sno</th>
                     <th className="border-b border-slate-200 px-5 py-4">Category Code</th>
                     <th className="border-b border-slate-200 px-5 py-4">Category Name</th>
@@ -325,7 +272,7 @@ export default function LeaveCategoryPage() {
                   ) : filteredCategories.length === 0 ? (
                     <tr><td colSpan={6} className="bg-white px-5 py-10 text-center text-sm text-slate-500">No leave categories found.</td></tr>
                   ) : filteredCategories.map((category, index) => (
-                    <tr key={category.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc]">
+                    <tr key={category.id} className="bg-white text-sm text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-semibold text-slate-700">{category.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4">{category.name}</td>
@@ -348,7 +295,7 @@ export default function LeaveCategoryPage() {
                 </tbody>
               </table>
             </div>
-            <div className="border-t border-slate-200 bg-[#eef2f7] px-5 py-4 text-sm text-slate-500">
+            <div className="border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm text-slate-500">
               Showing {filteredCategories.length} of {categories.length} categories
             </div>
           </section>

@@ -51,27 +51,20 @@ export async function GET() {
           },
         },
       },
-      orderBy: {
-        effectiveFrom: "desc",
-      },
+      orderBy: { effectiveFrom: "desc" },
     });
+
     return Response.json({ data: groups });
   } catch (error) {
-    console.error("Failed to load leave requests:", error);
-    return Response.json({ error: "Unable to load leave requests. Check the database connection." }, { status: 503 });
+    console.error("Failed to load leave groups:", error);
+    return Response.json({ error: "Unable to load leave groups from the database." }, { status: 503 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Request body is missing or not valid JSON." }, { status: 400 });
-  }
-
-  try {
-    const b = body as Record<string, unknown>;
+    const body = await request.json() as Record<string, unknown>;
+    const b = body;
     const selectedCodes = Array.isArray(b.leaveTypeCodes)
       ? [...new Set(b.leaveTypeCodes.map((code: unknown) => String(code)))] as string[]
       : [];

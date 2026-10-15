@@ -99,7 +99,7 @@ export async function GET() {
 
     // Fetch existing paternity leave records from database
     const paternityRecords = await prisma.paternityLeave.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "desc" },
     });
 
     if (!employees || employees.length === 0) {
