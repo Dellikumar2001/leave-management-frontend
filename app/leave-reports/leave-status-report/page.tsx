@@ -5,13 +5,11 @@ import {
   ArrowRight,
   ChevronDown,
   Download,
-  Eye,
   FileCheck,
   FileSpreadsheet,
   FileText,
   RefreshCw,
   Search,
-  X,
 } from "lucide-react";
 import LeaveSidebar from "../../components/LeaveSidebar";
 
@@ -226,9 +224,6 @@ export default function LeaveStatusReportPage() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
-  const [showExportPreview, setShowExportPreview] = useState<boolean>(false);
-  const previewRef = useRef<HTMLDivElement>(null);
-
   // ── Cascading Checkbox Filter States
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
@@ -383,17 +378,7 @@ export default function LeaveStatusReportPage() {
     });
   }, [reportEmployees, streamFilters, departmentFilters, employeeFilters, statusFilter]);
 
-  const handleToggleExportPreview = () => {
-    setShowExportPreview((prev) => {
-      const next = !prev;
-      if (next) {
-        setTimeout(() => {
-          previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      }
-      return next;
-    });
-  };
+
 
   const handleCsv = () => {
     const { headers, rows } = buildExportRows(visibleEmployees, startDate, endDate);
@@ -832,146 +817,44 @@ export default function LeaveStatusReportPage() {
               </div>
 
               {!isGenerating && !error && visibleEmployees.length > 0 && (
-                <div className="flex items-center justify-end border-t border-slate-100 px-5 py-3">
-                  <button
-                    id="btn-export-leave-status-footer"
-                    type="button"
-                    onClick={handleToggleExportPreview}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-700"
-                  >
-                    <Download size={14} aria-hidden="true" />
-                    <span>Export</span>
-                  </button>
+                <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-xs font-medium text-slate-500">
+                    {visibleEmployees.length} record{visibleEmployees.length !== 1 ? "s" : ""} found
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      id="btn-download-leave-status-pdf"
+                      type="button"
+                      onClick={handlePdf}
+                      className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-700"
+                    >
+                      <FileText size={14} />
+                      <span>Download PDF</span>
+                    </button>
+
+                    <button
+                      id="btn-download-leave-status-excel"
+                      type="button"
+                      onClick={handleExcel}
+                      className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-700"
+                    >
+                      <FileSpreadsheet size={14} />
+                      <span>Download Excel</span>
+                    </button>
+
+                    <button
+                      id="btn-download-leave-status-csv"
+                      type="button"
+                      onClick={handleCsv}
+                      className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-700"
+                    >
+                      <Download size={14} />
+                      <span>Download CSV</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </main>
-          )}
-
-          {/* ── Export Preview Section */}
-          {hasGenerated && showExportPreview && (
-            <section
-              ref={previewRef}
-              aria-label="Export file preview"
-              className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all"
-            >
-              <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-[#f5f7fa] px-5 py-4 text-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <span className="grid size-8 place-items-center rounded-md bg-emerald-100 text-emerald-700">
-                    <Eye size={16} />
-                  </span>
-                  <h3 className="text-sm font-semibold">FILE PREVIEW</h3>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowExportPreview(false)}
-                  title="Close preview"
-                  className="grid size-8 place-items-center rounded-md text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="bg-[#f5f7fa] p-4 sm:p-6">
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                    <div>
-                      <h4 className="text-lg font-bold text-slate-800">Leave Status Report</h4>
-                      <span className="mt-1 inline-block rounded bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
-                        Date: {currentDateStr}
-                      </span>
-                    </div>
-                    <span className="text-xs font-medium text-slate-400">
-                      {visibleEmployees.length} record{visibleEmployees.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-xs">
-                      <thead className="bg-slate-50 font-semibold text-slate-600">
-                        <tr>
-                          <th className="px-4 py-2.5 whitespace-nowrap">EMPLOYEE ID</th>
-                          <th className="px-4 py-2.5 whitespace-nowrap">NAME</th>
-                          <th className="px-4 py-2.5 whitespace-nowrap">DATE FROM</th>
-                          <th className="px-4 py-2.5 whitespace-nowrap">DATE TO</th>
-                          <th className="px-4 py-2.5 whitespace-nowrap">STATUS</th>
-                          <th className="px-4 py-2.5 whitespace-nowrap">REMARKS</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {visibleEmployees.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                              No records to export.
-                            </td>
-                          </tr>
-                        ) : (
-                          visibleEmployees.map((emp, idx) => (
-                            <tr
-                              key={`prev-${emp.employeeId}`}
-                              className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/80"}
-                            >
-                              <td className="px-4 py-2.5 font-medium whitespace-nowrap">{emp.employeeId}</td>
-                              <td className="px-4 py-2.5 font-semibold text-slate-900 whitespace-nowrap">{emp.name}</td>
-                              <td className="px-4 py-2.5 whitespace-nowrap">{startDate || "—"}</td>
-                              <td className="px-4 py-2.5 whitespace-nowrap">{endDate || "—"}</td>
-                              <td className="px-4 py-2.5 whitespace-nowrap">
-                                <span
-                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
-                                    emp.status?.toLowerCase() === "approved"
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                      : emp.status?.toLowerCase() === "pending"
-                                      ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                      : emp.status?.toLowerCase() === "rejected"
-                                      ? "bg-red-50 text-red-700 border border-red-200"
-                                      : "bg-slate-100 text-slate-600 border border-slate-200"
-                                  }`}
-                                >
-                                  {emp.status || "Approved"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5">{getEmployeeRemark(emp)}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <footer className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-slate-500">
-                      Ready to download in your preferred format:
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handlePdf}
-                        className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
-                      >
-                        <FileText size={13} />
-                        <span>Download PDF</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleExcel}
-                        className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
-                      >
-                        <FileSpreadsheet size={13} />
-                        <span>Download Excel</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCsv}
-                        className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700"
-                      >
-                        <FileText size={13} />
-                        <span>Download CSV</span>
-                      </button>
-                    </div>
-                  </footer>
-                </div>
-              </div>
-            </section>
           )}
 
         </div>

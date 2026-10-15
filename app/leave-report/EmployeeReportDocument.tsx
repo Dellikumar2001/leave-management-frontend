@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileSpreadsheet, FileText, Printer } from "lucide-react";
+import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { jsPDF } from "jspdf";
+
+interface StyledCell {
+  font?: Record<string, unknown>;
+  fill?: Record<string, unknown>;
+  alignment?: Record<string, unknown>;
+  border?: Record<string, unknown>;
+}
 
 export type EmployeeReportData = {
   employee: {
@@ -120,7 +127,7 @@ async function downloadExcel(report: EmployeeReportData) {
   const headerRow = worksheet.getRow(10);
   headerRow.values = headers;
   headerRow.height = 26;
-  headerRow.eachCell((cell: any) => {
+  headerRow.eachCell((cell: StyledCell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F5C4A" } };
     cell.alignment = { vertical: "middle", wrapText: true };
@@ -136,7 +143,7 @@ async function downloadExcel(report: EmployeeReportData) {
       leave.reason || "—",
     ]);
     row.alignment = { vertical: "top", wrapText: true };
-    row.eachCell((cell: any) => {
+    row.eachCell((cell: StyledCell) => {
       cell.border = { bottom: { style: "thin", color: { argb: "FFE2E8F0" } } };
     });
   });
@@ -298,9 +305,6 @@ export default function EmployeeReportDocument({ report }: { report: EmployeeRep
             </button>
             <button type="button" onClick={() => void handleExcelExport()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
               <FileSpreadsheet size={15} /> Export Excel
-            </button>
-            <button type="button" onClick={() => window.print()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-              <Printer size={15} /> Print
             </button>
           </div>
         </div>

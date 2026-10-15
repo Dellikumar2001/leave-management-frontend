@@ -352,8 +352,8 @@ async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
     await fs.writeFile(tempPath, buffer);
     const { execFileSync } = await import("child_process");
-    const scriptPath = path.join(process.cwd(), "lib", "extract-pdf-text.mjs");
-    const output = execFileSync("node", [scriptPath, tempPath], {
+    const scriptPath = [process.cwd(), "lib", "extract-pdf-text.mjs"].join(path.sep);
+    const output = execFileSync(/*turbopackIgnore: true*/ process.execPath || "node", [scriptPath, tempPath], {
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024,
       timeout: 30000,

@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Settings,
   ShieldCheck,
+  UserCheck,
   Users,
 } from "lucide-react";
 
@@ -37,7 +38,8 @@ export type LeaveSidebarPage =
   | "statutory-report"
   | "paternity-leave"
   | "leave-status-report"
-  | "employee-status-report";
+  | "employee-status-report"
+  | "approver-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -154,6 +156,12 @@ const leaveReportNavigation: readonly NavItem[] = [
     label: "Employee Individual Leave Status Report",
     href: "/leave-report/employee-status",
     Icon: Users,
+  },
+  {
+    id: "approver-report",
+    label: "Approver Report",
+    href: "/leave-report/approver-report",
+    Icon: UserCheck,
   },
 ];
 

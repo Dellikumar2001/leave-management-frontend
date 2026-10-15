@@ -1,10 +1,8 @@
 "use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, FileText, LoaderCircle } from "lucide-react";
+import { ArrowRight, ChevronDown, FileText, LoaderCircle } from "lucide-react";
 import LeaveSidebar from "../../components/LeaveSidebar";
 import EmployeeReportDocument, { type EmployeeReportData } from "../EmployeeReportDocument";
-
 type EmployeeOption = {
   employeeId: string;
   name: string;
@@ -181,17 +179,13 @@ export default function IndividualLeaveReportPage() {
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
 
-  const [durationOpen, setDurationOpen] = useState(false);
-  const [semester, setSemester] = useState<Semester>("FULL");
-  const [academicYearStart, setAcademicYearStart] = useState(() => academicYearStartFor(new Date()));
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
-  const [period, setPeriod] = useState<{ start: string; end: string; yearStart: string; yearEnd: string; mode: "dates" | "academic" } | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [dateError, setDateError] = useState("");
   const [report, setReport] = useState<ReportData | null>(null);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
-  const [durationError, setDurationError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -261,94 +255,66 @@ export default function IndividualLeaveReportPage() {
     setSelectedStreams(newStreams);
     setSelectedDepartments([]);
     setSelectedEmployeeNames([]);
-    setPeriod(null);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
     setReport(null);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setSelectedDepartments(newDepts);
     setSelectedEmployeeNames([]);
-    setPeriod(null);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
     setReport(null);
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
     setSelectedEmployeeNames(newNames);
-    setPeriod(null);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
     setReport(null);
   };
 
-  const yearOptions = useMemo(() => {
-    const currentYear = academicYearStartFor(new Date());
-    return Array.from({ length: 11 }, (_, index) => currentYear - index);
-  }, []);
-
-  const customDateRangeIsValid = useMemo(() => {
-    if (!customStart || !customEnd || customEnd < customStart) return false;
-    const startYear = academicYearStartFor(new Date(`${customStart}T00:00:00.000Z`));
-    const academicDates = dateRangeForSemester(startYear, "FULL");
-    return customStart >= academicDates.start && customEnd <= academicDates.end;
-  }, [customEnd, customStart]);
-
-  const durationLabel = period
-    ? `${formatDate(period.start)} – ${formatDate(period.end)}`
-    : "Select reporting duration";
-
-  const openDurationDialog = () => {
-    if (isDateOptionDisabled) return;
-    const currentYear = academicYearStartFor(new Date());
-    setAcademicYearStart(period ? Number(period.yearStart.slice(0, 4)) : currentYear);
-    setSemester("FULL");
-    setCustomStart(period?.mode === "dates" ? period.start : "");
-    setCustomEnd(period?.mode === "dates" ? period.end : "");
-    setDurationError("");
-    setDurationOpen(true);
-  };
-
-  const proceedDuration = () => {
-    let dates: { start: string; end: string };
-    let startYear: number;
-    if (customStart || customEnd) {
-      if (!customDateRangeIsValid) {
-        setDurationError("Choose a valid start and end date.");
-        return;
-      }
-      startYear = academicYearStartFor(new Date(`${customStart}T00:00:00.000Z`));
-      const yearDates = dateRangeForSemester(startYear, "FULL");
-      if (customStart < yearDates.start || customEnd > yearDates.end) {
-        setDurationError("The custom date range must fit within one academic year.");
-        return;
-      }
-      dates = { start: customStart, end: customEnd };
+  const handleStartDate = (value: string) => {
+    setStartDate(value);
+    setReport(null);
+    if (endDate && value && value > endDate) {
+      setDateError("Start date cannot be after end date.");
     } else {
-      startYear = academicYearStart;
-      dates = dateRangeForSemester(academicYearStart, semester);
+      setDateError("");
     }
+  };
 
-    const academicDates = dateRangeForSemester(startYear, "FULL");
-    setPeriod({
-      ...dates,
-      yearStart: academicDates.start,
-      yearEnd: academicDates.end,
-      mode: customStart || customEnd ? "dates" : "academic",
-    });
+  const handleEndDate = (value: string) => {
+    setEndDate(value);
     setReport(null);
-    setError("");
-    setDurationOpen(false);
+    if (startDate && value && value < startDate) {
+      setDateError("End date cannot be before start date.");
+    } else {
+      setDateError("");
+    }
   };
 
   const generateReport = async () => {
-    if (!selectedEmployee || !period) return;
+    if (!selectedEmployee || !startDate || !endDate || dateError) return;
     setIsGenerating(true);
     setError("");
     setReport(null);
     try {
+      const startYear = academicYearStartFor(new Date(`${startDate}T00:00:00.000Z`));
+      const endYear = academicYearStartFor(new Date(`${endDate}T00:00:00.000Z`));
+      const yearStart = dateRangeForSemester(startYear, "FULL").start;
+      const yearEnd = dateRangeForSemester(endYear, "FULL").end;
+
       const params = new URLSearchParams({
         employeeId: selectedEmployee.employeeId,
-        startDate: period.start,
-        endDate: period.end,
-        academicYearStart: period.yearStart,
-        academicYearEnd: period.yearEnd,
+        startDate,
+        endDate,
+        academicYearStart: yearStart,
+        academicYearEnd: yearEnd,
       });
       const response = await fetch(`/api/individual-report?${params.toString()}`, { cache: "no-store" });
       setReport(await readJson<ReportData>(response));
@@ -370,7 +336,7 @@ export default function IndividualLeaveReportPage() {
           </header>
 
           <section aria-label="Employee and report filters" className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(180px,1.3fr)_minmax(210px,1.4fr)_auto]">
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(180px,1.3fr)_minmax(260px,1.6fr)_auto]">
               {/* Step 1: Stream Dropdown */}
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Stream</span>
@@ -406,36 +372,58 @@ export default function IndividualLeaveReportPage() {
                 />
               </div>
 
-              {/* Step 4: Report Duration Date Option (Enabled ONLY after Employee is selected) */}
+              {/* Step 4: Date Range — Kept outside like Leave Status Report */}
               <div className="min-w-0">
-                <span className="mb-1.5 block text-xs font-medium text-slate-600">Report duration</span>
-                <button
-                  type="button"
-                  disabled={isDateOptionDisabled}
-                  onClick={openDurationDialog}
-                  className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors ${
-                    isDateOptionDisabled
-                      ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
-                      : "border-slate-300 bg-white text-slate-800 hover:border-slate-400"
-                  }`}
-                >
-                  <span className="truncate">{durationLabel}</span>
-                  <CalendarDays size={16} className={`shrink-0 ${isDateOptionDisabled ? "text-slate-300" : "text-slate-500"}`} />
-                </button>
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Date Range</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <input
+                    id="filter-start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => handleStartDate(e.target.value)}
+                    disabled={isDateOptionDisabled}
+                    aria-label="Start date"
+                    title={!isDateOptionDisabled ? "Start date" : "Select stream, department, and employee first to enable date selection"}
+                    className={`h-11 min-w-0 w-full rounded-lg border px-3 text-sm outline-none transition-colors ${
+                      !isDateOptionDisabled
+                        ? "border-slate-300 bg-white text-slate-700 cursor-pointer focus:border-emerald-600"
+                        : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none opacity-60"
+                    }`}
+                  />
+                  <ArrowRight size={15} className={`shrink-0 ${!isDateOptionDisabled ? "text-slate-400" : "text-slate-300"}`} aria-hidden="true" />
+                  <input
+                    id="filter-end-date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => handleEndDate(e.target.value)}
+                    disabled={isDateOptionDisabled}
+                    aria-label="End date"
+                    title={!isDateOptionDisabled ? "End date" : "Select stream, department, and employee first to enable date selection"}
+                    min={startDate || undefined}
+                    className={`h-11 min-w-0 w-full rounded-lg border px-3 text-sm outline-none transition-colors ${
+                      !isDateOptionDisabled
+                        ? "border-slate-300 bg-white text-slate-700 cursor-pointer focus:border-emerald-600"
+                        : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none opacity-60"
+                    }`}
+                  />
+                </div>
               </div>
 
               {/* Generate Button */}
-              <button
-                type="button"
-                disabled={!selectedEmployee || !period || isGenerating || isLoadingEmployees}
-                onClick={() => void generateReport()}
-                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {isGenerating ? <LoaderCircle size={16} className="animate-spin" /> : <FileText size={16} />}
-                GENERATE
-              </button>
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  disabled={!selectedEmployee || !startDate || !endDate || Boolean(dateError) || isGenerating || isLoadingEmployees}
+                  onClick={() => void generateReport()}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {isGenerating ? <LoaderCircle size={16} className="animate-spin" /> : <FileText size={16} />}
+                  GENERATE
+                </button>
+              </div>
             </div>
 
+            {dateError && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700">{dateError}</p>}
             {isLoadingEmployees && <p className="mt-3 text-sm text-slate-500">Loading employees…</p>}
             {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           </section>
@@ -443,50 +431,6 @@ export default function IndividualLeaveReportPage() {
           {report && <EmployeeReportDocument report={report} />}
         </div>
       </main>
-
-      {durationOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setDurationOpen(false);
-        }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="duration-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 id="duration-title" className="text-xl font-bold">Report duration</h2>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-sm font-medium text-slate-600">Start date<input type="date" value={customStart} onChange={(event) => { setCustomStart(event.target.value); setDurationError(""); }} aria-label="Report start date" className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 px-3 text-slate-800" /></label>
-              <label className="text-sm font-medium text-slate-600">End date<input type="date" value={customEnd} min={customStart || undefined} onChange={(event) => { setCustomEnd(event.target.value); setDurationError(""); }} aria-label="Report end date" className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 px-3 text-slate-800" /></label>
-            </div>
-            <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-slate-400"><span className="h-px flex-1 bg-slate-200" />OR<span className="h-px flex-1 bg-slate-200" /></div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block text-sm font-medium text-slate-600">Academic year
-                <select value={academicYearStart} onChange={(event) => {
-                  setAcademicYearStart(Number(event.target.value));
-                  setCustomStart("");
-                  setCustomEnd("");
-                }} aria-label="Academic year" className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800">
-                  {yearOptions.map((year) => <option key={year} value={year}>{year}–{year + 1}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-slate-600">Semester
-                <select value={semester} onChange={(event) => {
-                  setSemester(event.target.value as Semester);
-                  setCustomStart("");
-                  setCustomEnd("");
-                }} aria-label="Semester" className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800">
-                  <option value="FULL">Whole year (both semesters)</option><option value="ODD">Odd semester</option><option value="EVEN">Even semester</option>
-                </select>
-              </label>
-            </div>
-            {(durationError || (Boolean(customStart || customEnd) && !customDateRangeIsValid)) && (
-              <p role="alert" className="mt-3 text-sm text-red-700">
-                {durationError || "Choose valid dates within the same academic year."}
-              </p>
-            )}
-            <footer className="mt-6 flex justify-end gap-2 border-t border-slate-200 pt-4">
-              <button type="button" onClick={() => setDurationOpen(false)} className="h-10 rounded-lg border border-slate-300 px-5 text-sm font-semibold text-slate-700">CANCEL</button>
-              <button type="button" disabled={Boolean(customStart || customEnd) && !customDateRangeIsValid} onClick={proceedDuration} className="h-10 rounded-lg bg-emerald-700 px-5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300">PROCEED</button>
-            </footer>
-          </section>
-        </div>
-      )}
     </div>
   );
 }
