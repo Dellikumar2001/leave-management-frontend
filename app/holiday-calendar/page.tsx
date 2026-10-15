@@ -79,8 +79,8 @@ function cleanHolidayTitle(title: string): string {
 }
 
 export default function HolidayCalendarPage() {
-  const [month, setMonth] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [month, setMonth] = useState(() => dateKey(new Date()).slice(0, 7));
+  const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [name, setName] = useState("");
   const [holidayType, setHolidayType] = useState<HolidayType>("national");
   const [description, setDescription] = useState("");
@@ -112,9 +112,6 @@ export default function HolidayCalendarPage() {
 
   useEffect(() => {
     let isMounted = true;
-    const today = new Date();
-    setMonth(dateKey(today).slice(0, 7));
-    setSelectedDate(dateKey(today));
 
     async function loadHolidays() {
       try {

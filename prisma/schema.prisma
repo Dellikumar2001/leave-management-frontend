@@ -67,6 +67,7 @@ model LeaveType {
   employeeEligibility EmployeeLeaveEligibility[]
   groupItems          LeaveGroupItem[]
   leaveCredits        LeaveCredit[]
+  leaveApplications   EmployeeLeaveApplication[]
 
   @@map("leave_types")
 }
@@ -149,12 +150,17 @@ model EmployeeLeaveEligibility {
 }
 
 model MaternityLeave {
-  employeeId   String   @id @map("employee_id")
-  employeeName String   @map("employee_name")
-  noOfDays     Int      @map("no_of_days")
-  remarks      String
-  employee     Employee @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  id           Int       @id @default(autoincrement())
+  employeeId   String    @unique @map("employee_id")
+  employeeName String    @map("employee_name")
+  noOfDays     Int       @default(180) @map("no_of_days")
+  remarks      String?   @map("remarks")
+  status       String    @default("Active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  employee     Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
+  @@index([employeeId])
   @@map("maternity_leaves")
 }
 
@@ -360,12 +366,33 @@ model PaternityLeave {
   id           Int       @id @default(autoincrement())
   employeeId   String    @map("employee_id")
   employeeName String    @map("employee_name")
-  noOfDays     Int       @map("no_of_days")
+  noOfDays     Int       @default(5) @map("no_of_days")
   remarks      String?   @map("remarks")
-  status       String   
+  status       String    @default("Active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
   employee     Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
   @@index([employeeId])
   @@map("paternity_leaves")
 }
- 
+
+model EmployeeLeaveApplication {
+  id          Int       @id @default(autoincrement())
+  employeeId  String    @map("employee_id")
+  leaveTypeId Int       @map("leave_type_id")
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  daysCount   Int       @default(1) @map("days_count")
+  reason      String
+  status      String    @default("Approved")
+  appliedAt   DateTime  @default(now()) @map("applied_at")
+  reviewedBy  String?   @map("reviewed_by")
+  reviewedAt  DateTime? @map("reviewed_at")
+  remarks     String?
+  employee    Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, startDate, endDate])
+  @@map("employee_leave_applications")
+}

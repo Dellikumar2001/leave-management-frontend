@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { jsPDF } from "jspdf";
 import {
   ArrowRight,
   Check,
@@ -187,9 +188,16 @@ export function MultiSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setSearch("");
+    }
+  }
+
+  useEffect(() => {
+    if (open) {
       searchRef.current?.focus();
     }
   }, [open]);
@@ -212,7 +220,7 @@ export function MultiSelect({
   };
 
   return (
-    <div ref={containerRef} className="relative min-w-[190px]">
+    <div ref={containerRef} className="relative w-full min-w-0">
       <button
         id={id}
         type="button"
@@ -220,31 +228,41 @@ export function MultiSelect({
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-sm normal-case transition-colors outline-none ${disabled
-          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-          : open
-            ? "border-blue-400 ring-2 ring-blue-100"
-            : "border-slate-300 hover:border-slate-400 focus:border-blue-400"
+        className={`flex h-10 w-full items-center justify-between gap-1.5 rounded-md border bg-white px-3 text-left text-sm normal-case transition-colors outline-none ${disabled
+            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+            : open
+              ? "border-blue-400 ring-2 ring-blue-100"
+              : "border-slate-300 hover:border-slate-400 focus:border-blue-400 cursor-pointer"
           }`}
       >
-        <span className="flex flex-1 flex-wrap items-center gap-1 overflow-hidden">
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap">
           {selected.length === 0 ? (
             <span className="truncate text-slate-500">{placeholder}</span>
+          ) : selected.length === 1 ? (
+            <span className="inline-flex max-w-[calc(100%-8px)] items-center gap-1 truncate rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
+              <span className="truncate">{selected[0]}</span>
+              <X
+                size={11}
+                className="shrink-0 cursor-pointer hover:text-emerald-950"
+                onClick={(e) => removeOption(selected[0], e)}
+                aria-label={`Remove ${selected[0]}`}
+              />
+            </span>
           ) : (
-            selected.map((v) => (
-              <span
-                key={v}
-                className="flex max-w-[120px] shrink-0 items-center gap-1 truncate rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800"
-              >
-                <span className="truncate">{v}</span>
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+              <span className="inline-flex max-w-[110px] items-center gap-1 truncate rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
+                <span className="truncate">{selected[0]}</span>
                 <X
-                  size={10}
+                  size={11}
                   className="shrink-0 cursor-pointer hover:text-emerald-950"
-                  onClick={(e) => removeOption(v, e)}
-                  aria-label={`Remove ${v}`}
+                  onClick={(e) => removeOption(selected[0], e)}
+                  aria-label={`Remove ${selected[0]}`}
                 />
               </span>
-            ))
+              <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                +{selected.length - 1}
+              </span>
+            </span>
           )}
         </span>
         <ChevronDown
@@ -254,7 +272,7 @@ export function MultiSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-full rounded-md border border-slate-200 bg-white shadow-xl">
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-full w-max max-w-xs rounded-md border border-slate-200 bg-white shadow-xl">
           <div className="border-b border-slate-100 px-2 py-1.5">
             <div className="relative">
               <Search size={12} className="pointer-events-none absolute left-2 top-2 text-slate-400" />
@@ -281,8 +299,8 @@ export function MultiSelect({
                     aria-selected={isSelected}
                     onClick={() => toggleOption(option)}
                     className={`flex cursor-pointer items-center gap-2 px-3 py-2 text-[12.5px] transition-colors ${isSelected
-                      ? "bg-emerald-50 font-medium text-emerald-800"
-                      : "text-slate-700 hover:bg-slate-50"
+                        ? "bg-emerald-50 font-medium text-emerald-800"
+                        : "text-slate-700 hover:bg-slate-50"
                       }`}
                   >
                     <span
@@ -335,36 +353,42 @@ export default function StatutoryReport() {
   const [streamFilter, setStreamFilter] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
-  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const currentDateStr = new Date().toISOString().split("T")[0];
   const reportTitle = activeTab === "maternity" ? "Maternity Leave Report" : "Paternity Leave Report";
-
-  // Load Data from API
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/statutory-report", { signal });
-      if (!response.ok) {
-        throw new Error(`Failed to load data: ${response.statusText}`);
-      }
-      const data: StatutoryReportData = await response.json();
-      setEmployees(data.employees || []);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Unable to load statutory report data.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
-  }, [loadData]);
+    let isMounted = true;
+
+    async function loadData() {
+      try {
+        const response = await fetch("/api/statutory-report", { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`Failed to load data: ${response.statusText}`);
+        }
+        const data: StatutoryReportData = await response.json();
+        if (!isMounted) return;
+        setEmployees(data.employees || []);
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Unable to load statutory report data.");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, []);
 
   // Gender filtering: Maternity = Female, Paternity = Male
   const genderFilteredEmployees = employees.filter((emp) => {
@@ -452,17 +476,17 @@ export default function StatutoryReport() {
     );
   };
 
-  const reportBaseName = `${activeTab}-leave-report-${startDate}-${endDate}`;
+  const reportBaseName = `${activeTab}-leave-report-${startDate || currentDateStr}-${endDate || currentDateStr}`;
 
   const handleDownloadPdf = async () => {
     if (!previewRows) return;
-    const pdfBlob = await createReportPdf(previewRows, startDate, reportTitle);
-    downloadBlob(pdfBlob, `${reportBaseName}.pdf`);
+    const blob = await createReportPdf(previewRows, startDate || currentDateStr, reportTitle);
+    downloadBlob(blob, `${reportBaseName}.pdf`);
   };
 
   const handleDownloadCsv = () => {
     if (!previewRows) return;
-    downloadBlob(createCsvBlob(previewRows, startDate, reportTitle), `${reportBaseName}.csv`);
+    downloadBlob(createCsvBlob(previewRows, startDate || currentDateStr, reportTitle), `${reportBaseName}.csv`);
   };
 
   const handleDownloadExcel = async () => {
@@ -479,7 +503,7 @@ export default function StatutoryReport() {
       { header: "DATE TO", key: "dateTo", width: 16 },
       { header: "REMARKS", key: "remarks", width: 18 },
     ];
-    worksheet.addRow(["Date:", startDate]);
+    worksheet.addRow(["Date:", startDate || currentDateStr]);
     worksheet.addRow([reportTitle.toUpperCase()]);
     worksheet.addRow(reportColumns.map((column) => column.label));
     previewRows.forEach((row) => worksheet.addRow(row));
@@ -524,19 +548,19 @@ export default function StatutoryReport() {
       </header>
 
       {/* Two Options Tabs: Maternity Leave & Paternity Leave */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-3 rounded-xl shadow-sm">
-        <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 mr-2">
-           Statutory Leave Type:
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-6 py-3.5 shadow-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Statutory Leave Type:
           </span>
-          <div className="inline-flex max-w-full flex-wrap rounded-lg bg-slate-100 p-1">
+          <div className="inline-flex items-center rounded-lg bg-slate-100 p-1">
             <button
               type="button"
               id="tab-maternity-leave"
               onClick={() => handleTabChange("maternity")}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all ${activeTab === "maternity"
-                ? "bg-white text-emerald-800 shadow-sm font-semibold"
-                : "text-slate-600 hover:text-slate-900"
+              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${activeTab === "maternity"
+                  ? "bg-white text-emerald-800 shadow-sm font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
                 }`}
             >
               <span className="size-2 rounded-full bg-pink-500" />
@@ -547,9 +571,9 @@ export default function StatutoryReport() {
               type="button"
               id="tab-paternity-leave"
               onClick={() => handleTabChange("paternity")}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all ${activeTab === "paternity"
-                ? "bg-white text-emerald-800 shadow-sm font-semibold"
-                : "text-slate-600 hover:text-slate-900"
+              className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${activeTab === "paternity"
+                  ? "bg-white text-emerald-800 shadow-sm font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
                 }`}
             >
               <span className="size-2 rounded-full bg-blue-500" />
@@ -559,7 +583,7 @@ export default function StatutoryReport() {
         </div>
 
         <div className="text-xs text-slate-500">
-          Showing <strong>{genderFilteredEmployees.length}</strong> eligible{" "}
+          Showing <strong className="text-slate-700">{genderFilteredEmployees.length}</strong> eligible{" "}
           {activeTab === "maternity" ? "female" : "male"} employees
         </div>
       </div>
@@ -569,31 +593,40 @@ export default function StatutoryReport() {
         aria-label="Statutory Report Filters"
         className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-10">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-12">
           {/* Stream Dropdown */}
-          <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
             <label htmlFor="filter-stream" className="text-[11px] font-semibold uppercase text-slate-500">
               Stream <span className="text-emerald-600">*</span>
             </label>
-            <select
-              id="filter-stream"
-              aria-label="Filter by stream"
-              value={streamFilter}
-              onChange={(e) => {
-                setStreamFilter(e.target.value);
-                setSelectedDepartments([]);
-                setSelectedEmployeeNames([]);
-                setPreviewRows(null);
-              }}
-              className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm normal-case text-slate-700 outline-none focus:border-blue-400"
-            >
-              <option value="">Select Streams</option>
-              {allStreams.map((stream) => <option key={stream} value={stream}>{stream}</option>)}
-            </select>
+            <div className="relative">
+              <select
+                id="filter-stream"
+                aria-label="Filter by stream"
+                value={streamFilter}
+                onChange={(e) => {
+                  setStreamFilter(e.target.value);
+                  setSelectedDepartments([]);
+                  setSelectedEmployeeNames([]);
+                  setPreviewRows(null);
+                }}
+                className="h-10 w-full cursor-pointer appearance-none rounded-md border border-slate-300 bg-white pl-3 pr-8 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
+              >
+                <option value="">Select Streams</option>
+                {allStreams.map((stream) => (
+                  <option key={stream} value={stream}>{stream}</option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+            </div>
           </div>
 
           {/* All Departments Multi-Select */}
-          <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
             <label htmlFor="filter-departments" className="text-[11px] font-semibold uppercase text-slate-500">
               Departments <span className="text-emerald-600">*</span>
             </label>
@@ -612,7 +645,7 @@ export default function StatutoryReport() {
           </div>
 
           {/* All Employee Names Multi-Select */}
-          <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
             <label htmlFor="filter-employee-names" className="text-[11px] font-semibold uppercase text-slate-500">
               Employee Names
             </label>
@@ -629,12 +662,12 @@ export default function StatutoryReport() {
             />
           </div>
 
-          {/* Start Date Calendar Input */}
-          <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor="filter-start-date" className="text-[11px] font-semibold uppercase text-slate-500">
-              Start Date <span className="text-emerald-600">*</span>
-            </label>
-            <div className="relative">
+          {/* Unified Date Range: Start Date & End Date */}
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 xl:col-span-4">
+            <span className="text-[11px] font-semibold uppercase text-slate-500">
+              Date Range <span className="text-emerald-600">*</span>
+            </span>
+            <div className="flex min-w-0 items-center gap-2">
               <input
                 id="filter-start-date"
                 type="date"
@@ -643,17 +676,10 @@ export default function StatutoryReport() {
                   setStartDate(e.target.value);
                   setPreviewRows(null);
                 }}
-                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
+                aria-label="Start date"
+                className="h-10 min-w-0 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
               />
-            </div>
-          </div>
-
-          {/* End Date Calendar Input */}
-          <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor="filter-end-date" className="text-[11px] font-semibold uppercase text-slate-500">
-              End Date <span className="text-emerald-600">*</span>
-            </label>
-            <div className="relative">
+              <ArrowRight size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
               <input
                 id="filter-end-date"
                 type="date"
@@ -663,7 +689,8 @@ export default function StatutoryReport() {
                   setEndDate(e.target.value);
                   setPreviewRows(null);
                 }}
-                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400"
+                aria-label="End date"
+                className="h-10 min-w-0 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
               />
             </div>
           </div>
@@ -679,10 +706,10 @@ export default function StatutoryReport() {
                 ? `Preview Statutory Report for ${visibleEmployees.length} employees from ${startDate} to ${endDate}`
                 : "Select a stream, department, start date, and end date to enable Generate"
             }
-            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition-colors ${canGenerate
+            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-colors sm:col-span-1 xl:col-span-2 ${canGenerate
                 ? "bg-slate-800 text-white shadow-sm hover:bg-slate-700 active:scale-[0.98]"
                 : "cursor-not-allowed bg-slate-200 text-slate-400"
-                }`}
+              }`}
           >
             <Sparkles size={16} aria-hidden="true" />
             <span>Generate</span>
@@ -703,20 +730,23 @@ export default function StatutoryReport() {
       {/* Table Section */}
       <main className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {startDate && endDate && (
-          <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-5 py-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs text-slate-600">
             <span className="size-2 rounded-full bg-emerald-500" aria-hidden="true" />
             <span>Date filter active:</span>
-            <strong>{startDate}</strong>
-            <ArrowRight size={14} aria-hidden="true" />
-            <strong>{endDate}</strong>
+            <strong className="text-slate-800">{startDate}</strong>
+            <ArrowRight size={13} className="text-slate-400" aria-hidden="true" />
+            <strong className="text-slate-800">{endDate}</strong>
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="min-w-[920px] w-full text-left text-sm">
+          <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 {reportColumns.map((column) => (
-                  <th key={column.key} className="whitespace-nowrap px-5 py-3 font-semibold">
+                  <th
+                    key={column.key}
+                    className="whitespace-nowrap px-5 py-3.5 font-semibold border-b border-slate-200 text-left"
+                  >
                     {column.label}
                   </th>
                 ))}
@@ -725,30 +755,43 @@ export default function StatutoryReport() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={reportColumns.length} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={reportColumns.length} className="px-5 py-12 text-center text-slate-400 align-middle">
                     Loading statutory leave eligibility data…
                   </td>
                 </tr>
               )}
               {!isLoading &&
                 visibleEmployees.map((emp) => (
-                  <tr key={emp.employeeId} className="border-t border-slate-200 hover:bg-slate-50 transition-colors">
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                  <tr
+                    key={emp.employeeId}
+                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors"
+                  >
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-700 font-medium align-middle">
                       {emp.employeeId}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-900">
+                    <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-900 align-middle">
                       {emp.name}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">{emp.stream}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">{emp.department}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">{startDate || "—"}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-700">{endDate || "—"}</td>
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-500">—</td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-700 align-middle">
+                      {emp.stream}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-700 align-middle">
+                      {emp.department}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600 align-middle">
+                      {startDate || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600 align-middle">
+                      {endDate || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-500 align-middle">
+                      —
+                    </td>
                   </tr>
                 ))}
               {!isLoading && visibleEmployees.length === 0 && (
-                <tr className="border-t border-slate-200">
-                  <td colSpan={reportColumns.length} className="px-5 py-12 text-center text-slate-500">
+                <tr>
+                  <td colSpan={reportColumns.length} className="px-5 py-12 text-center text-slate-500 align-middle">
                     {genderFilteredEmployees.length === 0
                       ? `No ${activeTab === "maternity" ? "female" : "male"} employees found in the database.`
                       : "No employees match the selected filters."}
@@ -759,95 +802,132 @@ export default function StatutoryReport() {
           </table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
-          <span>
-            Showing <strong className="text-slate-700">{visibleEmployees.length}</strong> employee(s)
-          </span>
-          {startDate && endDate && (
-            <span>
-              Period: <strong className="text-slate-700">{startDate}</strong> <ArrowRight className="inline" size={12} />{" "}
-              <strong className="text-slate-700">{endDate}</strong>
-            </span>
-          )}
-        </div>
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3.5 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <span>Showing</span>
+            <strong className="text-slate-700">{visibleEmployees.length}</strong>
+            <span>employee{visibleEmployees.length !== 1 ? "s" : ""}</span>
+            {startDate && endDate && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span>Period:</span>
+                <strong className="text-slate-700">{startDate}</strong>
+                <ArrowRight size={12} className="inline text-slate-400" />
+                <strong className="text-slate-700">{endDate}</strong>
+              </>
+            )}
+          </div>
+        </footer>
       </main>
 
+      {/* File Preview Section */}
       {previewRows && (
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <header className="flex items-center justify-between border-b border-slate-200 bg-[#f5f7fa] px-5 py-4 text-slate-800">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <span className="grid size-8 place-items-center rounded-md bg-emerald-100 text-emerald-700">
-                <Eye size={17} aria-hidden="true" />
+                <Eye size={16} aria-hidden="true" />
               </span>
-              <h2 className="text-sm font-semibold">FILE PREVIEW</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide">File Preview</h2>
             </div>
             <button
               type="button"
               onClick={() => setPreviewRows(null)}
               aria-label="Close report preview"
-              className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+              className="grid size-8 place-items-center rounded-md text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </header>
           <div className="bg-[#f5f7fa] p-4 sm:p-6">
             <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded bg-slate-100 px-2.5 py-1 font-mono text-xs font-semibold text-slate-700">
-                  Date: {startDate}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 sm:text-xl">
+                    {reportTitle.toUpperCase()}
+                  </h3>
+                  <span className="mt-1 inline-block rounded bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                    Date: {startDate || currentDateStr}
+                  </span>
+                </div>
+                <span className="text-xs font-medium text-slate-400">
+                  {previewRows.length} record{previewRows.length === 1 ? "" : "s"}
                 </span>
-                <span className="text-xs text-slate-400">{previewRows.length} record{previewRows.length === 1 ? "" : "s"}</span>
               </div>
-              <h3 className="mt-3 border-b border-slate-100 pb-4 text-lg font-bold text-slate-800 sm:text-xl">
-                {reportTitle.toUpperCase()}
-              </h3>
-              <div className="mt-4 overflow-x-auto">
-                <table className="min-w-[760px] w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-slate-50 font-semibold text-slate-600">
                     <tr>
                       {reportColumns.map((column) => (
-                        <th key={column.key} className="whitespace-nowrap px-3 py-2.5 font-semibold">
+                        <th
+                          key={column.key}
+                          className="whitespace-nowrap px-4 py-2.5 font-semibold text-left border-b border-slate-200"
+                        >
                           {column.label}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {previewRows.map((row) => (
-                      <tr key={row.employeeId} className="border-b border-slate-100 text-slate-700">
-                        {reportColumns.map((column) => (
-                          <td key={column.key} className="whitespace-nowrap px-3 py-3">
-                            {row[column.key]}
-                          </td>
-                        ))}
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {previewRows.map((row, idx) => (
+                      <tr
+                        key={row.employeeId}
+                        className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/80"}
+                      >
+                        <td className="whitespace-nowrap px-4 py-2.5 font-medium align-middle text-left">
+                          {row.employeeId}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-900 align-middle text-left">
+                          {row.name}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-slate-700 align-middle text-left">
+                          {row.stream}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-slate-700 align-middle text-left">
+                          {row.department}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-slate-600 align-middle text-left">
+                          {row.dateFrom}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-slate-600 align-middle text-left">
+                          {row.dateTo}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-slate-500 align-middle text-left">
+                          {row.remarks}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <footer className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs text-slate-500">Ready to download in your preferred format:</span>
+                <p className="text-xs text-slate-500">
+                  Ready to download in your preferred format:
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleDownloadPdf}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.98]"
                   >
-                    <FileText size={14} aria-hidden="true" /> Download PDF
+                    <FileText size={14} aria-hidden="true" />
+                    <span>Download PDF</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleDownloadExcel}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.98]"
                   >
-                    <FileSpreadsheet size={14} aria-hidden="true" /> Download Excel
+                    <FileSpreadsheet size={14} aria-hidden="true" />
+                    <span>Download Excel</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleDownloadCsv}
-                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white hover:bg-slate-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-800 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.98]"
                   >
-                    <Download size={14} aria-hidden="true" /> Download CSV
+                    <Download size={14} aria-hidden="true" />
+                    <span>Download CSV</span>
                   </button>
                 </div>
               </footer>
@@ -858,3 +938,4 @@ export default function StatutoryReport() {
     </div>
   );
 }
+

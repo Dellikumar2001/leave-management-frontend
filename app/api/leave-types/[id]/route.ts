@@ -16,7 +16,14 @@ export async function GET(_request: Request, { params }: RouteContext) {
         groupItems: {
           include: {
             leaveGroup: {
-              select: { id: true, name: true },
+              select: {
+                id: true,
+                name: true,
+                categoryId: true,
+                category: {
+                  select: { id: true, name: true, code: true },
+                },
+              },
             },
           },
         },
@@ -45,16 +52,33 @@ export async function PUT(request: Request, { params }: RouteContext) {
   if (!input) return Response.json({ error: "Please provide valid leave type details." }, { status: 400 });
 
   try {
-    const { leaveGroupId, ...leaveTypeData } = input;
-    const group = leaveGroupId === undefined
+    const { leaveGroupId, leaveCategoryId, ...leaveTypeData } = input;
+    let group = leaveGroupId === undefined
       ? null
       : await prisma.leaveGroup.findFirst({
           where: { id: leaveGroupId, status: "ACTIVE" },
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            categoryId: true,
+            category: { select: { id: true, name: true, code: true } },
+          },
         });
 
     if (leaveGroupId !== undefined && !group) {
       return Response.json({ error: "Select an active leave group." }, { status: 400 });
+    }
+
+    if (!group && leaveCategoryId !== undefined) {
+      group = await prisma.leaveGroup.findFirst({
+        where: { categoryId: leaveCategoryId, status: "ACTIVE" },
+        select: {
+          id: true,
+          name: true,
+          categoryId: true,
+          category: { select: { id: true, name: true, code: true } },
+        },
+      });
     }
 
     const leaveType = await prisma.$transaction(async (transaction) => {
@@ -72,13 +96,27 @@ export async function PUT(request: Request, { params }: RouteContext) {
                   },
                 },
               }
+            : leaveGroupId === undefined && leaveCategoryId === undefined
+            ? {
+                leaveGroup: "",
+                groupItems: {
+                  deleteMany: {},
+                },
+              }
             : {}),
         },
         include: {
           groupItems: {
             include: {
               leaveGroup: {
-                select: { id: true, name: true },
+                select: {
+                  id: true,
+                  name: true,
+                  categoryId: true,
+                  category: {
+                    select: { id: true, name: true, code: true },
+                  },
+                },
               },
             },
           },

@@ -12,8 +12,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "db:reset": "prisma migrate reset",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "db:refresh": "node --env-file=.env scripts/refresh-db.cjs",
+    "db:reset": "prisma migrate reset"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",
