@@ -42,7 +42,10 @@ Deleting or reducing a credit reverses the recorded amount. The API rejects a re
 - `GET|POST|PATCH|DELETE /api/block-leave`: blocked-date history, database-backed employees/stream/department filter values, and create/edit/delete operations. Pass `?category=ANNUAL` or `?category=MEDICAL` for the employee balance shown on the credit page. A missing end date is treated as the start date.
 - `GET|POST|PATCH|DELETE /api/leave-credit`: category credit history and create/edit/delete operations.
 - `GET /api/individual-report`: an employee's leave allocation, leave-request history, approver details, absenteeism, utilization, and usage analytics for a selected period.
+- `GET /api/my-report`: the server-selected employee's profile, or that employee's formatted leave history for a supplied reporting period. In development, `DEMO_EMPLOYEE_ID` can select an employee; if unset, the first employee by ID is used. This app does not yet have login/session authentication, so production requests are denied until a trusted authenticated employee session is integrated. Never use the development identity fallback as production authorization.
 - `GET /api/leave-eligibility` and `GET|POST /api/leave-refresh`: display or refresh balances including credited days.
+
+The employee-only sidebar mode includes **Leave Report - Employee → My Report**. It uses the report period selector and provides PDF, CSV, and print exports. Employee designation, mobile, and work email are optional fields on `employees`; email falls back to a linked `Student`/`User` account when available.
 
 Blocking or crediting creates an in-app notification for each selected employee. A multi-select filter does not silently apply changes to every matching employee; choose the matching rows with the table's select-all checkbox to make them part of the action.
 
@@ -58,18 +61,19 @@ The request API must retain this server-side check; client-side validation alone
 
 ### Prisma `EPERM` while generating on Windows
 
-The Windows Prisma engine DLL may be locked by a running Next.js process. Stop the specific development server process that owns the client, then run:
+The Prisma client uses the JavaScript query engine with the PostgreSQL driver adapter, so client generation no longer replaces a Windows engine DLL and can run while the Next.js development server is active:
 
 ```bash
 npm run db:generate
-npm run dev
 ```
 
-Do not delete Prisma engine files while the server is running.
+If generation still reports `EPERM`, check antivirus/file-indexing locks and filesystem permissions. Do not delete Prisma engine files or reset the database to work around a file lock.
 
 ### Missing migrations or schema drift
 
-Run `npx prisma migrate status` and compare the reported migration history with `prisma/migrations`. The configured development database currently contains an applied migration named `20261007105113_apply_existing_schema` that is absent from this checkout. Restore its original SQL from the project revision that created it, then apply pending migrations normally. Do not invent a replacement for that already-applied migration, use `migrate reset`, or mark unknown migrations as applied.
+Run `npx prisma migrate status` and compare the reported migration history with `prisma/migrations`. The migration directory `20261007105113_apply_existing_schema` is missing its `migration.sql`; Prisma migrate commands cannot safely proceed until the exact original SQL is restored. Do not invent a replacement or use `migrate reset` to work around this: reset clears database data before it applies migrations and will stop at the missing file.
+
+If restoring the original SQL is not possible, align the Prisma model mappings with the existing database tables first, review `npx prisma migrate diff --from-schema-datasource=prisma/schema.prisma --to-schema-datamodel=prisma/schema.prisma --script`, and only then use `npx prisma db push` if the diff contains no drops or destructive type changes. This can restore application tables without reconciling migration history; `migrate status` will still report pending migrations, so keep the original SQL recovery as a separate task.
 
 ### Empty employee, stream, or department lists
 
