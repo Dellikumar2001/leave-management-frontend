@@ -57,6 +57,8 @@ model LeaveType {
   leaveGroup          String                     @default("") @map("leave_group")
   paymentType         String?                    @map("payment_type")
   category            LeaveCategory?
+  categoryMasterId    Int?                       @map("category_master_id")
+  categoryMaster      LeaveCategoryMaster?       @relation(fields: [categoryMasterId], references: [id], onDelete: SetNull)
   daysAllowed         Int                        @map("days_allowed")
   description         String                     @default("")
   status              String                     @default("ACTIVE")
@@ -221,15 +223,17 @@ model EmployeeNotification {
 }
 
 model LeaveCategoryMaster {
-  id          Int          @id @default(autoincrement())
-  code        String       @unique
+  id          Int                  @id @default(autoincrement())
+  code        String               @unique
   name        String
-  isPaid      Boolean      @default(true)
+  isPaid      Boolean              @default(true)
   description String?
-  status      LeaveStatus  @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  status      LeaveStatus          @default(ACTIVE)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   leaveGroups LeaveGroup[]
+  groupLinks  LeaveGroupCategory[]
+  leaveTypes  LeaveType[]
 
   @@map("LeaveCategoryMaster")
 }
@@ -243,9 +247,20 @@ model LeaveGroup {
   status        LeaveStatus          @default(ACTIVE)
   categoryId    Int?
   category      LeaveCategoryMaster? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categories    LeaveGroupCategory[]
   items         LeaveGroupItem[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
+}
+
+model LeaveGroupCategory {
+  leaveGroupId Int
+  categoryId   Int
+  leaveGroup   LeaveGroup          @relation(fields: [leaveGroupId], references: [id], onDelete: Cascade)
+  category     LeaveCategoryMaster @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([leaveGroupId, categoryId])
+  @@index([categoryId])
 }
 
 model LeaveGroupItem {

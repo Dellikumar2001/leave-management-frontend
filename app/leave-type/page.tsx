@@ -37,6 +37,7 @@ type LeaveGroupOption = {
   name: string;
   status: "ACTIVE" | "INACTIVE";
   categoryId?: number | null;
+  categoryIds?: number[];
   category?: {
     id: number;
     name: string;
@@ -193,9 +194,16 @@ export default function LeaveTypePage() {
     fetch("/api/leave-requests")
       .then(async (response) => {
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error ?? "UNABLE TO LOAD LEAVE GROUPS.");
-        if (!Array.isArray(result?.data)) throw new Error("UNABLE TO LOAD LEAVE GROUPS.");
-        return result.data as LeaveGroupOption[];
+        if (!response.ok) throw new Error(result.error ?? "Unable to load leave groups.");
+        if (!Array.isArray(result?.data)) throw new Error("Unable to load leave groups.");
+        return result.data.map((group: LeaveGroupOption & {
+          categories?: { categoryId?: number }[];
+        }) => {
+          const categoryIds = group.categories?.map(({ categoryId }) => Number(categoryId))
+            .filter(Number.isSafeInteger) ?? [];
+          if (group.categoryId && !categoryIds.includes(group.categoryId)) categoryIds.push(group.categoryId);
+          return { ...group, categoryIds };
+        });
       })
       .then((groups) => {
         if (isMounted) {
@@ -592,7 +600,11 @@ export default function LeaveTypePage() {
                     setForm((prev) => ({
                       ...prev,
                       leaveGroupId: nextGroupId,
-                      ...(group?.categoryId ? { leaveCategoryId: String(group.categoryId) } : {}),
+                      ...(
+                        group && !group.categoryIds?.includes(Number(prev.leaveCategoryId))
+                          ? { leaveCategoryId: String(group.categoryIds?.[0] ?? group.categoryId ?? "") }
+                          : {}
+                      ),
                     }));
                   }}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
@@ -602,7 +614,11 @@ export default function LeaveTypePage() {
                     .filter((group) => {
                       const isActive = group.status === "ACTIVE" || String(group.id) === form.leaveGroupId;
                       if (!form.leaveCategoryId) return isActive;
-                      return isActive && (group.categoryId === Number(form.leaveCategoryId) || String(group.id) === form.leaveGroupId);
+                      return isActive && (
+                        group.categoryIds?.includes(Number(form.leaveCategoryId)) ||
+                        group.categoryId === Number(form.leaveCategoryId) ||
+                        String(group.id) === form.leaveGroupId
+                      );
                     })
                     .map((group) => (
                       <option key={group.id} value={group.id} disabled={group.status !== "ACTIVE"}>
@@ -624,7 +640,10 @@ export default function LeaveTypePage() {
                     const nextCatId = event.target.value;
                     setForm((prev) => {
                       const currentGroup = leaveGroups.find((g) => String(g.id) === prev.leaveGroupId);
-                      const groupMatches = nextCatId && currentGroup?.categoryId === Number(nextCatId);
+                      const groupMatches = nextCatId && (
+                        currentGroup?.categoryIds?.includes(Number(nextCatId)) ||
+                        currentGroup?.categoryId === Number(nextCatId)
+                      );
                       return {
                         ...prev,
                         leaveCategoryId: nextCatId,

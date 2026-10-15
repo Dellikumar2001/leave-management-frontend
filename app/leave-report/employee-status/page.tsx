@@ -109,6 +109,8 @@ function buildExportRows(
 export default function EmployeeStatusReportPage() {
   // Current employee session (represents the authenticated / logged-in employee)
   const [currentEmployee, setCurrentEmployee] = useState<EmployeeSummary | null>(null);
+  const [isLoadingEmployee, setIsLoadingEmployee] = useState(true);
+  const [employeeLoadError, setEmployeeLoadError] = useState("");
   const [employeeId, setEmployeeId] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return sessionStorage.getItem("employee_status_logged_in_id") || "";
@@ -143,7 +145,10 @@ export default function EmployeeStatusReportPage() {
           { cache: "no-store" }
         );
         const data = (await res.json()) as ReportApiResponse;
-        if (mounted && res.ok && data.employee) {
+        if (!res.ok || !data.employee) {
+          throw new Error(data.error || "Unable to load employee profile.");
+        }
+        if (mounted) {
           setCurrentEmployee(data.employee);
           setEmployeeId(data.employee.employeeId);
           if (typeof window !== "undefined") {
@@ -155,6 +160,11 @@ export default function EmployeeStatusReportPage() {
         }
       } catch (err: unknown) {
         console.error("Failed to load employee profile", err);
+        if (mounted) {
+          setEmployeeLoadError(err instanceof Error ? err.message : "Unable to load employee profile.");
+        }
+      } finally {
+        if (mounted) setIsLoadingEmployee(false);
       }
     }
     void loadUser();
@@ -509,10 +519,17 @@ export default function EmployeeStatusReportPage() {
                     <span className="truncate">
                       {currentEmployee
                         ? `${currentEmployee.name} (${currentEmployee.employeeId})`
-                        : "Loading..."}
+                        : isLoadingEmployee
+                          ? "Loading..."
+                          : employeeLoadError || "No employee found"}
                     </span>
                   </div>
                 </div>
+                {employeeLoadError && (
+                  <p role="alert" className="mt-1 text-xs font-normal text-red-700">
+                    {employeeLoadError}
+                  </p>
+                )}
               </div>
 
               {/* Date Range Inputs */}

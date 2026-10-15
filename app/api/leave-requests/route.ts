@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { parseLeaveGroupCategoryIds } from "@/lib/leave-group-categories";
 
 const MIN_EFFECTIVE_FROM = "2000-01-01";
 const MAX_EFFECTIVE_FROM = "2100-12-31";
@@ -45,6 +46,7 @@ export async function GET() {
     const groups = await prisma.leaveGroup.findMany({
       include: {
         category: true,
+        categories: { include: { category: true } },
         items: {
           include: {
             leaveType: true,
@@ -68,7 +70,11 @@ export async function POST(request: NextRequest) {
     const selectedCodes = Array.isArray(b.leaveTypeCodes)
       ? [...new Set(b.leaveTypeCodes.map((code: unknown) => String(code)))] as string[]
       : [];
-    const categoryId = b.categoryId ? Number(b.categoryId) : null;
+    const categoryIds = b.categoryIds !== undefined
+      ? parseLeaveGroupCategoryIds(b.categoryIds)
+      : b.categoryId === undefined || b.categoryId === null || b.categoryId === ""
+        ? []
+        : parseLeaveGroupCategoryIds([b.categoryId]);
 
     // Previously mandatory validation:
     // if (!b.code || !b.name || !b.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
@@ -80,14 +86,18 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Code and effective from are required." }, { status: 400 });
     }
 
-    let category = null;
-    if (categoryId && Number.isInteger(categoryId) && categoryId > 0) {
-      category = await prisma.leaveCategoryMaster.findFirst({
-        where: { id: categoryId, status: "ACTIVE" },
-      });
-      if (!category) {
-        return Response.json({ error: "Select an active leave category." }, { status: 400 });
-      }
+    if (!categoryIds) {
+      return Response.json({ error: "Select valid leave categories." }, { status: 400 });
+    }
+
+    const categories = categoryIds.length
+      ? await prisma.leaveCategoryMaster.findMany({
+          where: { id: { in: categoryIds }, status: "ACTIVE" },
+          select: { id: true },
+        })
+      : [];
+    if (categories.length !== categoryIds.length) {
+      return Response.json({ error: "Select active leave categories only." }, { status: 400 });
     }
 
     const leaveTypes = selectedCodes.length > 0
@@ -112,7 +122,12 @@ export async function POST(request: NextRequest) {
         code: String(b.code).trim(),
         name: b.name ? String(b.name).trim() : "",
         description: b.description ? String(b.description).trim() : null,
-        ...(category ? { category: { connect: { id: category.id } } } : {}),
+        categoryId: categories[0]?.id ?? null,
+        categories: {
+          create: categories.map(({ id }) => ({
+            category: { connect: { id } },
+          })),
+        },
         effectiveFrom,
         status,
         items: {
@@ -125,6 +140,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         category: true,
+        categories: { include: { category: true } },
         items: {
           include: {
             leaveType: true,
