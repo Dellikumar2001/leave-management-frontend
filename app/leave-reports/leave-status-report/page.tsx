@@ -593,7 +593,7 @@ export default function LeaveStatusReportPage() {
             aria-label="Report filters"
             className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-13">
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
               {/* Step 1: Stream Dropdown (Checkbox format) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
