@@ -376,27 +376,23 @@ export default function LeaveTypePage() {
       <LeaveSidebar activePage="leave-types" />
       <div className="p-4 min-[801px]:ml-[175px]">
         <div className="mx-auto max-w-[1400px] uppercase">
-          {/* Header matched to Leave Eligibility banner */}
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800">Leave Type</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-800">LEAVE TYPE</h1>
           </header>
 
-          {/* Inline Filter & Action bar styled matching Maternity Leave / Leave Eligibility */}
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Search Bar */}
               <div className="relative flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search leave types..."
+                  placeholder="SEARCH LEAVE TYPES..."
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm normal-case text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
-              {/* Status Dropdown */}
               <div className="relative min-w-[170px]">
                 <select
                   value={statusFilter}
@@ -405,23 +401,22 @@ export default function LeaveTypePage() {
                     setError("");
                     setStatusFilter(event.target.value);
                   }}
-                  className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 pr-9 text-sm normal-case text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3.5 pr-9 text-sm uppercase text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 >
-                  <option value="ALL">All Status</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
+                  <option value="ALL">ALL STATUS</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
                 </select>
                 <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
 
-              {/* Add Leave Type Button */}
               <button
                 type="button"
                 onClick={openCreateModal}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c]"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium uppercase text-white transition-colors hover:bg-[#294f9c]"
               >
                 <Plus size={16} />
-                Add Leave Type
+                ADD LEAVE TYPE
               </button>
             </div>
           </div>
@@ -483,8 +478,8 @@ export default function LeaveTypePage() {
                 </tbody>
               </table>
             </div>
-            <div className="border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm text-slate-500">
-              Showing {filteredLeaveTypes.length} of {leaveTypes.length} leave types
+            <div className="border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-sm uppercase text-slate-500">
+              SHOWING {filteredLeaveTypes.length} OF {leaveTypes.length} LEAVE TYPES
             </div>
           </section>
         </div>
@@ -497,34 +492,34 @@ export default function LeaveTypePage() {
               event.preventDefault();
               if (modalMode !== "view") void handleSaveType();
             }}
-            className="my-auto max-h-[90vh] w-full max-w-160 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
+            className="my-auto max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">
-                  {modalMode === "create" ? "Create Leave Type" : modalMode === "edit" ? "Edit Leave Type" : "Leave Type Details"}
+                <h2 className="text-[22px] font-bold uppercase text-slate-800">
+                  {modalMode === "create" ? "CREATE LEAVE TYPE" : modalMode === "edit" ? "EDIT LEAVE TYPE" : "LEAVE TYPE DETAILS"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">{modalMode === "view" ? "Leave type configuration" : "Enter the leave type details below."}</p>
+                <p className="mt-1 text-sm uppercase text-slate-500">{modalMode === "view" ? "LEAVE TYPE CONFIGURATION" : "ENTER THE LEAVE TYPE DETAILS BELOW."}</p>
               </div>
               <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close dialog">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
+            <div className="grid gap-5 px-6 pb-6 pt-2 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave type code <span className="text-red-500">*</span></label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE TYPE CODE <span className="text-red-500">*</span></label>
                 <input
                   required
                   value={form.code}
                   readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))}
                   placeholder="CL"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Payment type</label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">PAYMENT TYPE</label>
                 <select
                   value={form.paymentType}
                   disabled={modalMode === "view"}
@@ -532,27 +527,27 @@ export default function LeaveTypePage() {
                     ...prev,
                     paymentType: event.target.value as LeaveTypeForm["paymentType"],
                   }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
                 >
-                  <option value="PAID">Paid</option>
-                  <option value="UNPAID">Unpaid</option>
+                  <option value="PAID">PAID</option>
+                  <option value="UNPAID">UNPAID</option>
                 </select>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave type name {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}</label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE TYPE NAME</label>
                 <input
                   /* required attribute commented out to allow empty name */
                   value={form.name}
                   readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
                   placeholder="CASUAL LEAVE"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave group {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}</label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE GROUP</label>
                 <select
                   /* required attribute commented out to allow empty leave group */
                   value={form.leaveGroupId}
@@ -570,9 +565,9 @@ export default function LeaveTypePage() {
                       ),
                     }));
                   }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
                 >
-                  <option value="">Select a leave group</option>
+                  <option value="">SELECT A LEAVE GROUP</option>
                   {leaveGroups
                     .filter((group) => {
                       const isActive = group.status === "ACTIVE" || String(group.id) === form.leaveGroupId;
@@ -595,7 +590,7 @@ export default function LeaveTypePage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Leave category</label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE CATEGORY</label>
                 <select
                   value={form.leaveCategoryId}
                   disabled={modalMode === "view"}
@@ -614,9 +609,9 @@ export default function LeaveTypePage() {
                       };
                     });
                   }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
                 >
-                  <option value="">Select a leave category</option>
+                  <option value="">SELECT A LEAVE CATEGORY</option>
                   {leaveCategories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name} ({category.code})
@@ -628,7 +623,7 @@ export default function LeaveTypePage() {
 
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Days allowed <span className="text-red-500">*</span></label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DAYS ALLOWED <span className="text-red-500">*</span></label>
                 <input
                   type="number"
                   required
@@ -640,19 +635,19 @@ export default function LeaveTypePage() {
                   onKeyDown={(event) => {
                     if (["ArrowUp", "ArrowDown", "e", "E", "+", "-", ".", ","].includes(event.key)) event.preventDefault();
                   }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   style={{ appearance: "textfield" }}
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Status <span className="text-red-500">*</span></label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">STATUS <span className="text-red-500">*</span></label>
                 <select
                   required
                   value={form.status}
                   disabled={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as LeaveType["status"] }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="INACTIVE">INACTIVE</option>
@@ -660,32 +655,32 @@ export default function LeaveTypePage() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DESCRIPTION</label>
                 <textarea
                   value={form.description}
                   readOnly={modalMode === "view"}
                   onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
                   placeholder="DESCRIBE WHEN THIS LEAVE TYPE CAN BE USED."
                   rows={4}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
-              {error && <p role="alert" className="text-sm text-red-700 sm:col-span-2">{error}</p>}
+              {error && <p role="alert" className="text-sm uppercase text-red-700 sm:col-span-2">{error}</p>}
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium uppercase text-slate-700 transition hover:bg-slate-50"
               >
-                {modalMode === "view" ? "Close" : "Cancel"}
+                {modalMode === "view" ? "CLOSE" : "CANCEL"}
               </button>
               {modalMode !== "view" && <button
                 type="submit"
-                className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#294f9c]"
+                className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium uppercase text-white transition hover:bg-[#294f9c]"
               >
-                {modalMode === "edit" ? "Save Changes" : "Create"}
+                {modalMode === "edit" ? "SAVE CHANGES" : "CREATE"}
               </button>}
             </div>
           </form>
