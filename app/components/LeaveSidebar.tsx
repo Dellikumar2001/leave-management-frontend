@@ -26,6 +26,7 @@ export type LeaveSidebarPage =
   | "leave-types"
   | "eligibility"
   | "create-eligibility"
+  | "approver-settings"
   | "holiday-calendar"
   | "settings"
   | "leave-refresh"
@@ -35,6 +36,7 @@ export type LeaveSidebarPage =
   | "individual-report"
   | "my-report"
   | "leave-report"
+  | "credit-leave-report"
   | "statutory-report"
   | "paternity-leave"
   | "leave-status-report"
@@ -68,28 +70,34 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     Icon: CalendarDays,
   },
   {
+    id: "leave-types",
+    label: "Leave types",
+    href: "/leave-type",
+    Icon: CalendarDays,
+  },
+  {
     id: "leave-requests",
     label: "Leave Groups",
     href: "/leave-requests",
     Icon: ClipboardList,
   },
   {
-    id: "leave-types",
-    label: "Leave Types",
-    href: "/leave-type",
-    Icon: CalendarDays,
-  },
-  {
     id: "eligibility",
-    label: "Leave Eligibility",
+    label: "Leave eligibility",
     href: "/leave-eligibility",
     Icon: Users,
   },
   {
     id: "create-eligibility",
-    label: "Create Leave Eligibility",
+    label: "Create leave eligibility",
     href: "/create-eligibility",
     Icon: Users,
+  },
+  {
+    id: "approver-settings",
+    label: "Approver settings",
+    href: "/approver-settings",
+    Icon: ShieldCheck,
   },
   {
     id: "holiday-calendar",
@@ -133,6 +141,12 @@ const leaveAdminNavigation: readonly NavItem[] = [
 ];
 
 const leaveReportNavigation: readonly NavItem[] = [
+  {
+    id: "credit-leave-report",
+    label: "Credit Leave Report",
+    href: "/leave-report/credit",
+    Icon: Coins,
+  },
   {
     id: "individual-report",
     label: "Individual Report",
@@ -195,8 +209,8 @@ function SubGroupItem({
         onClick={() => setSubOpen((prev) => !prev)}
         aria-expanded={subOpen}
         className={`flex w-full min-h-[34px] items-center justify-between rounded-md px-2 text-[12.5px] transition-colors ${isSubActive
-            ? "bg-slate-100/70 font-semibold text-slate-900"
-            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          ? "bg-slate-100/70 font-semibold text-slate-900"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
           }`}
       >
         <span className="flex items-center gap-2">
@@ -226,8 +240,8 @@ function SubGroupItem({
                 href={sub.href}
                 aria-current={isCurrent ? "page" : undefined}
                 className={`flex min-h-[30px] items-center gap-2 rounded-md px-2 text-[12px] no-underline transition-colors ${isCurrent
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
-                    : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
+                  ? "bg-emerald-50 font-semibold text-emerald-800"
+                  : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
                   }`}
               >
                 <SubIcon
@@ -282,8 +296,8 @@ function SidebarGroup({
         onClick={() => setOpenState({ activePage, isOpen: !isOpen })}
         aria-expanded={isOpen}
         className={`flex w-full min-h-[38px] items-center justify-between rounded-md px-3 text-[13px] font-medium transition-colors ${isChildActive
-            ? "bg-slate-100/70 font-semibold text-slate-900"
-            : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+          ? "bg-slate-100/70 font-semibold text-slate-900"
+          : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
           }`}
       >
         <span className="flex items-center gap-[11px]">
@@ -323,8 +337,8 @@ function SidebarGroup({
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
                 className={`flex min-h-[34px] items-center gap-2 rounded-md px-2 text-[12.5px] no-underline transition-colors ${isActive
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
-                    : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
+                  ? "bg-emerald-50 font-semibold text-emerald-800"
+                  : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
                   }`}
               >
                 <ItemIcon
@@ -392,8 +406,8 @@ export default function LeaveSidebar({
           href="/my-report"
           aria-current={activePage === "my-report" ? "page" : undefined}
           className={`flex min-h-[38px] items-center gap-[11px] rounded-md px-3 text-[13px] font-medium no-underline transition-colors ${activePage === "my-report"
-              ? "bg-emerald-50 font-semibold text-emerald-800"
-              : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+            ? "bg-emerald-50 font-semibold text-emerald-800"
+            : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
             }`}
         >
           <FileText size={16} className={activePage === "my-report" ? "text-emerald-700" : "text-slate-500"} />

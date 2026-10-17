@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { parseLeaveGroupCategoryIds } from "@/lib/leave-group-categories";
 
 const MIN_EFFECTIVE_FROM = "2000-01-01";
 const MAX_EFFECTIVE_FROM = "2100-12-31";
@@ -48,6 +49,7 @@ export async function GET(
     where: { id: Number(id) },
     include: {
       category: true,
+      categories: { include: { category: true } },
       items: {
         include: {
           leaveType: true,
@@ -82,20 +84,44 @@ export async function PUT(
 
     const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
     const status = normalizeStatus(body.status);
-    const categoryId = Number(body.categoryId ?? existingGroup.categoryId);
+    let categoryIds: number[];
+    if (body.categoryIds !== undefined) {
+      const parsedCategoryIds = parseLeaveGroupCategoryIds(body.categoryIds);
+      if (!parsedCategoryIds) {
+        return Response.json({ error: "Select valid leave categories." }, { status: 400 });
+      }
+      categoryIds = parsedCategoryIds;
+    } else if (body.categoryId !== undefined) {
+      if (body.categoryId === null || body.categoryId === "") {
+        categoryIds = [];
+      } else {
+        const parsedCategoryIds = parseLeaveGroupCategoryIds([body.categoryId]);
+        if (!parsedCategoryIds) {
+          return Response.json({ error: "Select a valid leave category." }, { status: 400 });
+        }
+        categoryIds = parsedCategoryIds;
+      }
+    } else {
+      const existingCategories = await prisma.leaveGroupCategory.findMany({
+        where: { leaveGroupId },
+        select: { categoryId: true },
+      });
+      categoryIds = existingCategories.length
+        ? existingCategories.map(({ categoryId }) => categoryId)
+        : existingGroup.categoryId ? [existingGroup.categoryId] : [];
+    }
     const leaveTypeCodes = Array.isArray(body.leaveTypeCodes)
       ? [...new Set<string>(body.leaveTypeCodes.map((code: unknown) => String(code)))]
       : [];
 
-    if (!Number.isInteger(categoryId) || categoryId <= 0) {
-      return Response.json({ error: "A leave category is required." }, { status: 400 });
-    }
-
-    const category = await prisma.leaveCategoryMaster.findUnique({
-      where: { id: categoryId },
-    });
-    if (!category) {
-      return Response.json({ error: "Selected leave category was not found." }, { status: 400 });
+    const categories = categoryIds.length
+      ? await prisma.leaveCategoryMaster.findMany({
+          where: { id: { in: categoryIds }, status: "ACTIVE" },
+          select: { id: true },
+        })
+      : [];
+    if (categories.length !== categoryIds.length) {
+      return Response.json({ error: "Select active leave categories only." }, { status: 400 });
     }
 
     const leaveTypes = leaveTypeCodes.length
@@ -118,7 +144,13 @@ export async function PUT(
         code: String(body.code ?? existingGroup.code).trim(),
         name: String(body.name ?? existingGroup.name).trim(),
         description: body.description !== undefined ? String(body.description).trim() || null : existingGroup.description,
-        category: { connect: { id: categoryId } },
+        categoryId: categories[0]?.id ?? null,
+        categories: {
+          deleteMany: {},
+          create: categories.map(({ id }) => ({
+            category: { connect: { id } },
+          })),
+        },
         effectiveFrom,
         status,
         items: {
@@ -132,6 +164,7 @@ export async function PUT(
       },
       include: {
         category: true,
+        categories: { include: { category: true } },
         items: {
           include: {
             leaveType: true,

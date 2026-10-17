@@ -13,6 +13,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const leaveType = await prisma.leaveType.findUnique({
       where: { id },
       include: {
+        categoryMaster: {
+          select: { id: true, name: true, code: true },
+        },
         groupItems: {
           include: {
             leaveGroup: {
@@ -22,6 +25,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
                 categoryId: true,
                 category: {
                   select: { id: true, name: true, code: true },
+                },
+                categories: {
+                  select: {
+                    categoryId: true,
+                    category: { select: { id: true, name: true, code: true } },
+                  },
                 },
               },
             },
@@ -53,6 +62,17 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   try {
     const { leaveGroupId, leaveCategoryId, ...leaveTypeData } = input;
+    const categoryMaster = leaveCategoryId === undefined
+      ? null
+      : await prisma.leaveCategoryMaster.findFirst({
+          where: { id: leaveCategoryId, status: "ACTIVE" },
+          select: { id: true },
+        });
+
+    if (leaveCategoryId !== undefined && !categoryMaster) {
+      return Response.json({ error: "Select an active leave category." }, { status: 400 });
+    }
+
     let group = leaveGroupId === undefined
       ? null
       : await prisma.leaveGroup.findFirst({
@@ -62,6 +82,12 @@ export async function PUT(request: Request, { params }: RouteContext) {
             name: true,
             categoryId: true,
             category: { select: { id: true, name: true, code: true } },
+            categories: {
+              select: {
+                categoryId: true,
+                category: { select: { id: true, name: true, code: true } },
+              },
+            },
           },
         });
 
@@ -71,12 +97,24 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     if (!group && leaveCategoryId !== undefined) {
       group = await prisma.leaveGroup.findFirst({
-        where: { categoryId: leaveCategoryId, status: "ACTIVE" },
+        where: {
+          status: "ACTIVE",
+          OR: [
+            { categoryId: leaveCategoryId },
+            { categories: { some: { categoryId: leaveCategoryId } } },
+          ],
+        },
         select: {
           id: true,
           name: true,
           categoryId: true,
           category: { select: { id: true, name: true, code: true } },
+          categories: {
+            select: {
+              categoryId: true,
+              category: { select: { id: true, name: true, code: true } },
+            },
+          },
         },
       });
     }
@@ -86,6 +124,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
         where: { id },
         data: {
           ...leaveTypeData,
+          ...(categoryMaster ? { categoryMaster: { connect: { id: categoryMaster.id } } } : {}),
           ...(group
             ? {
                 leaveGroup: group.name,
@@ -106,6 +145,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
             : {}),
         },
         include: {
+          categoryMaster: {
+            select: { id: true, name: true, code: true },
+          },
           groupItems: {
             include: {
               leaveGroup: {
@@ -115,6 +157,12 @@ export async function PUT(request: Request, { params }: RouteContext) {
                   categoryId: true,
                   category: {
                     select: { id: true, name: true, code: true },
+                  },
+                  categories: {
+                    select: {
+                      categoryId: true,
+                      category: { select: { id: true, name: true, code: true } },
+                    },
                   },
                 },
               },

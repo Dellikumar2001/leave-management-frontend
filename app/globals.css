@@ -24,3 +24,57 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  body:has(.credit-leave-report-print-area) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area,
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area * {
+    visibility: visible !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area {
+    position: fixed !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-actions {
+    display: none !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area > div:last-child {
+    overflow: visible !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse;
+    font-size: 9pt !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area th,
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area td {
+    padding: 6px !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+  }
+
+  body:has(.credit-leave-report-print-area) .credit-leave-report-print-area th {
+    background: #f1f5f9 !important;
+  }
+
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+}

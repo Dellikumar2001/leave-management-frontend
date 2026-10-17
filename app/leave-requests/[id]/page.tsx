@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
+import LeaveCategoryMultiSelect from "../../components/LeaveCategoryMultiSelect";
 
 const MIN_EFFECTIVE_FROM = "2000-01-01";
 const MAX_EFFECTIVE_FROM = "2100-12-31";
@@ -109,8 +110,9 @@ type LeaveGroup = {
   id: number;
   code: string;
   name: string;
+  description: string;
   leaveTypes: string[];
-  categoryId: string;
+  categoryIds: string[];
   effectiveFrom: string;
   status: "Active" | "Inactive";
   isUsed?: boolean;
@@ -163,12 +165,15 @@ export default function LeaveRequestDetailsPage() {
           id: Number(item.id),
           code: String(item.code ?? ""),
           name: String(item.name ?? ""),
+          description: String(item.description ?? ""),
           leaveTypes: Array.isArray(item.items)
             ? item.items
               .filter((entry: { leaveType?: { code?: string | null; status?: string } | null }) => entry.leaveType?.status === "ACTIVE")
               .map((entry: { leaveType?: { code?: string | null; status?: string } | null }) => entry.leaveType?.code ?? "")
             : [],
-          categoryId: String(item.categoryId ?? ""),
+          categoryIds: Array.isArray(item.categories) && item.categories.length > 0
+            ? item.categories.map((link: { categoryId?: number }) => String(link.categoryId ?? ""))
+            : item.categoryId ? [String(item.categoryId)] : [],
           effectiveFrom: new Date(item.effectiveFrom).toISOString().split("T")[0],
           status: item.status === "ACTIVE" ? "Active" : "Inactive",
         };
@@ -252,9 +257,10 @@ export default function LeaveRequestDetailsPage() {
       body: JSON.stringify({
         code: form.code,
         name: form.name,
-        description: "",
+        description: form.description.trim(),
         leaveTypeCodes: form.leaveTypes,
-        categoryId: Number(form.categoryId),
+        categoryIds: form.categoryIds.map(Number),
+        categoryId: form.categoryIds[0] ? Number(form.categoryIds[0]) : null,
         effectiveFrom: form.effectiveFrom,
         status: form.status.toUpperCase(),
       }),
@@ -325,7 +331,8 @@ export default function LeaveRequestDetailsPage() {
               value={form.code}
               readOnly={isViewMode}
               disabled={isViewMode}
-              onChange={(e) => handleChange("code", e.target.value.toUpperCase())}
+              maxLength={6}
+              onChange={(e) => handleChange("code", e.target.value.toUpperCase().slice(0, 6))}
               className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
             />
           </label>
@@ -342,6 +349,19 @@ export default function LeaveRequestDetailsPage() {
           </label>
 
           <label className="space-y-2 md:col-span-2">
+            <span className="text-sm font-medium text-slate-700">Description</span>
+            <textarea
+              value={form.description}
+              readOnly={isViewMode}
+              disabled={isViewMode}
+              onChange={(event) => handleChange("description", event.target.value.toUpperCase())}
+              maxLength={61}
+              rows={3}
+              className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+            />
+          </label>
+
+          <label className="space-y-2 md:col-span-2">
             <span className="text-sm font-medium text-slate-700">Leave types</span>
             <LeaveTypeMultiSelect
               values={form.leaveTypes}
@@ -351,21 +371,15 @@ export default function LeaveRequestDetailsPage() {
             />
           </label>
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">Leave category</span>
-            <select
-              value={form.categoryId}
+          <div className="space-y-2">
+            <span className="block text-sm font-medium text-slate-700">Leave categories</span>
+            <LeaveCategoryMultiSelect
+              values={form.categoryIds}
+              options={leaveCategoryOptions}
               disabled={isViewMode}
-              required
-              onChange={(event) => handleChange("categoryId", event.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
-            >
-              <option value="">Select category name</option>
-              {leaveCategoryOptions.map((category) => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
-          </label>
+              onChange={(categoryIds) => handleChange("categoryIds", categoryIds)}
+            />
+          </div>
 
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700">Effective from</span>

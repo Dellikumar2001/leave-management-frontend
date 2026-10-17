@@ -66,7 +66,6 @@ export async function GET(request: Request) {
         department: true,
         stream: true,
         gender: true,
-        status: true,
       },
     });
 
@@ -173,7 +172,7 @@ export async function GET(request: Request) {
         name: employee.name,
         stream: employee.stream,
         department: employee.department,
-        status: employee.status,
+        status: "Active",
         gender: employee.gender || "Not Specified",
       },
       allEmployees,
