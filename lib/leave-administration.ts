@@ -22,6 +22,8 @@ export function getInclusiveDates(startDate: Date, endDate: Date): Date[] {
 
 export function isLeaveTypeForCategory(
   leaveType: {
+    name?: string;
+    code?: string;
     category: LeaveCategory | null;
     leaveGroup: string;
     groupItems: {
@@ -37,6 +39,8 @@ export function isLeaveTypeForCategory(
   if (leaveType.category === category) return true;
 
   const values = [
+    leaveType.name ?? "",
+    leaveType.code ?? "",
     leaveType.leaveGroup,
     ...leaveType.groupItems.flatMap(({ leaveGroup }) => [
       leaveGroup.name,
@@ -57,6 +61,8 @@ export async function findBalanceLeaveType(
     where: { status: "ACTIVE" },
     select: {
       id: true,
+      name: true,
+      code: true,
       category: true,
       leaveGroup: true,
       groupItems: {

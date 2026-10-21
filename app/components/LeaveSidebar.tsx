@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Settings,
   ShieldCheck,
+  UserCheck,
   Users,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ export type LeaveSidebarPage =
   | "leave-types"
   | "eligibility"
   | "create-eligibility"
+  | "approver-settings"
   | "holiday-calendar"
   | "settings"
   | "leave-refresh"
@@ -34,10 +36,12 @@ export type LeaveSidebarPage =
   | "individual-report"
   | "my-report"
   | "leave-report"
+  | "credit-leave-report"
   | "statutory-report"
   | "paternity-leave"
   | "leave-status-report"
-  | "employee-status-report";
+  | "employee-status-report"
+  | "approver-report";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -90,6 +94,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     Icon: Users,
   },
   {
+    id: "approver-settings",
+    label: "Approver settings",
+    href: "/approver-settings",
+    Icon: ShieldCheck,
+  },
+  {
     id: "holiday-calendar",
     label: "Holiday calendar",
     href: "/holiday-calendar",
@@ -132,6 +142,12 @@ const leaveAdminNavigation: readonly NavItem[] = [
 
 const leaveReportNavigation: readonly NavItem[] = [
   {
+    id: "credit-leave-report",
+    label: "Credit Leave Report",
+    href: "/leave-report/credit",
+    Icon: Coins,
+  },
+  {
     id: "individual-report",
     label: "Individual Report",
     href: "/leave-report/individual",
@@ -154,6 +170,12 @@ const leaveReportNavigation: readonly NavItem[] = [
     label: "Employee Individual Leave Status Report",
     href: "/leave-report/employee-status",
     Icon: Users,
+  },
+  {
+    id: "approver-report",
+    label: "Approver Report",
+    href: "/leave-report/approver-report",
+    Icon: UserCheck,
   },
 ];
 
