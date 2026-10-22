@@ -50,6 +50,8 @@ type LeaveCategoryOption = {
   code: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
+  paymentType?: "PAID" | "UNPAID";
+  isPaid?: boolean;
 };
 
 type RowActionsProps = {
@@ -247,6 +249,8 @@ export default function LeaveTypePage() {
                 code: String(c.code ?? "").toUpperCase(),
                 name: String(c.name ?? "").toUpperCase(),
                 status: "ACTIVE",
+                paymentType: (c.paymentType === "UNPAID" || c.isPaid === false) ? "UNPAID" : "PAID",
+                isPaid: c.paymentType === "UNPAID" || c.isPaid === false ? false : true,
               }))
           );
         }
@@ -604,15 +608,18 @@ export default function LeaveTypePage() {
                     onChange={(event) => {
                       const nextGroupId = event.target.value;
                       const group = leaveGroups.find((g) => String(g.id) === nextGroupId);
-                      setForm((prev) => ({
-                        ...prev,
-                        leaveGroupId: nextGroupId,
-                        ...(
-                          group && !group.categoryIds?.includes(Number(prev.leaveCategoryId))
-                            ? { leaveCategoryId: String(group.categoryIds?.[0] ?? group.categoryId ?? "") }
-                            : {}
-                        ),
-                      }));
+                      setForm((prev) => {
+                        const nextCatId = group && !group.categoryIds?.includes(Number(prev.leaveCategoryId))
+                          ? String(group.categoryIds?.[0] ?? group.categoryId ?? "")
+                          : prev.leaveCategoryId;
+                        const selectedCat = leaveCategories.find((c) => String(c.id) === nextCatId);
+                        return {
+                          ...prev,
+                          leaveGroupId: nextGroupId,
+                          leaveCategoryId: nextCatId,
+                          ...(selectedCat?.paymentType ? { paymentType: selectedCat.paymentType } : {}),
+                        };
+                      });
                     }}
                     className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
                   >
@@ -648,6 +655,7 @@ export default function LeaveTypePage() {
                     disabled={modalMode === "view"}
                     onChange={(event) => {
                       const nextCatId = event.target.value;
+                      const selectedCat = leaveCategories.find((c) => String(c.id) === nextCatId);
                       setForm((prev) => {
                         const currentGroup = leaveGroups.find((g) => String(g.id) === prev.leaveGroupId);
                         const groupMatches = nextCatId && (
@@ -658,6 +666,7 @@ export default function LeaveTypePage() {
                           ...prev,
                           leaveCategoryId: nextCatId,
                           leaveGroupId: groupMatches ? prev.leaveGroupId : "",
+                          ...(selectedCat?.paymentType ? { paymentType: selectedCat.paymentType } : {}),
                         };
                       });
                     }}

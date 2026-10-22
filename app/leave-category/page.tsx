@@ -8,11 +8,13 @@ type LeaveCategory = {
   id: number;
   code: string;
   name: string;
+  paymentType: "PAID" | "UNPAID";
+  isPaid?: boolean;
   description: string;
   status: "ACTIVE" | "INACTIVE";
 };
 
-type LeaveCategoryForm = Omit<LeaveCategory, "id">;
+type LeaveCategoryForm = Omit<LeaveCategory, "id" | "isPaid">;
 type DialogMode = "create" | "edit" | "view";
 
 type CategoryRowActionsProps = {
@@ -71,6 +73,7 @@ function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: Cate
 const emptyForm: LeaveCategoryForm = {
   code: "",
   name: "",
+  paymentType: "PAID",
   description: "",
   status: "ACTIVE",
 };
@@ -79,12 +82,16 @@ const mapCategory = (item: {
   id: number;
   code: string;
   name: string;
+  paymentType?: string | null;
+  isPaid?: boolean | null;
   description?: string | null;
   status: string;
 }): LeaveCategory => ({
   id: Number(item.id),
   code: String(item.code ?? "").toUpperCase(),
   name: String(item.name ?? "").toUpperCase(),
+  paymentType: (item.paymentType === "UNPAID" || item.isPaid === false) ? "UNPAID" : "PAID",
+  isPaid: item.paymentType === "UNPAID" || item.isPaid === false ? false : true,
   description: String(item.description ?? "").toUpperCase(),
   status: item.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
 });
@@ -137,6 +144,7 @@ export default function LeaveCategoryPage() {
     setForm(category ? {
       code: category.code.toUpperCase(),
       name: category.name.toUpperCase(),
+      paymentType: category.paymentType,
       description: category.description.toUpperCase(),
       status: category.status,
     } : emptyForm);
@@ -155,6 +163,8 @@ export default function LeaveCategoryPage() {
     const payload = {
       code: form.code.trim().toUpperCase(),
       name: form.name.trim().toUpperCase(),
+      paymentType: form.paymentType,
+      isPaid: form.paymentType === "PAID",
       description: form.description.trim().toUpperCase(),
       status: form.status,
     };
@@ -267,6 +277,7 @@ export default function LeaveCategoryPage() {
                     <th className="border-b border-slate-200 px-5 py-4">SNO</th>
                     <th className="border-b border-slate-200 px-5 py-4">CATEGORY CODE</th>
                     <th className="border-b border-slate-200 px-5 py-4">CATEGORY NAME</th>
+                    <th className="border-b border-slate-200 px-5 py-4">PAYMENT TYPE</th>
                     <th className="border-b border-slate-200 px-5 py-4">DESCRIPTION</th>
                     <th className="border-b border-slate-200 px-5 py-4">STATUS</th>
                     <th className="border-b border-slate-200 px-5 py-4 text-right">ACTIONS</th>
@@ -274,14 +285,19 @@ export default function LeaveCategoryPage() {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={6} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">LOADING CATEGORIES...</td></tr>
+                    <tr><td colSpan={7} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">LOADING CATEGORIES...</td></tr>
                   ) : filteredCategories.length === 0 ? (
-                    <tr><td colSpan={6} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">NO LEAVE CATEGORIES FOUND.</td></tr>
+                    <tr><td colSpan={7} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">NO LEAVE CATEGORIES FOUND.</td></tr>
                   ) : filteredCategories.map((category, index) => (
                     <tr key={category.id} className="bg-white text-sm uppercase text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-semibold text-slate-700">{category.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4">{category.name}</td>
+                      <td className="border-b border-slate-200 px-5 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${category.paymentType === "PAID" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                          {category.paymentType}
+                        </span>
+                      </td>
                       <td className="max-w-75 border-b border-slate-200 px-5 py-4 text-slate-500">{category.description || "—"}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${category.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
@@ -351,18 +367,36 @@ export default function LeaveCategoryPage() {
                 </label>
 
                 <label className="space-y-1.5">
-                  <span className="block text-sm font-medium uppercase text-slate-700">STATUS</span>
-                  <select
-                    value={form.status}
-                    disabled={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value.toUpperCase() as LeaveCategoryForm["status"] }))}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
+                  <span className="block text-sm font-medium uppercase text-slate-700">PAYMENT TYPE</span>
+                  <div className="relative">
+                    <select
+                      value={form.paymentType}
+                      disabled={mode === "view"}
+                      onChange={(event) => setForm((current) => ({ ...current, paymentType: event.target.value.toUpperCase() as LeaveCategoryForm["paymentType"] }))}
+                      className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 pr-9 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                    >
+                      <option value="PAID">PAID</option>
+                      <option value="UNPAID">UNPAID</option>
+                    </select>
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
                 </label>
-                <div aria-hidden="true" className="hidden sm:block" />
+
+                <label className="space-y-1.5">
+                  <span className="block text-sm font-medium uppercase text-slate-700">STATUS</span>
+                  <div className="relative">
+                    <select
+                      value={form.status}
+                      disabled={mode === "view"}
+                      onChange={(event) => setForm((current) => ({ ...current, status: event.target.value.toUpperCase() as LeaveCategoryForm["status"] }))}
+                      className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 pr-9 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                    >
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="INACTIVE">INACTIVE</option>
+                    </select>
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
+                </label>
 
                 <label className="space-y-1.5 sm:col-span-2">
                   <span className="block text-sm font-medium uppercase text-slate-700">DESCRIPTION</span>
