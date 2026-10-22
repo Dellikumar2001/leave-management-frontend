@@ -117,9 +117,8 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${
-                isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-              }`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
+                }`}
               title={isDeleteDisabled ? "INACTIVE LEAVE TYPES CANNOT BE DELETED." : "DELETE"}
             >
               <Trash2 size={14} />
@@ -153,6 +152,16 @@ export default function LeaveTypePage() {
     description: "",
     status: "ACTIVE",
   });
+
+  useEffect(() => {
+    if (isModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isModalOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -460,7 +469,7 @@ export default function LeaveTypePage() {
                 className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium uppercase text-white transition-colors hover:bg-[#294f9c]"
               >
                 <Plus size={16} />
-                ADD LEAVE TYPE
+                CREATE LEAVE TYPE
               </button>
             </div>
           </div>
@@ -530,13 +539,13 @@ export default function LeaveTypePage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] uppercase">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] uppercase overscroll-contain">
           <form
             onSubmit={(event) => {
               event.preventDefault();
               if (modalMode !== "view") void handleSaveType();
             }}
-            className="my-auto max-h-[90vh] w-full max-w-160 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
+            className="my-auto max-h-[90vh] w-full max-w-160 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] overscroll-contain"
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>

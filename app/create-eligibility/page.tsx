@@ -15,6 +15,13 @@ type Eligibility = {
   status: "ACTIVE" | "INACTIVE";
 };
 
+type LeaveGroupOption = {
+  id: number;
+  code: string;
+  name: string;
+  status: "ACTIVE" | "INACTIVE";
+};
+
 type EligibilityForm = Omit<Eligibility, "id" | "status">;
 
 const emptyForm: EligibilityForm = {
@@ -30,12 +37,24 @@ const inputClassName = "h-11 w-full rounded-xl border border-slate-300 bg-slate-
 
 export default function CreateEligibilityPage() {
   const [eligibilities, setEligibilities] = useState<Eligibility[]>([]);
+  const [leaveGroups, setLeaveGroups] = useState<LeaveGroupOption[]>([]);
   const [form, setForm] = useState<EligibilityForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingLeaveGroups, setIsLoadingLeaveGroups] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isModalOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -53,6 +72,40 @@ export default function CreateEligibilityPage() {
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingLeaveGroups(true);
+    fetch("/api/leave-requests")
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Unable to load leave groups.");
+        if (!Array.isArray(result?.data)) throw new Error("Unable to load leave groups.");
+        return result.data;
+      })
+      .then((groups) => {
+        if (isMounted) {
+          setLeaveGroups(
+            groups.map((group: { id: number; code?: string; name?: string; status?: string }) => ({
+              id: group.id,
+              code: String(group.code ?? "").toUpperCase(),
+              name: String(group.name ?? "").toUpperCase(),
+              status: group.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+            }))
+          );
+        }
+      })
+      .catch((loadError: unknown) => {
+        console.error("Failed to load leave groups:", loadError);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingLeaveGroups(false);
       });
 
     return () => {
@@ -129,7 +182,7 @@ export default function CreateEligibilityPage() {
                 className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c]"
               >
                 <Plus size={16} />
-                Add Eligibility
+                CREATE LEAVE ELIGIBILITY  
               </button>
             </div>
           </div>
@@ -180,8 +233,8 @@ export default function CreateEligibilityPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px]">
-          <form onSubmit={handleSubmit} className="my-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] overscroll-contain">
+          <form onSubmit={handleSubmit} className="my-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <h2 className="text-xl font-bold uppercase text-slate-800">Create Leave Eligibility</h2>
@@ -268,18 +321,26 @@ export default function CreateEligibilityPage() {
                   onChange={(event) => setForm((previous) => ({ ...previous, leaveGroup: event.target.value.toUpperCase() }))}
                   className={inputClassName}
                 >
-                  <option value="">SELECT LEAVE GROUP</option>
-                  <option value="TEACHING STAFF LEAVE GROUP">TEACHING STAFF LEAVE GROUP</option>
-                  <option value="NON TEACHING STAFF LEAVE GROUP">NON TEACHING STAFF LEAVE GROUP</option>
-                  <option value="GENERAL STAFF LEAVE GROUP">GENERAL STAFF LEAVE GROUP</option>
+                  <option value="">{isLoadingLeaveGroups ? "LOADING LEAVE GROUPS..." : "SELECT LEAVE GROUP"}</option>
+                  {form.leaveGroup && !leaveGroups.some((group) => group.name === form.leaveGroup) && (
+                    <option value={form.leaveGroup}>{form.leaveGroup}</option>
+                  )}
+                  {leaveGroups.map((group) => (
+                    <option key={group.id} value={group.name} disabled={group.status !== "ACTIVE"}>
+                      {group.name}{group.code ? ` (${group.code})` : ""}{group.status !== "ACTIVE" ? " - INACTIVE" : ""}
+                    </option>
+                  ))}
                 </select>
+                {leaveGroups.length === 0 && !isLoadingLeaveGroups && (
+                  <p className="mt-1.5 text-xs uppercase text-slate-500">No leave groups found. Please create a leave group first.</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4 uppercase">
               <button type="button" onClick={() => setIsModalOpen(false)} className="h-10 rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Cancel</button>
               <button type="submit" disabled={isSaving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium text-white transition-colors hover:bg-[#294f9c] disabled:cursor-wait disabled:opacity-60">
                 <Save size={16} />
-                {isSaving ? "Saving..." : "Submit"}
+                {isSaving ? "Creating..." : "Create"}
               </button>
             </div>
           </form>

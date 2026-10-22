@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, LoaderCircle, Minus, Plus } from "lucide-react";
 import LeaveSidebar from "../LeaveSidebar";
+import DateInput, { formatToDisplayDate } from "../DateInput";
 import EmployeeTable, { EmployeeRow } from "./EmployeeTable";
 import LeaveRecordDialog, { BlockedDateRecord, CreditRecord } from "./LeaveRecordDialog";
 
@@ -23,8 +24,8 @@ function parseDate(value: string) {
 }
 
 function formatDate(value: string) {
-  const date = parseDate(value.slice(0, 10));
-  return date ? new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" }).format(date) : "";
+  if (!value) return "";
+  return formatToDisplayDate(value.slice(0, 10)) || value;
 }
 
 function totalDays(start: string, end: string) {
@@ -405,9 +406,11 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
           : { employeeIds: selectedEmployeeIds, credit: { category, days } }),
       });
       const result = await readJson<{ blockedCount: number; creditedCount: number }>(response);
-      setSuccess(mode === "block"
-        ? `Blocked leave dates for ${result.blockedCount} employee-date record${result.blockedCount === 1 ? "" : "s"}.`
-        : `Credited leave for ${result.creditedCount} employee${result.creditedCount === 1 ? "" : "s"}.`);
+      if (mode === "credit") {
+        setSuccess(`Credited leave for ${result.creditedCount} employee${result.creditedCount === 1 ? "" : "s"}.`);
+      } else {
+        setSuccess("");
+      }
       setSelectedEmployeeIds([]);
       setConfirmOpen(false);
       setIsLoading(true);
@@ -539,30 +542,32 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
 
               {mode === "block" ? (
                 <>
-                  <label className="block min-w-0">
+                  <div className="min-w-0">
                     <span className="mb-1.5 block text-xs font-medium text-slate-600">Set Date</span>
-                    <input
-                      type="date"
+                    <DateInput
+                      id="block-start-date"
                       value={startDate}
-                      onChange={(event) => {
-                        setStartDate(event.target.value);
-                        if (endDate && endDate < event.target.value) setEndDate(event.target.value);
+                      onChange={(val) => {
+                        setStartDate(val);
+                        if (endDate && val && endDate < val) setEndDate(val);
                       }}
                       aria-label="Set leave block start date"
-                      className="h-11 w-full rounded-lg border border-slate-300 px-2 text-sm outline-none focus:border-emerald-500"
+                      placeholder="dd / mm / yyyy"
+                      className="h-11 rounded-lg"
                     />
-                  </label>
-                  <label className="block min-w-0">
+                  </div>
+                  <div className="min-w-0">
                     <span className="mb-1.5 block text-xs font-medium text-slate-600">End Date</span>
-                    <input
-                      type="date"
-                      min={startDate}
+                    <DateInput
+                      id="block-end-date"
+                      min={startDate || undefined}
                       value={endDate}
-                      onChange={(event) => setEndDate(event.target.value)}
+                      onChange={(val) => setEndDate(val)}
                       aria-label="Set leave block end date"
-                      className="h-11 w-full rounded-lg border border-slate-300 px-2 text-sm outline-none focus:border-emerald-500"
+                      placeholder="dd / mm / yyyy"
+                      className="h-11 rounded-lg"
                     />
-                  </label>
+                  </div>
                 </>
               ) : (
                 <div ref={counterRef} className={`relative min-w-0 ${counterOpen ? "z-30" : ""}`}>
@@ -655,7 +660,7 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
             </p>
           )}
           {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-          {success && <p role="status" className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</p>}
+          {mode !== "block" && success && <p role="status" className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</p>}
           {isLoading && (
             <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-10 text-sm text-slate-500">
               <LoaderCircle size={17} className="animate-spin" />

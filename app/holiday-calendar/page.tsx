@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
+import DateInput from "../components/DateInput";
 
 type HolidayType = "national" | "festival" | "special";
 type HolidayStatus = "active" | "inactive";
@@ -68,6 +69,21 @@ function formatDate(value: string, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("en", options).format(new Date(`${value}T12:00:00`));
 }
 
+function formatDisplayDate(value: string): string {
+  if (!value) return "";
+  const parts = value.slice(0, 10).split("-");
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
+  }
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
 function cleanHolidayTitle(title: string): string {
   if (!title) return "";
   return title
@@ -80,6 +96,26 @@ function cleanHolidayTitle(title: string): string {
     .replace(/[\s.*•\-|–—:;,]+$/, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const ALLOWED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".csv", ".png", ".jpg", ".jpeg", ".webp"];
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+const INVALID_FILE_TYPE_ERROR = "Kindly upload mentioned file types: PDF, XLSX, XLS, CSV, PNG, JPG.";
+const FILE_SIZE_ERROR = "File size must not exceed 2 MB.";
+
+function validateUploadedFile(file: File): { isValid: boolean; error?: string } {
+  const fileName = file.name.toLowerCase();
+  const isAllowedType = ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+
+  if (!isAllowedType) {
+    return { isValid: false, error: INVALID_FILE_TYPE_ERROR };
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return { isValid: false, error: FILE_SIZE_ERROR };
+  }
+
+  return { isValid: true };
 }
 
 export default function HolidayCalendarPage() {
@@ -112,6 +148,26 @@ export default function HolidayCalendarPage() {
   const [holidayError, setHolidayError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  function validateAndSetFile(file: File | null) {
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    const validation = validateUploadedFile(file);
+    if (!validation.isValid) {
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setUploadError(validation.error || INVALID_FILE_TYPE_ERROR);
+      setUploadSuccess("");
+      return;
+    }
+
+    setSelectedFile(file);
+    setUploadError("");
+    setUploadSuccess("");
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -183,9 +239,9 @@ export default function HolidayCalendarPage() {
     recordsScope === "month"
       ? monthHolidays
       : holidays
-          .filter((holiday) => holiday.isHoliday)
-          .map((h) => ({ ...h, displayDate: h.date }))
-          .sort((a, b) => a.displayDate.localeCompare(b.displayDate));
+        .filter((holiday) => holiday.isHoliday)
+        .map((h) => ({ ...h, displayDate: h.date }))
+        .sort((a, b) => a.displayDate.localeCompare(b.displayDate));
 
   const filteredHolidays = baseRecords.filter((holiday) => {
     const query = search.trim().toLowerCase();
@@ -199,7 +255,11 @@ export default function HolidayCalendarPage() {
   async function addHoliday(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const holidayName = cleanHolidayTitle(name);
-    if (!holidayName || !selectedDate) return;
+    if (!holidayName) return;
+    if (!selectedDate) {
+      setHolidayError("Please select or enter a valid holiday date (DD/MM/YYYY).");
+      return;
+    }
     const payload = {
       name: holidayName,
       date: selectedDate,
@@ -294,7 +354,7 @@ export default function HolidayCalendarPage() {
     const rows = [
       ["DATE", "HOLIDAY", "TYPE", "DESCRIPTION", "REPEATS EVERY YEAR", "STATUS"],
       ...filteredHolidays.map((holiday) => [
-        holiday.displayDate,
+        formatDisplayDate(holiday.displayDate),
         cleanHolidayTitle(holiday.name),
         holidayTypeLabels[holiday.type],
         holiday.description,
@@ -313,13 +373,33 @@ export default function HolidayCalendarPage() {
 
   // Unified File / Link Reader
   async function readUpload() {
-    if (uploadMode === "link" && !linkUrl.trim()) {
-      setUploadError("Enter a valid calendar URL first.");
-      return;
+    if (uploadMode === "link") {
+      const trimmed = linkUrl.trim();
+      if (!trimmed) {
+        setUploadError("Enter a valid calendar URL first.");
+        return;
+      }
+      try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          setUploadError("Please enter a valid HTTP or HTTPS calendar URL.");
+          return;
+        }
+      } catch {
+        setUploadError("Please enter a valid calendar URL (e.g., https://example.com/calendar.pdf).");
+        return;
+      }
     }
-    if (uploadMode === "file" && !selectedFile) {
-      setUploadError("Choose a calendar file first (PDF, Excel, CSV, or Image).");
-      return;
+    if (uploadMode === "file") {
+      if (!selectedFile) {
+        setUploadError("Choose a calendar file first (PDF, Excel, CSV, or Image).");
+        return;
+      }
+      const validation = validateUploadedFile(selectedFile);
+      if (!validation.isValid) {
+        setUploadError(validation.error || INVALID_FILE_TYPE_ERROR);
+        return;
+      }
     }
 
     setIsReadingFile(true);
@@ -568,11 +648,10 @@ export default function HolidayCalendarPage() {
                         type="button"
                         aria-pressed={view === viewOption}
                         onClick={() => setView(viewOption)}
-                        className={`rounded-md px-3.5 py-1.5 text-xs font-semibold capitalize transition-all ${
-                          view === viewOption
-                            ? "bg-white text-emerald-800 shadow-sm"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
+                        className={`rounded-md px-3.5 py-1.5 text-xs font-semibold capitalize transition-all ${view === viewOption
+                          ? "bg-white text-emerald-800 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                          }`}
                       >
                         {viewOption}
                       </button>
@@ -605,9 +684,8 @@ export default function HolidayCalendarPage() {
                         return (
                           <div
                             key={index}
-                            className={`min-h-[105px] p-2 transition-colors ${
-                              !day ? "bg-slate-50/60" : isSelected ? "bg-emerald-50/60 ring-2 ring-inset ring-emerald-500" : "bg-white hover:bg-slate-50/40"
-                            }`}
+                            className={`min-h-[105px] p-2 transition-colors ${!day ? "bg-slate-50/60" : isSelected ? "bg-emerald-50/60 ring-2 ring-inset ring-emerald-500" : "bg-white hover:bg-slate-50/40"
+                              }`}
                           >
                             {day && (
                               <>
@@ -615,13 +693,12 @@ export default function HolidayCalendarPage() {
                                   <button
                                     type="button"
                                     onClick={() => setSelectedDate(value)}
-                                    className={`size-6 rounded-full text-xs font-semibold transition-colors ${
-                                      today
-                                        ? "bg-emerald-600 text-white"
-                                        : isSelected
+                                    className={`size-6 rounded-full text-xs font-semibold transition-colors ${today
+                                      ? "bg-emerald-600 text-white"
+                                      : isSelected
                                         ? "bg-slate-800 text-white"
                                         : "text-slate-700 hover:bg-slate-100"
-                                    }`}
+                                      }`}
                                   >
                                     {day}
                                   </button>
@@ -633,9 +710,8 @@ export default function HolidayCalendarPage() {
                                   {dayHolidays.slice(0, 2).map((holiday) => (
                                     <span
                                       key={holiday.id}
-                                      className={`block truncate rounded px-1.5 py-0.5 text-[11px] font-medium leading-tight ${
-                                        holidayTypeColors[holiday.type]
-                                      }`}
+                                      className={`block truncate rounded px-1.5 py-0.5 text-[11px] font-medium leading-tight ${holidayTypeColors[holiday.type]
+                                        }`}
                                       title={cleanHolidayTitle(holiday.name)}
                                     >
                                       {cleanHolidayTitle(holiday.name)}
@@ -659,7 +735,7 @@ export default function HolidayCalendarPage() {
                 {/* 2. List View */}
                 {view === "list" && (
                   <div className="h-[600px] overflow-y-auto rounded-lg border border-slate-200">
-                    <div className="grid grid-cols-[80px_100px_minmax(0,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <div className="grid grid-cols-[105px_90px_minmax(0,1fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-600">
                       <span>Date</span>
                       <span>Day</span>
                       <span>Holiday</span>
@@ -668,11 +744,11 @@ export default function HolidayCalendarPage() {
                       const dayHolidays = listDay.holidays;
                       return (
                         <div
-                          className="grid min-h-12 grid-cols-[80px_100px_minmax(0,1fr)] items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-sm hover:bg-slate-50/60"
+                          className="grid min-h-12 grid-cols-[105px_90px_minmax(0,1fr)] items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-sm hover:bg-slate-50/60"
                           key={listDay.date}
                         >
                           <time dateTime={listDay.date} className="font-medium text-slate-800">
-                            {formatDate(listDay.date, { day: "numeric", month: "short" })}
+                            {formatDisplayDate(listDay.date)}
                           </time>
                           <span className="text-slate-500">
                             {formatDate(listDay.date, { weekday: "short" })}
@@ -755,7 +831,7 @@ export default function HolidayCalendarPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-700">
-                              {formatDate(holiday.displayDate, { day: "numeric", month: "short" })}
+                              {formatDisplayDate(holiday.displayDate)}
                             </span>
                             <span className="text-[11px] text-slate-400">
                               {formatDate(holiday.displayDate, { weekday: "short" })}
@@ -800,22 +876,20 @@ export default function HolidayCalendarPage() {
                 <button
                   type="button"
                   onClick={() => setRecordsScope("month")}
-                  className={`rounded-md px-3 py-1 font-semibold transition-colors ${
-                    recordsScope === "month"
-                      ? "bg-slate-800 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                  className={`rounded-md px-3 py-1 font-semibold transition-colors ${recordsScope === "month"
+                    ? "bg-slate-800 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
                 >
                   {monthTitle}
                 </button>
                 <button
                   type="button"
                   onClick={() => setRecordsScope("all")}
-                  className={`rounded-md px-3 py-1 font-semibold transition-colors ${
-                    recordsScope === "all"
-                      ? "bg-slate-800 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                  className={`rounded-md px-3 py-1 font-semibold transition-colors ${recordsScope === "all"
+                    ? "bg-slate-800 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
                 >
                   All Months ({holidays.filter((holiday) => holiday.isHoliday).length})
                 </button>
@@ -914,7 +988,7 @@ export default function HolidayCalendarPage() {
                           {index + 1}
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap font-medium text-slate-700 align-middle">
-                          {formatDate(holiday.displayDate, { day: "numeric", month: "short", year: "numeric" })}
+                          {formatDisplayDate(holiday.displayDate)}
                         </td>
                         <td className="px-5 py-4 font-semibold text-slate-900 align-middle">
                           {cleanHolidayTitle(holiday.name)}
@@ -929,11 +1003,10 @@ export default function HolidayCalendarPage() {
                         </td>
                         <td className="px-5 py-4 text-center align-middle">
                           <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              holiday.status === "inactive"
-                                ? "bg-slate-100 text-slate-600 border border-slate-200"
-                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            }`}
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${holiday.status === "inactive"
+                              ? "bg-slate-100 text-slate-600 border border-slate-200"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}
                           >
                             <span className={`size-1.5 rounded-full ${holiday.status === "inactive" ? "bg-slate-400" : "bg-emerald-500"}`} />
                             {holiday.status}
@@ -1040,17 +1113,18 @@ export default function HolidayCalendarPage() {
                 <label className="block text-xs font-semibold uppercase text-slate-600">
                   Holiday Date <span className="text-red-500">*</span>
                 </label>
-                <input
-                  required
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSelectedDate(value);
-                    if (value) setMonth(value.slice(0, 7));
-                  }}
-                  className="mt-1.5 h-10 w-full cursor-pointer rounded-md border border-slate-300 px-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
-                />
+                <div className="mt-1.5">
+                  <DateInput
+                    id="holiday-date-input"
+                    value={selectedDate}
+                    onChange={(val) => {
+                      setSelectedDate(val);
+                      if (val) setMonth(val.slice(0, 7));
+                    }}
+                    placeholder="dd / mm / yyyy"
+                    aria-label="Holiday Date"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1085,27 +1159,6 @@ export default function HolidayCalendarPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div>
-                  <span className="block text-xs font-semibold text-slate-800">Repeat Every Year</span>
-                  <span className="text-[11px] text-slate-500">Automatically recurs on the same month & day</span>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={repeatEveryYear}
-                  className={`relative h-6 w-11 rounded-full transition-colors ${
-                    repeatEveryYear ? "bg-emerald-600" : "bg-slate-300"
-                  }`}
-                  onClick={() => setRepeatEveryYear((value) => !value)}
-                >
-                  <span
-                    className={`absolute top-0.5 size-5 rounded-full bg-white transition-transform ${
-                      repeatEveryYear ? "translate-x-5" : "left-0.5"
-                    }`}
-                  />
-                </button>
-              </div>
 
               <div className="pt-2 flex justify-end gap-2.5 border-t border-slate-100">
                 <button
@@ -1172,9 +1225,8 @@ export default function HolidayCalendarPage() {
                   setUploadError("");
                   setUploadSuccess("");
                 }}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold transition-all ${
-                  uploadMode === "file" ? "bg-white text-slate-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold transition-all ${uploadMode === "file" ? "bg-white text-slate-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
               >
                 <FileSpreadsheet size={14} />
                 <span>File (PDF / Excel / CSV / Image)</span>
@@ -1186,9 +1238,8 @@ export default function HolidayCalendarPage() {
                   setUploadError("");
                   setUploadSuccess("");
                 }}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold transition-all ${
-                  uploadMode === "link" ? "bg-white text-slate-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-md py-1.5 text-xs font-semibold transition-all ${uploadMode === "link" ? "bg-white text-slate-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
               >
                 <LinkIcon size={14} />
                 <span>Web URL</span>
@@ -1198,7 +1249,17 @@ export default function HolidayCalendarPage() {
             {/* File Upload Tab */}
             {uploadMode === "file" ? (
               <div className="space-y-3">
-                <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/70 p-6 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/30">
+                <label
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const file = event.dataTransfer.files?.[0] ?? null;
+                    validateAndSetFile(file);
+                  }}
+                  className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/70 p-6 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/30"
+                >
                   <div className="flex items-center gap-2 text-slate-500 mb-2">
                     <FileText size={20} />
                     <FileSpreadsheet size={20} />
@@ -1208,17 +1269,15 @@ export default function HolidayCalendarPage() {
                     Click to browse or drop calendar file
                   </span>
                   <span className="mt-1 text-[11px] text-slate-400">
-                    Supports .PDF, .XLSX, .XLS, .CSV, and image files (.PNG, .JPG)
+                    Supports .PDF, .XLSX, .XLS, .CSV, and image files (.PNG, .JPG) (Max 2 MB)
                   </span>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.xlsx,.xls,.csv,image/png,image/jpeg,image/webp"
+                    accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null;
-                      setSelectedFile(file);
-                      setUploadError("");
-                      setUploadSuccess("");
+                      validateAndSetFile(file);
                     }}
                     className="sr-only"
                   />
@@ -1235,6 +1294,8 @@ export default function HolidayCalendarPage() {
                       onClick={() => {
                         setSelectedFile(null);
                         if (fileInputRef.current) fileInputRef.current.value = "";
+                        setUploadError("");
+                        setUploadSuccess("");
                       }}
                       className="text-slate-400 hover:text-red-500"
                     >

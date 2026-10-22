@@ -270,6 +270,16 @@ export default function StudentLeaveRequestsPage() {
   });
 
   useEffect(() => {
+    if (isModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
     const loadData = async () => {
       try {
         const [options, categories, groupsData] = await Promise.all([
@@ -548,8 +558,8 @@ export default function StudentLeaveRequestsPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px]">
-          <div className="w-full max-w-[640px] rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] overscroll-contain">
+          <div className="my-auto max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] overscroll-contain">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
