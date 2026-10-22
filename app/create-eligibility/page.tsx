@@ -113,7 +113,7 @@ export default function CreateEligibilityPage() {
                 <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  onChange={(event) => setSearch(event.target.value)}
                   type="search"
                   placeholder="SEARCH ELIGIBILITY..."
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
@@ -201,7 +201,7 @@ export default function CreateEligibilityPage() {
                   required
                   maxLength={120}
                   value={form.eligibilityName}
-                  onChange={(event) => setForm((previous) => ({ ...previous, eligibilityName: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((previous) => ({ ...previous, eligibilityName: event.target.value }))}
                   className={inputClassName}
                 />
               </div>
@@ -211,7 +211,7 @@ export default function CreateEligibilityPage() {
                   id="description"
                   maxLength={500}
                   value={form.description}
-                  onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))}
                   className={inputClassName}
                 />
               </div>
@@ -224,7 +224,7 @@ export default function CreateEligibilityPage() {
                   onChange={(event) => setForm((previous) => ({ ...previous, employeeType: event.target.value.toUpperCase() }))}
                   className={inputClassName}
                 >
-                  <option value="">SELECT EMPLOYEE TYPE</option>
+                  <option value="" disabled hidden>SELECT EMPLOYEE TYPE</option>
                   <option value="TEACHING">TEACHING</option>
                   <option value="NON-TEACHING">NON-TEACHING</option>
                   <option value="STUDENT">STUDENT</option>
@@ -239,7 +239,7 @@ export default function CreateEligibilityPage() {
                   onChange={(event) => setForm((previous) => ({ ...previous, employmentType: event.target.value.toUpperCase() }))}
                   className={inputClassName}
                 >
-                  <option value="">SELECT EMPLOYMENT TYPE</option>
+                  <option value="" disabled hidden>SELECT EMPLOYMENT TYPE</option>
                   <option value="PERMANENT">PERMANENT</option>
                   <option value="CONTRACT">CONTRACT</option>
                   <option value="TEMPORARY">TEMPORARY</option>

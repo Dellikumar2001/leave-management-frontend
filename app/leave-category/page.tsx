@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Pencil, Eye, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -24,6 +24,36 @@ type CategoryRowActionsProps = {
 
 function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: CategoryRowActionsProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const button = actionsButtonRef.current;
+    if (!button) return;
+
+    const bounds = button.getBoundingClientRect();
+    const menuHeight = 40;
+    const menuWidth = 160;
+    const spacing = 8;
+    const openAbove = bounds.bottom + menuHeight + spacing > window.innerHeight;
+    const top = openAbove
+      ? bounds.top - menuHeight - spacing
+      : bounds.bottom + spacing;
+
+    setMenuPosition({
+      top: Math.max(spacing, Math.min(top, window.innerHeight - menuHeight - spacing)),
+      left: Math.max(
+        spacing,
+        Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - spacing),
+      ),
+    });
+    setOpen(true);
+  };
 
   return (
     <div className="relative flex items-center justify-end gap-1">
@@ -33,14 +63,23 @@ function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: Cate
       <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit category" aria-label="Edit category">
         <Pencil size={16} />
       </button>
-      <button type="button" onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
+      <button
+        type="button"
+        ref={actionsButtonRef}
+        onClick={toggleMenu}
+        className="p-1.5 text-slate-400 hover:text-slate-700"
+        aria-label="More actions"
+      >
         <Trash2 size={14} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-40 rounded-md border border-slate-200 bg-white shadow-lg">
+          <div
+            className="fixed z-40 w-40 rounded-md border border-slate-200 bg-white shadow-lg"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
             <button
               type="button"
               disabled={isDeleteDisabled}
@@ -147,7 +186,7 @@ export default function LeaveCategoryPage() {
 
   const handleSave = async () => {
     const payload = {
-      code: form.code.trim().toUpperCase(),
+      code: form.code.trim().toUpperCase().replace(/\s/g, ""),
       name: form.name.trim().toUpperCase(),
       description: form.description.trim().toUpperCase(),
       status: form.status,
@@ -220,7 +259,7 @@ export default function LeaveCategoryPage() {
                   type="text"
                   placeholder="SEARCH CATEGORIES..."
                   value={search}
-                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
@@ -326,7 +365,7 @@ export default function LeaveCategoryPage() {
                     maxLength={80}
                     value={form.name}
                     readOnly={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value.toUpperCase() }))}
+                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="SFS"
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
@@ -338,7 +377,7 @@ export default function LeaveCategoryPage() {
                     maxLength={12}
                     value={form.code}
                     readOnly={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase().replace(/\s/g, "") }))}
+                    onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
                     placeholder="SFS"
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
@@ -365,7 +404,7 @@ export default function LeaveCategoryPage() {
                     maxLength={500}
                     value={form.description}
                     readOnly={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value.toUpperCase() }))}
+                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                     placeholder="ADD A SHORT DESCRIPTION"
                     className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
@@ -375,7 +414,7 @@ export default function LeaveCategoryPage() {
 
               <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
                 <button type="button" onClick={closeDialog} disabled={isSaving} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50">{mode === "view" ? "CLOSE" : "CANCEL"}</button>
-                {mode !== "view" && <button type="submit" disabled={isSaving} className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold uppercase text-white hover:bg-[#294f9c] disabled:cursor-wait disabled:opacity-60">{isSaving ? "SAVING..." : "SAVE"}</button>}
+                {mode !== "view" && <button type="submit" disabled={isSaving} className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold uppercase text-white hover:bg-[#294f9c] disabled:cursor-wait disabled:opacity-60">{isSaving ? "UPDATING..." : "UPDATE"}</button>}
               </div>
             </form>
           </section>
