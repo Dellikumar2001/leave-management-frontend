@@ -430,19 +430,17 @@ export default function LeaveTypePage() {
           {/* Inline Filter & Action bar */}
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Search Bar */}
               <div className="relative flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="SEARCH LEAVE TYPES..."
                   value={search}
-                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
-              {/* Status Dropdown */}
               <div className="relative min-w-[170px]">
                 <select
                   value={statusFilter}
@@ -460,7 +458,6 @@ export default function LeaveTypePage() {
                 <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
 
-              {/* Add Leave Type Button */}
               <button
                 type="button"
                 onClick={openCreateModal}
@@ -557,14 +554,14 @@ export default function LeaveTypePage() {
               </button>
             </div>
 
-            <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
+            <div className="grid gap-5 px-6 pb-6 pt-2 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE TYPE CODE <span className="text-red-500">*</span></label>
                 <input
                   required
                   value={form.code}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))}
                   placeholder="CL"
                   className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
@@ -593,7 +590,7 @@ export default function LeaveTypePage() {
                 <input
                   value={form.name}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="CASUAL LEAVE"
                   className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
@@ -686,19 +683,37 @@ export default function LeaveTypePage() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DAYS ALLOWED <span className="text-red-500">*</span></label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
-                  min={1}
-                  step={1}
                   value={form.daysAllowed || ""}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, daysAllowed: event.target.value === "" ? 0 : Number(event.target.value) }))}
-                  onKeyDown={(event) => {
-                    if (["ArrowUp", "ArrowDown", "e", "E", "+", "-", ".", ","].includes(event.key)) event.preventDefault();
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!/^\d*$/.test(value)) return;
+                    const daysAllowed = value === "" ? 0 : Number(value);
+                    if (Number.isSafeInteger(daysAllowed)) {
+                      setForm((prev) => ({ ...prev, daysAllowed }));
+                    }
                   }}
                   className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   style={{ appearance: "textfield" }}
                 />
+                {modalMode !== "view" && (
+                  <div className="mt-2 flex gap-2">
+                    {[5, 7, 30].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, daysAllowed: days }))}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase text-blue-700 transition hover:bg-blue-100"
+                      >
+                        +{days} DAYS
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -723,16 +738,16 @@ export default function LeaveTypePage() {
                 <textarea
                   value={form.description}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
                   placeholder="DESCRIBE WHEN THIS LEAVE TYPE CAN BE USED."
                   rows={4}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
               {error && <p role="alert" className="text-sm uppercase text-red-700 sm:col-span-2">{error}</p>}
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
@@ -745,7 +760,7 @@ export default function LeaveTypePage() {
                   type="submit"
                   className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium uppercase text-white transition hover:bg-[#294f9c]"
                 >
-                  {modalMode === "edit" ? "SAVE CHANGES" : "CREATE"}
+                  {modalMode === "edit" ? "UPDATE" : "CREATE"}
                 </button>
               )}
             </div>

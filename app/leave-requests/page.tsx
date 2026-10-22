@@ -12,6 +12,7 @@ type LeaveGroup = {
   name: string;
   description: string;
   categoryNames: string[];
+  categoryIds: string[];
   leaveTypes: string[];
   effectiveFrom: string;
   status: "ACTIVE" | "INACTIVE";
@@ -40,6 +41,7 @@ type ApiLeaveGroup = {
   description?: string | null;
   category?: { id?: number; name?: string | null } | null;
   categories?: { categoryId?: number; category?: { id?: number; name?: string | null } | null }[];
+  categoryId?: number | null;
   items?: { leaveType?: { code?: string | null; status?: string } | null }[];
   effectiveFrom: string | Date;
   status: string;
@@ -54,6 +56,36 @@ type RowActionsProps = {
 
 function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowActionsProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const button = actionsButtonRef.current;
+    if (!button) return;
+
+    const bounds = button.getBoundingClientRect();
+    const menuHeight = 40;
+    const menuWidth = 128;
+    const spacing = 8;
+    const openAbove = bounds.bottom + menuHeight + spacing > window.innerHeight;
+    const top = openAbove
+      ? bounds.top - menuHeight - spacing
+      : bounds.bottom + spacing;
+
+    setMenuPosition({
+      top: Math.max(spacing, Math.min(top, window.innerHeight - menuHeight - spacing)),
+      left: Math.max(
+        spacing,
+        Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - spacing),
+      ),
+    });
+    setOpen(true);
+  };
 
   return (
     <div className="relative flex items-center justify-end gap-1">
@@ -76,7 +108,10 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-32 rounded-md border border-slate-200 bg-white shadow-lg">
+          <div
+            className="fixed z-40 w-32 rounded-md border border-slate-200 bg-white shadow-lg"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
             <button
               type="button"
               disabled={isDeleteDisabled}
@@ -107,6 +142,9 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   categoryNames: Array.isArray(group.categories) && group.categories.length > 0
     ? group.categories.map((link) => String(link.category?.name ?? "").toUpperCase()).filter(Boolean)
     : group.category?.name ? [String(group.category.name).toUpperCase()] : [],
+  categoryIds: Array.isArray(group.categories) && group.categories.length > 0
+    ? group.categories.map((link) => String(link.categoryId ?? link.category?.id ?? "")).filter(Boolean)
+    : group.categoryId ? [String(group.categoryId)] : [],
   leaveTypes: Array.isArray(group.items)
     ? group.items
       .filter((item) => item.leaveType?.status === "ACTIVE")
@@ -217,6 +255,7 @@ function LeaveTypeMultiSelect({
       <button
         type="button"
         disabled={disabled}
+        aria-expanded={open}
         onClick={() => !disabled && setOpen((current) => !current)}
         className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"
           }`}
@@ -237,37 +276,45 @@ function LeaveTypeMultiSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute left-0 top-full z-20 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-          {options.length > 0 ? (
-            options.map((option) => {
-              const checked = values.includes(option.value);
+        <>
+          <button
+            type="button"
+            aria-label="Close leave type options"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            {options.length > 0 ? (
+              options.map((option) => {
+                const checked = values.includes(option.value);
 
-              return (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 uppercase hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => {
-                      const nextValues = checked
-                        ? values.filter((item) => item !== option.value)
-                        : [...values, option.value];
+                return (
+                  <label
+                    key={option.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 uppercase hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const nextValues = checked
+                          ? values.filter((item) => item !== option.value)
+                          : [...values, option.value];
 
-                      onChange(nextValues);
-                    }}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
-                  />
-                  <span className="text-sm font-medium text-slate-700">{option.value}</span>
-                  <span className="text-xs text-slate-500">{option.label.replace(`${option.value}`, "").trim()}</span>
-                </label>
-              );
-            })
-          ) : (
-            <div className="px-2.5 py-3 text-center text-sm uppercase text-slate-500">NO LEAVE TYPES AVAILABLE</div>
-          )}
-        </div>
+                        onChange(nextValues);
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
+                    />
+                    <span className="text-sm font-medium text-slate-700">{option.value}</span>
+                    <span className="text-xs text-slate-500">{option.label.replace(`${option.value}`, "")}</span>
+                  </label>
+                );
+              })
+            ) : (
+              <div className="px-2 py-3 text-sm uppercase text-slate-500">NO LEAVE TYPES AVAILABLE</div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -337,6 +384,15 @@ function sanitizeDateInput(value: string): string {
   return value;
 }
 
+function sanitizeEditDateInput(value: string): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  if (parsed < new Date("2000-01-01T00:00:00.000Z")) return "";
+  if (parsed > new Date("2100-12-31T00:00:00.000Z")) return "";
+  return value;
+}
+
 export default function StudentLeaveRequestsPage() {
   const router = useRouter();
   const [groups, setGroups] = useState<LeaveGroup[]>([]);
@@ -350,6 +406,16 @@ export default function StudentLeaveRequestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<LeaveGroupForm>({
+    code: "",
+    name: "",
+    description: "",
+    leaveTypes: [],
+    categoryIds: [],
+    effectiveFrom: "",
+    status: "ACTIVE",
+  });
+  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<LeaveGroupForm>({
     code: "",
     name: "",
     description: "",
@@ -467,7 +533,49 @@ export default function StudentLeaveRequestsPage() {
   };
 
   const handleEditGroup = (group: LeaveGroup) => {
-    router.push(`/leave-requests/${group.id}?mode=edit`);
+    setEditingGroupId(group.id);
+    setEditForm({
+      code: group.code,
+      name: group.name,
+      description: group.description,
+      leaveTypes: group.leaveTypes,
+      categoryIds: group.categoryIds,
+      effectiveFrom: group.effectiveFrom,
+      status: group.status,
+    });
+  };
+
+  const handleSaveGroup = async () => {
+    if (editingGroupId === null) return;
+
+    const response = await fetch(`/api/leave-requests/${editingGroupId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code: editForm.code.trim().toUpperCase().slice(0, 6),
+        name: editForm.name.trim().toUpperCase(),
+        description: editForm.description.trim().toUpperCase(),
+        leaveTypeCodes: editForm.leaveTypes,
+        categoryIds: editForm.categoryIds.map(Number),
+        categoryId: editForm.categoryIds[0] ? Number(editForm.categoryIds[0]) : null,
+        effectiveFrom: editForm.effectiveFrom,
+        status: editForm.status,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      console.error(error?.error ?? "Failed to update leave group");
+      return;
+    }
+
+    const result = await response.json();
+    setGroups((current) => current.map((group) =>
+      group.id === editingGroupId ? mapApiLeaveGroup(result.data) : group,
+    ));
+    setEditingGroupId(null);
   };
 
   const handleDeleteGroup = async (groupId: number) => {
@@ -509,7 +617,7 @@ export default function StudentLeaveRequestsPage() {
                   type="text"
                   placeholder="SEARCH BY GROUP CODE, NAME, OR LEAVE TYPE..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value.toUpperCase())}
+                  onChange={(e) => setSearch(e.target.value)}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
@@ -855,6 +963,141 @@ export default function StudentLeaveRequestsPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {editingGroupId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] uppercase"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setEditingGroupId(null);
+          }}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSaveGroup();
+            }}
+            className="my-auto max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold uppercase text-slate-800">EDIT LEAVE GROUP</h2>
+                <p className="mt-1 text-sm uppercase text-slate-500">UPDATE THE LEAVE GROUP DETAILS BELOW.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingGroupId(null)}
+                className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="CLOSE DIALOG"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid gap-5 px-6 pb-6 pt-2 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">GROUP CODE</label>
+                <input
+                  required
+                  maxLength={6}
+                  value={editForm.code}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    code: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">GROUP NAME</label>
+                <input
+                  value={editForm.name}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DESCRIPTION</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))}
+                  maxLength={61}
+                  rows={3}
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE TYPES</label>
+                <LeaveTypeMultiSelect
+                  values={editForm.leaveTypes}
+                  options={leaveTypeOptions}
+                  onChange={(leaveTypes) => setEditForm((current) => ({ ...current, leaveTypes }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE CATEGORIES</label>
+                <LeaveCategoryMultiSelect
+                  values={editForm.categoryIds}
+                  options={leaveCategoryOptions}
+                  onChange={(categoryIds) => setEditForm((current) => ({ ...current, categoryIds }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">EFFECTIVE FROM</label>
+                <input
+                  required
+                  type="date"
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  value={editForm.effectiveFrom}
+                  onChange={(event) => {
+                    const effectiveFrom = sanitizeEditDateInput(event.target.value);
+                    if (effectiveFrom) {
+                      setEditForm((current) => ({ ...current, effectiveFrom }));
+                    }
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">STATUS</label>
+                <select
+                  value={editForm.status}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    status: event.target.value as LeaveGroup["status"],
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setEditingGroupId(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                CANCEL
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#294f9c]"
+              >
+                UPDATE
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

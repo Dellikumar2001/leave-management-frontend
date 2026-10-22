@@ -65,6 +65,7 @@ function LeaveTypeMultiSelect({
       <button
         type="button"
         disabled={disabled}
+        aria-expanded={open}
         onClick={() => !disabled && setOpen((current) => !current)}
         className={`flex w-full min-h-[46px] flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 outline-none transition focus:border-blue-300 ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"}`}
       >
@@ -86,37 +87,45 @@ function LeaveTypeMultiSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-          {options.length > 0 ? (
-            options.map((option) => {
-              const checked = values.includes(option.value);
+        <>
+          <button
+            type="button"
+            aria-label="Close leave type options"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            {options.length > 0 ? (
+              options.map((option) => {
+                const checked = values.includes(option.value);
 
-              return (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => {
-                      const nextValues = checked
-                        ? values.filter((item) => item !== option.value)
-                        : [...values, option.value];
+                return (
+                  <label
+                    key={option.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const nextValues = checked
+                          ? values.filter((item) => item !== option.value)
+                          : [...values, option.value];
 
-                      onChange(nextValues);
-                    }}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
-                  />
-                  <span className="text-sm font-medium text-slate-700">{option.value}</span>
-                  <span className="text-xs text-slate-500">{option.label.replace(`${option.value} - `, "")}</span>
-                </label>
-              );
-            })
-          ) : (
-            <div className="px-2 py-3 text-sm text-slate-500">No leave types available</div>
-          )}
-        </div>
+                        onChange(nextValues);
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
+                    />
+                    <span className="text-sm font-medium text-slate-700">{option.value}</span>
+                    <span className="text-xs text-slate-500">{option.label.replace(`${option.value} - `, "")}</span>
+                  </label>
+                );
+              })
+            ) : (
+              <div className="px-2 py-3 text-sm text-slate-500">No leave types available</div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -340,23 +349,25 @@ export default function LeaveRequestDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#edf2f7] p-4 text-slate-800 uppercase">
-      <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 text-slate-800 backdrop-blur-[1px] uppercase">
+      <div className="my-auto max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
-              {isViewMode ? "Leave group details" : "Edit leave group"}
+            <h1 className="text-xl font-bold uppercase text-slate-800">
+              {isViewMode ? "LEAVE GROUP DETAILS" : "EDIT LEAVE GROUP"}
+            </h1>
+            <p className="mt-1 text-sm uppercase text-slate-500">
+              {isViewMode ? "LEAVE GROUP CONFIGURATION" : "UPDATE THE LEAVE GROUP DETAILS BELOW."}
             </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">{leaveGroup.name}</h1>
           </div>
 
           <button
             type="button"
             onClick={() => router.push("/leave-requests")}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <ArrowLeft size={16} />
-            Back
+            BACK
           </button>
         </div>
 
@@ -374,37 +385,37 @@ export default function LeaveRequestDetailsPage() {
               readOnly={isViewMode}
               disabled={isViewMode}
               maxLength={6}
-              onChange={(e) => handleChange("code", e.target.value.toUpperCase().slice(0, 6))}
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+              onChange={(e) => handleChange("code", e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:text-slate-500"
             />
           </label>
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">Group name</span>
+          <label className="space-y-1.5">
+            <span className="block text-sm font-medium text-slate-700">GROUP NAME</span>
             <input
               value={form.name}
               readOnly={isViewMode}
               disabled={isViewMode}
               onChange={(e) => handleChange("name", e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:text-slate-500"
             />
           </label>
 
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-sm font-medium text-slate-700">Description</span>
+          <label className="space-y-1.5 sm:col-span-2">
+            <span className="block text-sm font-medium text-slate-700">DESCRIPTION</span>
             <textarea
               value={form.description}
               readOnly={isViewMode}
               disabled={isViewMode}
-              onChange={(event) => handleChange("description", event.target.value.toUpperCase())}
+              onChange={(event) => handleChange("description", event.target.value)}
               maxLength={61}
               rows={3}
-              className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+              className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:text-slate-500"
             />
           </label>
 
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-sm font-medium text-slate-700">Leave types</span>
+          <label className="space-y-1.5 sm:col-span-2">
+            <span className="block text-sm font-medium text-slate-700">LEAVE TYPES</span>
             <LeaveTypeMultiSelect
               values={form.leaveTypes}
               options={leaveTypeOptions}
@@ -413,8 +424,8 @@ export default function LeaveRequestDetailsPage() {
             />
           </label>
 
-          <div className="space-y-2">
-            <span className="block text-sm font-medium text-slate-700">Leave categories</span>
+          <div className="space-y-1.5">
+            <span className="block text-sm font-medium text-slate-700">LEAVE CATEGORIES</span>
             <LeaveCategoryMultiSelect
               values={form.categoryIds}
               options={leaveCategoryOptions}
@@ -423,8 +434,8 @@ export default function LeaveRequestDetailsPage() {
             />
           </div>
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">From</span>
+          <label className="space-y-1.5">
+            <span className="block text-sm font-medium text-slate-700">EFFECTIVE FROM</span>
             <input
               type="date"
               min={MIN_EFFECTIVE_FROM}
@@ -438,17 +449,17 @@ export default function LeaveRequestDetailsPage() {
                   handleChange("effectiveFrom", nextValue);
                 }
               }}
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:text-slate-500"
             />
           </label>
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">Status</span>
+          <label className="space-y-1.5">
+            <span className="block text-sm font-medium text-slate-700">STATUS</span>
             <select
               value={form.status}
               disabled={isViewMode}
               onChange={(e) => handleChange("status", e.target.value as LeaveGroup["status"])}
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 disabled:cursor-not-allowed disabled:text-slate-500"
             >
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
@@ -456,13 +467,13 @@ export default function LeaveRequestDetailsPage() {
           </label>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={() => router.push("/leave-requests")}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
-            {isViewMode ? "Back to list" : "Cancel"}
+            {isViewMode ? "BACK TO LIST" : "CANCEL"}
           </button>
 
           {!isViewMode && (
