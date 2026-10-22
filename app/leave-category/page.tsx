@@ -27,14 +27,20 @@ function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: Cate
 
   return (
     <div className="relative flex items-center justify-end gap-1">
-      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View category" aria-label="View category">
+      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View" aria-label="View">
         <Eye size={16} />
       </button>
-      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit category" aria-label="Edit category">
+      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit" aria-label="Edit">
         <Pencil size={16} />
       </button>
-      <button type="button" onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
-        <Trash2 size={14} />
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+        title="Delete"
+        aria-label="Delete"
+      >
+        <Trash2 size={16} />
       </button>
 
       {open && (
@@ -49,11 +55,11 @@ function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: Cate
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"}`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"}`}
               title={isDeleteDisabled ? "Inactive leave categories cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "DELETE DISABLED" : "DELETE"}</span>
+              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
             </button>
           </div>
         </>

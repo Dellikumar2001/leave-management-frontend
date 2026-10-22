@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
 import LeaveCategoryMultiSelect from "../../components/LeaveCategoryMultiSelect";
@@ -43,9 +43,25 @@ function LeaveTypeMultiSelect({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         disabled={disabled}
@@ -133,6 +149,8 @@ export default function LeaveRequestDetailsPage() {
   const [leaveGroup, setLeaveGroup] = useState<LeaveGroup | null>(null);
   const [form, setForm] = useState<LeaveGroup | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
   const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>([]);
   const [leaveCategoryOptions, setLeaveCategoryOptions] = useState<LeaveCategoryOption[]>([]);
 
@@ -249,30 +267,48 @@ export default function LeaveRequestDetailsPage() {
   const handleSave = async () => {
     if (!form || !leaveGroup) return;
 
-    const response = await fetch(`/api/leave-requests/${form.id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        code: form.code,
-        name: form.name,
-        description: form.description.trim(),
-        leaveTypeCodes: form.leaveTypes,
-        categoryIds: form.categoryIds.map(Number),
-        categoryId: form.categoryIds[0] ? Number(form.categoryIds[0]) : null,
-        effectiveFrom: form.effectiveFrom,
-        status: form.status.toUpperCase(),
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => null);
-      console.error(error?.error ?? "Failed to update leave group");
+    const nextCode = form.code.trim().toUpperCase();
+    if (!nextCode) {
+      setError("GROUP CODE IS REQUIRED.");
+      return;
+    }
+    if (!form.effectiveFrom) {
+      setError("FROM DATE IS REQUIRED.");
       return;
     }
 
-    router.push("/leave-requests");
+    setError("");
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/leave-requests/${form.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: nextCode,
+          name: form.name.trim().toUpperCase(),
+          description: form.description.trim().toUpperCase(),
+          leaveTypeCodes: form.leaveTypes.map((t) => t.toUpperCase()),
+          categoryIds: form.categoryIds.map(Number),
+          categoryId: form.categoryIds[0] ? Number(form.categoryIds[0]) : null,
+          effectiveFrom: form.effectiveFrom,
+          status: form.status.toUpperCase(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => null);
+        setError(errJson?.error ?? "Failed to update leave group");
+        return;
+      }
+
+      router.push("/leave-requests");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update leave group");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoading) {
@@ -323,6 +359,12 @@ export default function LeaveRequestDetailsPage() {
             Back
           </button>
         </div>
+
+        {error && (
+          <div role="alert" className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm uppercase text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="grid gap-6 p-6 md:grid-cols-2">
           <label className="space-y-2">
@@ -382,7 +424,7 @@ export default function LeaveRequestDetailsPage() {
           </div>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">Effective from</span>
+            <span className="text-sm font-medium text-slate-700">From</span>
             <input
               type="date"
               min={MIN_EFFECTIVE_FROM}
@@ -426,11 +468,12 @@ export default function LeaveRequestDetailsPage() {
           {!isViewMode && (
             <button
               type="button"
+              disabled={isSaving}
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save size={16} />
-              Save changes
+              {isSaving ? "Saving..." : "Save changes"}
             </button>
           )}
         </div>

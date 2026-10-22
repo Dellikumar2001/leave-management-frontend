@@ -42,8 +42,8 @@ function normalizeStatus(value: unknown): "ACTIVE" | "INACTIVE" {
 }
 
 export async function GET() {
-  try {
-    const groups = await prisma.leaveGroup.findMany({
+  const query = () =>
+    prisma.leaveGroup.findMany({
       include: {
         category: true,
         categories: { include: { category: true } },
@@ -56,35 +56,54 @@ export async function GET() {
       orderBy: { effectiveFrom: "desc" },
     });
 
+  try {
+    const groups = await query();
     return Response.json({ data: groups });
-  } catch (error) {
-    console.error("Failed to load leave groups:", error);
-    return Response.json({ error: "Unable to load leave groups from the database." }, { status: 503 });
+  } catch (firstErr) {
+    // Retry once after a short delay — handles cold-start connection issues.
+    console.warn("Leave-groups first attempt failed, retrying in 300ms:", firstErr instanceof Error ? firstErr.message : firstErr);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const groups = await query();
+      return Response.json({ data: groups });
+    } catch (error) {
+      console.error("Failed to load leave groups:", error);
+      return Response.json({ error: "Unable to load leave groups from the database." }, { status: 503 });
+    }
   }
 }
+
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const b = body;
+
+    const code = typeof b.code === "string" ? b.code.trim().toUpperCase() : "";
+    if (!code) {
+      return Response.json({ error: "Group code is required." }, { status: 400 });
+    }
+
+    if (!b.effectiveFrom) {
+      return Response.json({ error: "From date is required." }, { status: 400 });
+    }
+
+    const existingGroup = await prisma.leaveGroup.findUnique({
+      where: { code },
+    });
+    if (existingGroup) {
+      return Response.json({ error: `A leave group with code "${code}" already exists.` }, { status: 400 });
+    }
+
     const selectedCodes = Array.isArray(b.leaveTypeCodes)
-      ? [...new Set(b.leaveTypeCodes.map((code: unknown) => String(code)))] as string[]
+      ? [...new Set(b.leaveTypeCodes.map((c: unknown) => String(c).trim().toUpperCase()).filter(Boolean))]
       : [];
+
     const categoryIds = b.categoryIds !== undefined
       ? parseLeaveGroupCategoryIds(b.categoryIds)
       : b.categoryId === undefined || b.categoryId === null || b.categoryId === ""
         ? []
         : parseLeaveGroupCategoryIds([b.categoryId]);
-
-    // Previously mandatory validation:
-    // if (!b.code || !b.name || !b.effectiveFrom || !Number.isInteger(categoryId) || categoryId <= 0) {
-    //   return Response.json({ error: "Code, name, category, and effective from are required." }, { status: 400 });
-    // }
-
-    // Code and effective from remain required, while name, category, and leave types are optional:
-    if (!b.code || !b.effectiveFrom) {
-      return Response.json({ error: "Code and effective from are required." }, { status: 400 });
-    }
 
     if (!categoryIds) {
       return Response.json({ error: "Select valid leave categories." }, { status: 400 });
@@ -103,10 +122,10 @@ export async function POST(request: NextRequest) {
     const leaveTypes = selectedCodes.length > 0
       ? await prisma.leaveType.findMany({
           where: {
-            status: "ACTIVE",
-            code: {
-              in: selectedCodes,
-            },
+            status: { in: ["ACTIVE", "Active", "active"] },
+            OR: selectedCodes.map((itemCode) => ({
+              code: { equals: itemCode, mode: "insensitive" },
+            })),
           },
         })
       : [];
@@ -119,9 +138,9 @@ export async function POST(request: NextRequest) {
 
     const leaveGroup = await prisma.leaveGroup.create({
       data: {
-        code: String(b.code).trim(),
-        name: b.name ? String(b.name).trim() : "",
-        description: b.description ? String(b.description).trim() : null,
+        code,
+        name: typeof b.name === "string" ? b.name.trim().toUpperCase() : "",
+        description: typeof b.description === "string" && b.description.trim() ? b.description.trim().toUpperCase() : null,
         categoryId: categories[0]?.id ?? null,
         categories: {
           create: categories.map(({ id }) => ({
@@ -131,7 +150,7 @@ export async function POST(request: NextRequest) {
         effectiveFrom,
         status,
         items: {
-          create: leaveTypes.map((leaveType: (typeof leaveTypes)[number]) => ({
+          create: leaveTypes.map((leaveType) => ({
             leaveType: {
               connect: { id: leaveType.id },
             },
@@ -151,7 +170,15 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ data: leaveGroup }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to create leave group.";
+    console.error("Error creating leave group:", error);
+    let message = "Failed to create leave group.";
+    if (error instanceof Error) {
+      if (error.message.includes("Unique constraint failed") || error.message.includes("P2002")) {
+        message = "A leave group with this code already exists.";
+      } else {
+        message = error.message;
+      }
+    }
     return Response.json({ error: message }, { status: 400 });
   }
 }
