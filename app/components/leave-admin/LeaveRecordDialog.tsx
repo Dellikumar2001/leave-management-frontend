@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
+import DateInput, { formatToDisplayDate } from "../DateInput";
 import { EmployeeRow } from "./EmployeeTable";
 
 export type BlockedDateRecord = { id: number; employeeId: string; date: string };
@@ -35,7 +37,7 @@ export default function LeaveRecordDialog({
 }: Props) {
   const firstRecord = action === "edit" ? records[0] : undefined;
   const [editingId, setEditingId] = useState<number | null>(firstRecord?.id ?? null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(action === "delete" && records.length === 1 ? records[0].id : null);
   const [value, setValue] = useState(firstRecord
     ? mode === "block" ? dateValue((firstRecord as BlockedDateRecord).date) : String((firstRecord as CreditRecord).days)
     : "");
@@ -57,8 +59,20 @@ export default function LeaveRecordDialog({
       if (event.target === event.currentTarget && !saving) onClose();
     }}>
       <section role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-        <h2 className="text-xl font-bold text-slate-800">{showConfirm ? `Delete this ${mode === "block" ? "blocked date" : "credit"}?` : title}</h2>
-        <p className="mt-1 text-sm text-slate-500">{employee.employeeId} · {employee.department} · {employee.stream}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">{showConfirm ? `Delete this ${mode === "block" ? "blocked date" : "credit"}?` : title}</h2>
+            <p className="mt-1 text-sm text-slate-500">{employee.employeeId} · {employee.department} · {employee.stream}</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Close dialog"
+            onClick={onClose}
+            className="grid size-8 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X size={18} />
+          </button>
+        </div>
         {showConfirm ? (
           <p className="mt-5 text-sm leading-6 text-slate-600">
             {mode === "block"
@@ -71,9 +85,17 @@ export default function LeaveRecordDialog({
               <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
                 {mode === "block" ? (
                   editingId === record.id ? (
-                    <input aria-label="Blocked date" type="date" value={value} onChange={(event) => setValue(event.target.value)} className="h-10 rounded border border-slate-300 px-2 text-sm" />
+                    <div className="w-48">
+                      <DateInput
+                        aria-label="Blocked date"
+                        value={value}
+                        onChange={(val) => setValue(val)}
+                        placeholder="dd / mm / yyyy"
+                        className="h-10"
+                      />
+                    </div>
                   ) : (
-                    <span className="text-sm font-medium text-slate-700">{new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" }).format(new Date(`${dateValue((record as BlockedDateRecord).date)}T00:00:00.000Z`))}</span>
+                    <span className="text-sm font-medium text-slate-700">{formatToDisplayDate(dateValue((record as BlockedDateRecord).date))}</span>
                   )
                 ) : (
                   editingId === record.id ? (
@@ -84,19 +106,25 @@ export default function LeaveRecordDialog({
                     <span className="text-sm font-medium text-slate-700">{(record as CreditRecord).days} days · {new Date((record as CreditRecord).createdAt).toLocaleDateString()}</span>
                   )
                 )}
-                <div className="flex gap-2">
-                  {editingId === record.id ? (
-                    <>
-                      <button type="button" disabled={saving || !value} onClick={() => void onSave(record.id, mode === "block" ? value : Number(value))} className="text-sm font-semibold text-emerald-800 disabled:opacity-50">Save</button>
-                      <button type="button" onClick={() => setEditingId(null)} className="text-sm text-slate-500">Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <button type="button" onClick={() => beginEdit(record)} className="text-sm font-semibold text-slate-600 hover:text-emerald-800">Edit</button>
-                      <button type="button" onClick={() => setDeletingId(record.id)} className="text-sm font-semibold text-red-600 hover:text-red-800">Delete</button>
-                    </>
-                  )}
-                </div>
+                {action !== "view" && (
+                  <div className="flex gap-2">
+                    {editingId === record.id ? (
+                      <>
+                        <button type="button" disabled={saving || !value} onClick={() => void onSave(record.id, mode === "block" ? value : Number(value))} className="text-sm font-semibold text-emerald-800 disabled:opacity-50">Save</button>
+                        <button type="button" onClick={() => setEditingId(null)} className="text-sm text-slate-500">Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        {action === "edit" && (
+                          <button type="button" onClick={() => beginEdit(record)} className="text-sm font-semibold text-slate-600 hover:text-emerald-800">Edit</button>
+                        )}
+                        {action === "delete" && (
+                          <button type="button" onClick={() => setDeletingId(record.id)} className="text-sm font-semibold text-red-600 hover:text-red-800">Delete</button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             {!records.length && <p className="py-6 text-center text-sm text-slate-500">No records found.</p>}
