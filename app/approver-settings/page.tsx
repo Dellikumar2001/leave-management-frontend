@@ -24,6 +24,7 @@ type Employee = {
   gender?: string | null;
   designation?: string | null;
   firstLevelApprover?: string | null;
+  secondLevelApprover?: string | null;
   finalLevelApprover?: string | null;
   backupOfficer?: string | null;
   finalLevelBackupOfficer?: string | null;
@@ -878,6 +879,16 @@ export default function ApproverSettingsPage() {
         return sortDirection === "asc" ? comp : -comp;
       }
 
+      if (sortField === "secondLevelApprover") {
+        const valA = (a.secondLevelApprover || "").trim();
+        const valB = (b.secondLevelApprover || "").trim();
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+        const comp = valA.localeCompare(valB, undefined, { sensitivity: "base" });
+        return sortDirection === "asc" ? comp : -comp;
+      }
+
       if (sortField === "backupOfficer") {
         const valA = (a.backupOfficer || "").trim();
         const valB = (b.backupOfficer || "").trim();
@@ -1103,7 +1114,7 @@ export default function ApproverSettingsPage() {
                   Approver settings
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  Configure first level approvers, final level approvers, and backup officers for employees
+                  Configure HOD, vice principal, principal, and backup approvers for employees
                 </p>
               </div>
             </div>

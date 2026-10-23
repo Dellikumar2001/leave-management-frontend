@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-const CLIENT_VERSION = "2026-10-23-backup-officer-v2";
+const CLIENT_VERSION = "2026-10-23-multi-level-approvals-v1";
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
   prismaVersion?: string;
@@ -13,6 +13,7 @@ const isStale =
   !("maternityLeave" in globalForPrisma.prisma) ||
   !("employeeLeaveApplication" in globalForPrisma.prisma) ||
   !("employeeApprover" in globalForPrisma.prisma) ||
+  !("employeeLeaveApproval" in globalForPrisma.prisma) ||
   !("leaveEligibility" in globalForPrisma.prisma);
 
 export const prisma =
