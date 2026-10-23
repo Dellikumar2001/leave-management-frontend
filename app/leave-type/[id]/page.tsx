@@ -135,6 +135,9 @@ export default function LeaveTypeDetailsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          code: form.code.trim().toUpperCase(),
+          name: form.name.trim().toUpperCase(),
+          description: form.description.trim().toUpperCase(),
           leaveGroupId: form.leaveGroupId ?? undefined,
           leaveCategoryId: form.leaveCategoryId ?? undefined,
         }),
@@ -200,12 +203,12 @@ export default function LeaveTypeDetailsPage() {
         <div className="grid gap-6 p-6 md:grid-cols-2">
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700">LEAVE TYPE CODE <span className="text-red-600">*</span></span>
-            <input required={!isViewMode} value={form.code} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("code", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
+            <input required={!isViewMode} value={form.code} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("code", e.target.value)} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
           </label>
 
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700">LEAVE TYPE NAME {/* Mandatory indicator commented out: <span className="text-red-600">*</span> */}</span>
-            <input /* required={!isViewMode} */ value={form.name} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("name", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
+            <input /* required={!isViewMode} */ value={form.name} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("name", e.target.value)} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
           </label>
 
           <label className="space-y-2">
@@ -271,12 +274,43 @@ export default function LeaveTypeDetailsPage() {
 
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700">DAYS ALLOWED <span className="text-red-600">*</span></span>
-            <input required={!isViewMode} type="number" min={1} step={1} value={form.daysAllowed || ""} readOnly={isViewMode} disabled={isViewMode} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown", "e", "E", "+", "-", ".", ","].includes(event.key)) event.preventDefault(); }} onChange={(e) => handleChange("daysAllowed", e.target.value === "" ? 0 : Number(e.target.value))} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" style={{ appearance: "textfield" }} />
+            <input
+              required={!isViewMode}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={form.daysAllowed || ""}
+              readOnly={isViewMode}
+              disabled={isViewMode}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (!/^\d*$/.test(value)) return;
+                const daysAllowed = value === "" ? 0 : Number(value);
+                if (Number.isSafeInteger(daysAllowed)) {
+                  handleChange("daysAllowed", daysAllowed);
+                }
+              }}
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+            />
+            {!isViewMode && (
+              <div className="flex gap-2">
+                {[5, 7, 30].map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => handleChange("daysAllowed", days)}
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase text-blue-700 transition hover:bg-blue-100"
+                  >
+                    {days} DAYS
+                  </button>
+                ))}
+              </div>
+            )}
           </label>
 
           <label className="space-y-2 md:col-span-2">
             <span className="text-sm font-medium text-slate-700">DESCRIPTION</span>
-            <textarea rows={4} value={form.description} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("description", e.target.value.toUpperCase())} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
+            <textarea rows={4} value={form.description} readOnly={isViewMode} disabled={isViewMode} onChange={(e) => handleChange("description", e.target.value)} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500" />
           </label>
 
           <label className="space-y-2">

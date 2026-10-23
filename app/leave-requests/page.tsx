@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
@@ -12,6 +12,7 @@ type LeaveGroup = {
   name: string;
   description: string;
   categoryNames: string[];
+  categoryIds: string[];
   leaveTypes: string[];
   effectiveFrom: string;
   status: "ACTIVE" | "INACTIVE";
@@ -40,6 +41,7 @@ type ApiLeaveGroup = {
   description?: string | null;
   category?: { id?: number; name?: string | null } | null;
   categories?: { categoryId?: number; category?: { id?: number; name?: string | null } | null }[];
+  categoryId?: number | null;
   items?: { leaveType?: { code?: string | null; status?: string } | null }[];
   effectiveFrom: string | Date;
   status: string;
@@ -54,6 +56,36 @@ type RowActionsProps = {
 
 function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowActionsProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const button = actionsButtonRef.current;
+    if (!button) return;
+
+    const bounds = button.getBoundingClientRect();
+    const menuHeight = 40;
+    const menuWidth = 128;
+    const spacing = 8;
+    const openAbove = bounds.bottom + menuHeight + spacing > window.innerHeight;
+    const top = openAbove
+      ? bounds.top - menuHeight - spacing
+      : bounds.bottom + spacing;
+
+    setMenuPosition({
+      top: Math.max(spacing, Math.min(top, window.innerHeight - menuHeight - spacing)),
+      left: Math.max(
+        spacing,
+        Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - spacing),
+      ),
+    });
+    setOpen(true);
+  };
 
   return (
     <div className="relative flex items-center justify-end gap-1">
@@ -63,14 +95,23 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
       <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit">
         <Pencil size={16} />
       </button>
-      <button type="button" onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
-        <Trash2 size={14} />
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+        title="Delete"
+        aria-label="Delete"
+      >
+        <Trash2 size={16} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-32 rounded-md border border-slate-200 bg-white shadow-lg">
+          <div
+            className="fixed z-40 w-32 rounded-md border border-slate-200 bg-white shadow-lg"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
             <button
               type="button"
               disabled={isDeleteDisabled}
@@ -79,12 +120,12 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
                 }`}
               title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "DELETE DISABLED" : "DELETE"}</span>
+              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
             </button>
           </div>
         </>
@@ -101,6 +142,9 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   categoryNames: Array.isArray(group.categories) && group.categories.length > 0
     ? group.categories.map((link) => String(link.category?.name ?? "").toUpperCase()).filter(Boolean)
     : group.category?.name ? [String(group.category.name).toUpperCase()] : [],
+  categoryIds: Array.isArray(group.categories) && group.categories.length > 0
+    ? group.categories.map((link) => String(link.categoryId ?? link.category?.id ?? "")).filter(Boolean)
+    : group.categoryId ? [String(group.categoryId)] : [],
   leaveTypes: Array.isArray(group.items)
     ? group.items
       .filter((item) => item.leaveType?.status === "ACTIVE")
@@ -111,15 +155,26 @@ const mapApiLeaveGroup = (group: ApiLeaveGroup): LeaveGroup => ({
   isUsed: false,
 });
 
-const fetchLeaveTypeOptions = async (): Promise<{ value: string; label: string }[]> => {
+type LeaveTypeOption = {
+  value: string;
+  label: string;
+  name: string;
+  leaveCategoryId: number | null;
+  leaveCategory: string | null;
+};
+
+const fetchLeaveTypeOptions = async (): Promise<LeaveTypeOption[]> => {
   try {
     const response = await fetch("/api/leave-types?status=ACTIVE");
     if (!response.ok) return [];
     const json = await response.json();
     const items = Array.isArray(json) ? json : [];
-    return items.map((item: { code?: string | null; name?: string | null }) => ({
+    return items.map((item: { code?: string | null; name?: string | null; leaveCategoryId?: number | null; leaveCategory?: string | null }) => ({
       value: String(item.code ?? "").toUpperCase(),
       label: `${String(item.code ?? "").toUpperCase()} ${String(item.name ?? "").toUpperCase()}`,
+      name: String(item.name ?? "").toUpperCase(),
+      leaveCategoryId: item.leaveCategoryId ? Number(item.leaveCategoryId) : null,
+      leaveCategory: item.leaveCategory ? String(item.leaveCategory) : null,
     }));
   } catch {
     return [];
@@ -143,14 +198,17 @@ const fetchLeaveCategoryOptions = async (): Promise<LeaveCategoryOption[]> => {
   }
 };
 
-const fetchLeaveGroups = async (): Promise<LeaveGroup[]> => {
+const fetchLeaveGroups = async (): Promise<{ data: LeaveGroup[]; error?: string }> => {
   try {
     const response = await fetch("/api/leave-requests");
-    if (!response.ok) return [];
+    if (!response.ok) {
+      const err = await response.json().catch(() => null);
+      return { data: [], error: err?.error ?? "Unable to load leave groups from the database." };
+    }
     const json = await response.json();
-    return Array.isArray(json?.data) ? json.data.map(mapApiLeaveGroup) : [];
-  } catch {
-    return [];
+    return { data: Array.isArray(json?.data) ? json.data.map(mapApiLeaveGroup) : [] };
+  } catch (error) {
+    return { data: [], error: error instanceof Error ? error.message : "Unable to load leave groups from the database." };
   }
 };
 
@@ -170,17 +228,34 @@ function LeaveTypeMultiSelect({
   disabled = false,
 }: {
   values: string[];
-  options: { value: string; label: string }[];
+  options: LeaveTypeOption[];
   onChange: (nextValues: string[]) => void;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         disabled={disabled}
+        aria-expanded={open}
         onClick={() => !disabled && setOpen((current) => !current)}
         className={`flex min-h-[46px] w-full flex-wrap items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 ${disabled ? "cursor-not-allowed opacity-70" : "hover:border-slate-400"
           }`}
@@ -197,46 +272,104 @@ function LeaveTypeMultiSelect({
           )}
         </div>
 
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`h-4 w-4 text-slate-500 transition ${open ? "rotate-180" : ""}`}>
-          <path d="m7 10 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <ChevronDown size={16} className={`shrink-0 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-          {options.length > 0 ? (
-            options.map((option) => {
-              const checked = values.includes(option.value);
+        <>
+          <button
+            type="button"
+            aria-label="Close leave type options"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            {options.length > 0 ? (
+              options.map((option) => {
+                const checked = values.includes(option.value);
 
-              return (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 uppercase hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => {
-                      const nextValues = checked
-                        ? values.filter((item) => item !== option.value)
-                        : [...values, option.value];
+                return (
+                  <label
+                    key={option.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 uppercase hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const nextValues = checked
+                          ? values.filter((item) => item !== option.value)
+                          : [...values, option.value];
 
-                      onChange(nextValues);
-                    }}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
-                  />
-                  <span className="text-sm font-medium text-slate-700">{option.value}</span>
-                  <span className="text-xs text-slate-500">{option.label.replace(`${option.value}`, "")}</span>
-                </label>
-              );
-            })
-          ) : (
-            <div className="px-2 py-3 text-sm uppercase text-slate-500">NO LEAVE TYPES AVAILABLE</div>
-          )}
-        </div>
+                        onChange(nextValues);
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
+                    />
+                    <span className="text-sm font-medium text-slate-700">{option.value}</span>
+                    <span className="text-xs text-slate-500">{option.label.replace(`${option.value}`, "")}</span>
+                  </label>
+                );
+              })
+            ) : (
+              <div className="px-2 py-3 text-sm uppercase text-slate-500">NO LEAVE TYPES AVAILABLE</div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
+}
+
+function deriveCategoryIdsFromLeaveTypes(
+  selectedCodes: string[],
+  typeOptions: LeaveTypeOption[],
+  categoryOptions: LeaveCategoryOption[]
+): string[] {
+  const result = new Set<string>();
+
+  selectedCodes.forEach((code) => {
+    const opt = typeOptions.find((o) => o.value.toUpperCase() === code.toUpperCase());
+    if (!opt) return;
+
+    // 1. Direct match by leaveCategoryId returned by API
+    if (opt.leaveCategoryId) {
+      const exists = categoryOptions.some((cat) => cat.id === opt.leaveCategoryId);
+      if (exists) {
+        result.add(String(opt.leaveCategoryId));
+        return;
+      }
+    }
+
+    // 2. Match by category name returned by API
+    if (opt.leaveCategory) {
+      const match = categoryOptions.find(
+        (cat) => cat.name.toUpperCase() === opt.leaveCategory!.toUpperCase()
+      );
+      if (match) {
+        result.add(String(match.id));
+        return;
+      }
+    }
+
+    // 3. Fallback: match by leave type name and known keywords
+    const typeName = opt.name.toUpperCase();
+    const typeCode = opt.value.toUpperCase();
+
+    categoryOptions.forEach((cat) => {
+      const catName = cat.name.toUpperCase();
+      if (
+        ((typeCode === "CL" || typeName.includes("CASUAL")) && catName.includes("CASUAL")) ||
+        ((typeCode === "ML" || typeName.includes("MEDICAL") || typeName.includes("SICK")) && catName.includes("MEDICAL")) ||
+        ((typeCode === "EL" || typeName.includes("EARNED") || typeName.includes("ANNUAL")) && catName.includes("ANNUAL")) ||
+        ((typeCode === "MLV" || typeCode === "PL" || typeName.includes("MATERNITY") || typeName.includes("PATERNITY")) && catName.includes("SPECIAL")) ||
+        (typeName.replace(" LEAVE", "").trim().length > 2 && catName.includes(typeName.replace(" LEAVE", "").trim()))
+      ) {
+        result.add(String(cat.id));
+      }
+    });
+  });
+
+  return Array.from(result);
 }
 
 const today = new Date().toISOString().split("T")[0];
@@ -251,15 +384,38 @@ function sanitizeDateInput(value: string): string {
   return value;
 }
 
+function sanitizeEditDateInput(value: string): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  if (parsed < new Date("2000-01-01T00:00:00.000Z")) return "";
+  if (parsed > new Date("2100-12-31T00:00:00.000Z")) return "";
+  return value;
+}
+
 export default function StudentLeaveRequestsPage() {
   const router = useRouter();
   const [groups, setGroups] = useState<LeaveGroup[]>([]);
-  const [leaveTypeOptions, setLeaveTypeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [leaveTypeOptions, setLeaveTypeOptions] = useState<LeaveTypeOption[]>([]);
   const [leaveCategoryOptions, setLeaveCategoryOptions] = useState<LeaveCategoryOption[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL STATUS");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [pageError, setPageError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<LeaveGroupForm>({
+    code: "",
+    name: "",
+    description: "",
+    leaveTypes: [],
+    categoryIds: [],
+    effectiveFrom: "",
+    status: "ACTIVE",
+  });
+  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<LeaveGroupForm>({
     code: "",
     name: "",
     description: "",
@@ -282,16 +438,24 @@ export default function StudentLeaveRequestsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [options, categories, groupsData] = await Promise.all([
+        setIsLoading(true);
+        setPageError("");
+        const [options, categories, groupsResult] = await Promise.all([
           fetchLeaveTypeOptions(),
           fetchLeaveCategoryOptions(),
           fetchLeaveGroups(),
         ]);
         setLeaveTypeOptions(options);
         setLeaveCategoryOptions(categories);
-        setGroups(groupsData);
-      } catch (error) {
-        console.error("Failed to load leave group data", error);
+        setGroups(groupsResult.data);
+        if (groupsResult.error) {
+          setPageError(groupsResult.error);
+        }
+      } catch (err) {
+        console.error("Failed to load leave group data", err);
+        setPageError("Unable to load leave groups from the database.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -320,49 +484,58 @@ export default function StudentLeaveRequestsPage() {
     const nextName = form.name.trim();
     const nextEffectiveFrom = sanitizeDateInput(form.effectiveFrom);
 
-    // Mandatory validation commented out to allow creating a leave group without Group Name, Leave Types, or Leave Category:
-    // if (!nextCode || !nextName || form.leaveTypes.length === 0 || !categoryId || !nextEffectiveFrom) {
-    //   return;
-    // }
-
-    if (!nextCode || !nextEffectiveFrom) {
+    if (!nextCode) {
+      setError("GROUP CODE IS REQUIRED.");
+      return;
+    }
+    if (!nextEffectiveFrom) {
+      setError("FROM DATE IS REQUIRED.");
       return;
     }
 
-    const response = await fetch("/api/leave-requests", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        code: nextCode,
-        name: nextName,
-        description: form.description.trim().toUpperCase(),
-        leaveTypeCodes: form.leaveTypes.map((t) => t.toUpperCase()),
-        categoryIds: form.categoryIds.map(Number),
-        effectiveFrom: nextEffectiveFrom,
-        status: form.status,
-      }),
-    });
+    setError("");
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/leave-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: nextCode,
+          name: nextName,
+          description: form.description.trim().toUpperCase(),
+          leaveTypeCodes: form.leaveTypes.map((t) => t.toUpperCase()),
+          categoryIds: form.categoryIds.map(Number),
+          effectiveFrom: nextEffectiveFrom,
+          status: form.status,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null);
-      console.error("Failed to create leave group:", errorPayload?.error ?? response.statusText);
-      return;
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null);
+        setError(errorPayload?.error?.toUpperCase() ?? "FAILED TO CREATE LEAVE GROUP.");
+        return;
+      }
+
+      const createdGroup = await response.json();
+      setGroups((prev) => [mapApiLeaveGroup(createdGroup.data), ...prev]);
+      setForm({
+        code: "",
+        name: "",
+        description: "",
+        leaveTypes: [],
+        categoryIds: [],
+        effectiveFrom: "",
+        status: "ACTIVE",
+      });
+      setError("");
+      setIsModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message.toUpperCase() : "FAILED TO CREATE LEAVE GROUP.");
+    } finally {
+      setIsSaving(false);
     }
-
-    const createdGroup = await response.json();
-    setGroups((prev) => [mapApiLeaveGroup(createdGroup.data), ...prev]);
-    setForm({
-      code: "",
-      name: "",
-      description: "",
-      leaveTypes: [],
-      categoryIds: [],
-      effectiveFrom: "",
-      status: "ACTIVE",
-    });
-    setIsModalOpen(false);
   };
 
   const handleViewGroup = (group: LeaveGroup) => {
@@ -370,21 +543,68 @@ export default function StudentLeaveRequestsPage() {
   };
 
   const handleEditGroup = (group: LeaveGroup) => {
-    router.push(`/leave-requests/${group.id}?mode=edit`);
+    setEditingGroupId(group.id);
+    setEditForm({
+      code: group.code,
+      name: group.name,
+      description: group.description,
+      leaveTypes: group.leaveTypes,
+      categoryIds: group.categoryIds,
+      effectiveFrom: group.effectiveFrom,
+      status: group.status,
+    });
   };
 
-  const handleDeleteGroup = async (groupId: number) => {
-    const response = await fetch(`/api/leave-requests/${groupId}`, {
-      method: "DELETE",
+  const handleSaveGroup = async () => {
+    if (editingGroupId === null) return;
+
+    const response = await fetch(`/api/leave-requests/${editingGroupId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code: editForm.code.trim().toUpperCase().slice(0, 6),
+        name: editForm.name.trim().toUpperCase(),
+        description: editForm.description.trim().toUpperCase(),
+        leaveTypeCodes: editForm.leaveTypes,
+        categoryIds: editForm.categoryIds.map(Number),
+        categoryId: editForm.categoryIds[0] ? Number(editForm.categoryIds[0]) : null,
+        effectiveFrom: editForm.effectiveFrom,
+        status: editForm.status,
+      }),
     });
 
     if (!response.ok) {
-      const errorJson = await response.json().catch(() => null);
-      console.error(errorJson?.error ?? "Failed to delete leave group");
+      const error = await response.json().catch(() => null);
+      console.error(error?.error ?? "Failed to update leave group");
       return;
     }
 
-    setGroups((prev) => prev.filter((group) => group.id !== groupId));
+    const result = await response.json();
+    setGroups((current) => current.map((group) =>
+      group.id === editingGroupId ? mapApiLeaveGroup(result.data) : group,
+    ));
+    setEditingGroupId(null);
+  };
+
+  const handleDeleteGroup = async (groupId: number) => {
+    try {
+      const response = await fetch(`/api/leave-requests/${groupId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => null);
+        alert(errorJson?.error ?? "Failed to delete leave group");
+        return;
+      }
+
+      setGroups((prev) => prev.filter((group) => group.id !== groupId));
+    } catch (err) {
+      console.error("Failed to delete leave group:", err);
+      alert("Failed to delete leave group.");
+    }
   };
 
   return (
@@ -407,7 +627,7 @@ export default function StudentLeaveRequestsPage() {
                   type="text"
                   placeholder="SEARCH BY GROUP CODE, NAME, OR LEAVE TYPE..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value.toUpperCase())}
+                  onChange={(e) => setSearch(e.target.value)}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
@@ -429,7 +649,10 @@ export default function StudentLeaveRequestsPage() {
               {/* Create Button in UPPERCASE */}
               <button
                 type="button"
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => {
+                  setError("");
+                  setIsModalOpen(true);
+                }}
                 className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#2f5fbb] px-5 text-sm font-medium uppercase text-white transition-colors hover:bg-[#294f9c]"
               >
                 <Plus size={16} />
@@ -439,6 +662,11 @@ export default function StudentLeaveRequestsPage() {
           </div>
 
           <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {pageError && (
+              <p role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm uppercase text-red-700">
+                {pageError}
+              </p>
+            )}
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-0 text-left">
                 <thead>
@@ -448,87 +676,94 @@ export default function StudentLeaveRequestsPage() {
                     <th className="border-b border-slate-200 px-5 py-4">GROUP NAME</th>
                     <th className="border-b border-slate-200 px-5 py-4">LEAVE CATEGORY</th>
                     <th className="border-b border-slate-200 px-5 py-4">LEAVE TYPES</th>
-                    <th className="border-b border-slate-200 px-5 py-4">EFFECTIVE FROM</th>
+                    <th className="border-b border-slate-200 px-5 py-4">FROM</th>
                     <th className="border-b border-slate-200 px-5 py-4">STATUS</th>
                     <th className="border-b border-slate-200 px-5 py-4 text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredGroups.map((group, index) => (
-                    <tr key={group.id} className="bg-white text-sm uppercase text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
-                      <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
-                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">
-                        <div>{group.name || "—"}</div>
-                        {group.description && (
-                          <div className="mt-1 text-xs font-normal text-slate-500">{group.description}</div>
-                        )}
-                      </td>
-                      <td className="border-b border-slate-200 px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          {group.categoryNames.length > 0 ? (
-                            group.categoryNames.map((type) => (
-                              <span
-                                key={`${group.id}-${type}`}
-                                className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
-                              >
-                                {type}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="border-b border-slate-200 px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          {group.leaveTypes.length > 0 ? (
-                            group.leaveTypes.map((type) => (
-                              <span
-                                key={`${group.id}-${type}`}
-                                className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
-                              >
-                                {type}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="border-b border-slate-200 px-5 py-4 text-slate-700">
-                        {new Date(group.effectiveFrom).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        }).toUpperCase()}
-                      </td>
-                      <td className="border-b border-slate-200 px-5 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${group.status === "ACTIVE"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-200 text-slate-600"
-                            }`}
-                        >
-                          {group.status}
-                        </span>
-                      </td>
-                      <td className="border-b border-slate-200 px-5 py-4">
-                        <RowActions
-                          onView={() => handleViewGroup(group)}
-                          onEdit={() => handleEditGroup(group)}
-                          onDelete={() => handleDeleteGroup(group.id)}
-                          isDeleteDisabled={group.status === "INACTIVE" || Boolean(group.isUsed)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredGroups.length === 0 && (
+                  {isLoading ? (
                     <tr>
                       <td colSpan={8} className="px-5 py-12 text-center text-sm uppercase text-slate-500">
-                        NO LEAVE GROUPS MATCH YOUR FILTER CRITERIA.
+                        LOADING LEAVE GROUPS...
                       </td>
                     </tr>
+                  ) : filteredGroups.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-5 py-12 text-center text-sm uppercase text-slate-500">
+                        {search ? "NO LEAVE GROUPS MATCH YOUR FILTER CRITERIA." : "NO LEAVE GROUPS FOUND."}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredGroups.map((group, index) => (
+                      <tr key={group.id} className="bg-white text-sm uppercase text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
+                        <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
+                        <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-700">{group.code}</td>
+                        <td className="border-b border-slate-200 px-5 py-4 text-slate-700">
+                          <div>{group.name || "—"}</div>
+                          {group.description && (
+                            <div className="mt-1 text-xs font-normal text-slate-500">{group.description}</div>
+                          )}
+                        </td>
+                        <td className="border-b border-slate-200 px-5 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {group.categoryNames.length > 0 ? (
+                              group.categoryNames.map((type) => (
+                                <span
+                                  key={`${group.id}-${type}`}
+                                  className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
+                                >
+                                  {type}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="border-b border-slate-200 px-5 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {group.leaveTypes.length > 0 ? (
+                              group.leaveTypes.map((type) => (
+                                <span
+                                  key={`${group.id}-${type}`}
+                                  className="inline-flex items-center rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-700"
+                                >
+                                  {type}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="border-b border-slate-200 px-5 py-4 text-slate-700">
+                          {new Date(group.effectiveFrom).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          }).toUpperCase()}
+                        </td>
+                        <td className="border-b border-slate-200 px-5 py-4">
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${group.status === "ACTIVE"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-200 text-slate-600"
+                              }`}
+                          >
+                            {group.status}
+                          </span>
+                        </td>
+                        <td className="border-b border-slate-200 px-5 py-4">
+                          <RowActions
+                            onView={() => handleViewGroup(group)}
+                            onEdit={() => handleEditGroup(group)}
+                            onDelete={() => handleDeleteGroup(group.id)}
+                            isDeleteDisabled={group.status === "INACTIVE" || Boolean(group.isUsed)}
+                          />
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
@@ -578,6 +813,12 @@ export default function StudentLeaveRequestsPage() {
                 </button>
               </div>
 
+              {error && (
+                <div role="alert" className="mx-6 mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm uppercase text-red-700">
+                  {error}
+                </div>
+              )}
+
               <div className="px-6 pb-6 pt-2">
                 <div className="grid grid-cols-2 gap-5">
                   <div>
@@ -588,57 +829,70 @@ export default function StudentLeaveRequestsPage() {
                       required
                       value={form.code}
                       onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase().slice(0, 6) }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                      className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300"
                       maxLength={6}
                       placeholder="GEN"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Group Name {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      GROUP NAME
                     </label>
                     <input
-                      /* required attribute commented out to allow empty group name */
                       value={form.name}
                       onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                      className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300"
                       maxLength={32}
                       placeholder="GENERAL LEAVE"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="mt-5">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Leave Types {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
+                <div className="mt-5 grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      LEAVE TYPES
                     </label>
-
-                    {/* Previously required validation for leave types:
-                    <input
-                      type="hidden"
-                      required
-                      value={form.leaveTypes.join(",")}
-                      aria-label="Leave types required"
-                    /> */}
-
                     <LeaveTypeMultiSelect
                       values={form.leaveTypes}
                       options={leaveTypeOptions}
-                      onChange={(nextValues) =>
+                      onChange={(nextValues) => {
+                        const upperValues = nextValues.map((t) => t.toUpperCase());
+
+                        // Auto-derive categories that belong to newly selected leave types
+                        const autoCategories = deriveCategoryIdsFromLeaveTypes(
+                          upperValues,
+                          leaveTypeOptions,
+                          leaveCategoryOptions
+                        );
+
+                        // Preserve any manually added category IDs that aren't tied to deselected leave types
+                        const prevAutoCategories = deriveCategoryIdsFromLeaveTypes(
+                          form.leaveTypes,
+                          leaveTypeOptions,
+                          leaveCategoryOptions
+                        );
+                        const manualCategoryIds = form.categoryIds.filter(
+                          (id) => !prevAutoCategories.includes(id)
+                        );
+
+                        const mergedCategoryIds = Array.from(
+                          new Set([...manualCategoryIds, ...autoCategories])
+                        );
+
                         setForm((prev) => ({
                           ...prev,
-                          leaveTypes: nextValues.map((t) => t.toUpperCase()),
-                        }))
-                      }
+                          leaveTypes: upperValues,
+                          categoryIds: mergedCategoryIds,
+                        }));
+                      }}
                     />
-
-                    <div className="mt-2 text-xs uppercase text-slate-500">SELECT ONE OR MORE LEAVE TYPES</div>
                   </div>
-                  <div className="mt-5">
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Leave Category {/* Mandatory indicator commented out: <span className="text-red-500">*</span> */}
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
+                      LEAVE CATEGORIES
                     </label>
                     <LeaveCategoryMultiSelect
                       values={form.categoryIds}
@@ -651,10 +905,10 @@ export default function StudentLeaveRequestsPage() {
                 <div className="mt-5 grid grid-cols-2 gap-5">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">
-                      EFFECTIVE FROM <span className="text-red-500">*</span>
+                      FROM <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                      <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-slate-400">
                         <CalendarIcon />
                       </span>
 
@@ -668,21 +922,24 @@ export default function StudentLeaveRequestsPage() {
                           const nextValue = sanitizeDateInput(event.target.value);
                           setForm((prev) => ({ ...prev, effectiveFrom: nextValue }));
                         }}
-                        className="w-full rounded-xl border border-slate-300 bg-slate-50 py-2.5 pl-10 pr-3 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                        className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">STATUS</label>
-                    <select
-                      value={form.status}
-                      onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value.toUpperCase() as "ACTIVE" | "INACTIVE" }))}
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
-                    >
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="INACTIVE">INACTIVE</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={form.status}
+                        onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value.toUpperCase() as "ACTIVE" | "INACTIVE" }))}
+                        className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300"
+                      >
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                      </select>
+                      <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
                   </div>
                 </div>
 
@@ -691,7 +948,7 @@ export default function StudentLeaveRequestsPage() {
                   <textarea
                     value={form.description}
                     onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
-                    className="min-h-[78px] w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                    className="min-h-[78px] w-full resize-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300"
                     maxLength={61}
                     placeholder="GROUP FOR GENERAL PURPOSE LEAVES LIKE CASUAL, ANNUAL AND EARNED LEAVE."
                   />
@@ -707,14 +964,150 @@ export default function StudentLeaveRequestsPage() {
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium uppercase text-white transition hover:bg-[#294f9c]"
+                    disabled={isSaving}
+                    className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium uppercase text-white transition hover:bg-[#294f9c] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    CREATE
+                    {isSaving ? "CREATING..." : "CREATE"}
                   </button>
                 </div>
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {editingGroupId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] uppercase"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setEditingGroupId(null);
+          }}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSaveGroup();
+            }}
+            className="my-auto max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-bold uppercase text-slate-800">EDIT LEAVE GROUP</h2>
+                <p className="mt-1 text-sm uppercase text-slate-500">UPDATE THE LEAVE GROUP DETAILS BELOW.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingGroupId(null)}
+                className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="CLOSE DIALOG"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid gap-5 px-6 pb-6 pt-2 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">GROUP CODE</label>
+                <input
+                  required
+                  maxLength={6}
+                  value={editForm.code}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    code: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">GROUP NAME</label>
+                <input
+                  value={editForm.name}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DESCRIPTION</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))}
+                  maxLength={61}
+                  rows={3}
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE TYPES</label>
+                <LeaveTypeMultiSelect
+                  values={editForm.leaveTypes}
+                  options={leaveTypeOptions}
+                  onChange={(leaveTypes) => setEditForm((current) => ({ ...current, leaveTypes }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE CATEGORIES</label>
+                <LeaveCategoryMultiSelect
+                  values={editForm.categoryIds}
+                  options={leaveCategoryOptions}
+                  onChange={(categoryIds) => setEditForm((current) => ({ ...current, categoryIds }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">EFFECTIVE FROM</label>
+                <input
+                  required
+                  type="date"
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  value={editForm.effectiveFrom}
+                  onChange={(event) => {
+                    const effectiveFrom = sanitizeEditDateInput(event.target.value);
+                    if (effectiveFrom) {
+                      setEditForm((current) => ({ ...current, effectiveFrom }));
+                    }
+                  }}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">STATUS</label>
+                <select
+                  value={editForm.status}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    status: event.target.value as LeaveGroup["status"],
+                  }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300"
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setEditingGroupId(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                CANCEL
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#294f9c]"
+              >
+                UPDATE
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

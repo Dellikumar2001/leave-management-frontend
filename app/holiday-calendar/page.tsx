@@ -1103,7 +1103,7 @@ export default function HolidayCalendarPage() {
                   required
                   maxLength={80}
                   value={name}
-                  onChange={(event) => setName(cleanHolidayTitle(event.target.value))}
+                  onChange={(event) => setName(event.target.value)}
                   placeholder="e.g. Independence Day, Pongal"
                   className="mt-1.5 h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-800 outline-none transition-colors focus:border-blue-400"
                 />

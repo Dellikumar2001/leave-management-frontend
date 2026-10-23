@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Pencil, Eye, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -8,11 +8,13 @@ type LeaveCategory = {
   id: number;
   code: string;
   name: string;
+  paymentType: "PAID" | "UNPAID";
+  isPaid?: boolean;
   description: string;
   status: "ACTIVE" | "INACTIVE";
 };
 
-type LeaveCategoryForm = Omit<LeaveCategory, "id">;
+type LeaveCategoryForm = Omit<LeaveCategory, "id" | "isPaid">;
 type DialogMode = "create" | "edit" | "view";
 
 type CategoryRowActionsProps = {
@@ -24,23 +26,62 @@ type CategoryRowActionsProps = {
 
 function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: CategoryRowActionsProps) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const actionsButtonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    const button = actionsButtonRef.current;
+    if (!button) return;
+
+    const bounds = button.getBoundingClientRect();
+    const menuHeight = 40;
+    const menuWidth = 160;
+    const spacing = 8;
+    const openAbove = bounds.bottom + menuHeight + spacing > window.innerHeight;
+    const top = openAbove
+      ? bounds.top - menuHeight - spacing
+      : bounds.bottom + spacing;
+
+    setMenuPosition({
+      top: Math.max(spacing, Math.min(top, window.innerHeight - menuHeight - spacing)),
+      left: Math.max(
+        spacing,
+        Math.min(bounds.right - menuWidth, window.innerWidth - menuWidth - spacing),
+      ),
+    });
+    setOpen(true);
+  };
 
   return (
     <div className="relative flex items-center justify-end gap-1">
-      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View category" aria-label="View category">
+      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View" aria-label="View">
         <Eye size={16} />
       </button>
-      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit category" aria-label="Edit category">
+      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit" aria-label="Edit">
         <Pencil size={16} />
       </button>
-      <button type="button" onClick={() => setOpen((value) => !value)} className="p-1.5 text-slate-400 hover:text-slate-700" aria-label="More actions">
-        <Trash2 size={14} />
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+        title="Delete"
+        aria-label="Delete"
+      >
+        <Trash2 size={16} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-40 rounded-md border border-slate-200 bg-white shadow-lg">
+          <div
+            className="fixed z-40 w-40 rounded-md border border-slate-200 bg-white shadow-lg"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
             <button
               type="button"
               disabled={isDeleteDisabled}
@@ -49,11 +90,11 @@ function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: Cate
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"}`}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"}`}
               title={isDeleteDisabled ? "Inactive leave categories cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "DELETE DISABLED" : "DELETE"}</span>
+              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
             </button>
           </div>
         </>
@@ -65,6 +106,7 @@ function CategoryRowActions({ onView, onEdit, onDelete, isDeleteDisabled }: Cate
 const emptyForm: LeaveCategoryForm = {
   code: "",
   name: "",
+  paymentType: "PAID",
   description: "",
   status: "ACTIVE",
 };
@@ -73,12 +115,16 @@ const mapCategory = (item: {
   id: number;
   code: string;
   name: string;
+  paymentType?: string | null;
+  isPaid?: boolean | null;
   description?: string | null;
   status: string;
 }): LeaveCategory => ({
   id: Number(item.id),
   code: String(item.code ?? "").toUpperCase(),
   name: String(item.name ?? "").toUpperCase(),
+  paymentType: (item.paymentType === "UNPAID" || item.isPaid === false) ? "UNPAID" : "PAID",
+  isPaid: item.paymentType === "UNPAID" || item.isPaid === false ? false : true,
   description: String(item.description ?? "").toUpperCase(),
   status: item.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
 });
@@ -131,6 +177,7 @@ export default function LeaveCategoryPage() {
     setForm(category ? {
       code: category.code.toUpperCase(),
       name: category.name.toUpperCase(),
+      paymentType: category.paymentType,
       description: category.description.toUpperCase(),
       status: category.status,
     } : emptyForm);
@@ -147,8 +194,10 @@ export default function LeaveCategoryPage() {
 
   const handleSave = async () => {
     const payload = {
-      code: form.code.trim().toUpperCase(),
+      code: form.code.trim().toUpperCase().replace(/\s/g, ""),
       name: form.name.trim().toUpperCase(),
+      paymentType: form.paymentType,
+      isPaid: form.paymentType === "PAID",
       description: form.description.trim().toUpperCase(),
       status: form.status,
     };
@@ -220,7 +269,7 @@ export default function LeaveCategoryPage() {
                   type="text"
                   placeholder="SEARCH CATEGORIES..."
                   value={search}
-                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
@@ -261,6 +310,7 @@ export default function LeaveCategoryPage() {
                     <th className="border-b border-slate-200 px-5 py-4">SNO</th>
                     <th className="border-b border-slate-200 px-5 py-4">CATEGORY CODE</th>
                     <th className="border-b border-slate-200 px-5 py-4">CATEGORY NAME</th>
+                    <th className="border-b border-slate-200 px-5 py-4">PAYMENT TYPE</th>
                     <th className="border-b border-slate-200 px-5 py-4">DESCRIPTION</th>
                     <th className="border-b border-slate-200 px-5 py-4">STATUS</th>
                     <th className="border-b border-slate-200 px-5 py-4 text-right">ACTIONS</th>
@@ -268,14 +318,19 @@ export default function LeaveCategoryPage() {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={6} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">LOADING CATEGORIES...</td></tr>
+                    <tr><td colSpan={7} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">LOADING CATEGORIES...</td></tr>
                   ) : filteredCategories.length === 0 ? (
-                    <tr><td colSpan={6} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">NO LEAVE CATEGORIES FOUND.</td></tr>
+                    <tr><td colSpan={7} className="bg-white px-5 py-10 text-center text-sm uppercase text-slate-500">NO LEAVE CATEGORIES FOUND.</td></tr>
                   ) : filteredCategories.map((category, index) => (
                     <tr key={category.id} className="bg-white text-sm uppercase text-slate-700 even:bg-[#f9fafc] hover:bg-slate-50/70">
                       <td className="border-b border-slate-200 px-5 py-4 font-medium text-slate-500">{index + 1}</td>
                       <td className="border-b border-slate-200 px-5 py-4 font-semibold text-slate-700">{category.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4">{category.name}</td>
+                      <td className="border-b border-slate-200 px-5 py-4">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${category.paymentType === "PAID" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                          {category.paymentType}
+                        </span>
+                      </td>
                       <td className="max-w-75 border-b border-slate-200 px-5 py-4 text-slate-500">{category.description || "—"}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium uppercase ${category.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
@@ -326,7 +381,7 @@ export default function LeaveCategoryPage() {
                     maxLength={80}
                     value={form.name}
                     readOnly={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value.toUpperCase() }))}
+                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                     placeholder="SFS"
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
@@ -338,25 +393,43 @@ export default function LeaveCategoryPage() {
                     maxLength={12}
                     value={form.code}
                     readOnly={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase().replace(/\s/g, "") }))}
+                    onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
                     placeholder="SFS"
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
                 </label>
 
                 <label className="space-y-1.5">
-                  <span className="block text-sm font-medium uppercase text-slate-700">STATUS</span>
-                  <select
-                    value={form.status}
-                    disabled={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value.toUpperCase() as LeaveCategoryForm["status"] }))}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
+                  <span className="block text-sm font-medium uppercase text-slate-700">PAYMENT TYPE</span>
+                  <div className="relative">
+                    <select
+                      value={form.paymentType}
+                      disabled={mode === "view"}
+                      onChange={(event) => setForm((current) => ({ ...current, paymentType: event.target.value.toUpperCase() as LeaveCategoryForm["paymentType"] }))}
+                      className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 pr-9 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                    >
+                      <option value="PAID">PAID</option>
+                      <option value="UNPAID">UNPAID</option>
+                    </select>
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
                 </label>
-                <div aria-hidden="true" className="hidden sm:block" />
+
+                <label className="space-y-1.5">
+                  <span className="block text-sm font-medium uppercase text-slate-700">STATUS</span>
+                  <div className="relative">
+                    <select
+                      value={form.status}
+                      disabled={mode === "view"}
+                      onChange={(event) => setForm((current) => ({ ...current, status: event.target.value.toUpperCase() as LeaveCategoryForm["status"] }))}
+                      className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 pr-9 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                    >
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="INACTIVE">INACTIVE</option>
+                    </select>
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
+                </label>
 
                 <label className="space-y-1.5 sm:col-span-2">
                   <span className="block text-sm font-medium uppercase text-slate-700">DESCRIPTION</span>
@@ -365,7 +438,7 @@ export default function LeaveCategoryPage() {
                     maxLength={500}
                     value={form.description}
                     readOnly={mode === "view"}
-                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value.toUpperCase() }))}
+                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                     placeholder="ADD A SHORT DESCRIPTION"
                     className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
@@ -375,7 +448,7 @@ export default function LeaveCategoryPage() {
 
               <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
                 <button type="button" onClick={closeDialog} disabled={isSaving} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50">{mode === "view" ? "CLOSE" : "CANCEL"}</button>
-                {mode !== "view" && <button type="submit" disabled={isSaving} className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold uppercase text-white hover:bg-[#294f9c] disabled:cursor-wait disabled:opacity-60">{isSaving ? "SAVING..." : "SAVE"}</button>}
+                {mode !== "view" && <button type="submit" disabled={isSaving} className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold uppercase text-white hover:bg-[#294f9c] disabled:cursor-wait disabled:opacity-60">{isSaving ? "UPDATING..." : "UPDATE"}</button>}
               </div>
             </form>
           </section>

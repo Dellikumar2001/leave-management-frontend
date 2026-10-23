@@ -60,7 +60,7 @@ export async function GET() {
     });
 
     // List of potential approvers for dropdowns
-    const approverOptions = employees.map((emp) => ({
+    const approverOptions = employeesWithApprovers.map((emp) => ({
       employeeId: emp.employeeId,
       name: emp.name,
       department: emp.department,
@@ -75,7 +75,10 @@ export async function GET() {
   } catch (error) {
     console.error("Failed to load approver settings:", error);
     return Response.json(
-      { error: "Unable to load approver settings from the database." },
+      {
+        error: "Unable to load approver settings from the database.",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
@@ -249,9 +252,15 @@ export async function DELETE(request: NextRequest) {
       return Response.json({ error: "Employee ID is required." }, { status: 400 });
     }
 
-    await prisma.employeeApprover.deleteMany({
-      where: { employeeId: employeeId.trim() },
-    });
+    try {
+      await prisma.employeeApprover.deleteMany({
+        where: { employeeId: employeeId.trim() },
+      });
+    } catch {
+      await prisma.$executeRaw`
+        DELETE FROM employee_approvers WHERE employee_id = ${employeeId.trim()}
+      `;
+    }
 
     return Response.json({ success: true });
   } catch (error) {

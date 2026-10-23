@@ -72,7 +72,7 @@ function isItemActive(item: NavItem, activePage: string): boolean {
 const leaveSettingsNavigation: readonly NavItem[] = [
   {
     id: "leave-category",
-    label: "Leave category",
+    label: "Leave Category",
     href: "/leave-category",
     Icon: CalendarDays,
   },
@@ -84,19 +84,19 @@ const leaveSettingsNavigation: readonly NavItem[] = [
   },
   {
     id: "leave-requests",
-    label: "Leave groups",
+    label: "Leave Groups",
     href: "/leave-requests",
     Icon: ClipboardList,
   },
   {
     id: "eligibility",
-    label: "Leave entitlement",
+    label: "Leave eligibility",
     href: "/leave-eligibility",
     Icon: Users,
   },
   {
     id: "create-eligibility",
-    label: "Leave eligibility",
+    label: "Create leave eligibility",
     href: "/create-eligibility",
     Icon: Users,
   },
@@ -108,7 +108,7 @@ const leaveSettingsNavigation: readonly NavItem[] = [
   },
   {
     id: "holiday-calendar",
-    label: "Holiday calendar",
+    label: "Holiday Calendar",
     href: "/holiday-calendar",
     Icon: CalendarDays,
   },
@@ -180,7 +180,7 @@ const leaveReportNavigation: readonly NavItem[] = [
   },
   {
     id: "employee-status-report",
-    label: "Employee Individual Leave Status Report",
+    label: "Individual Status Report",
     href: "/leave-report/employee-status",
     Icon: Users,
   },

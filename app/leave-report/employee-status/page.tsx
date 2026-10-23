@@ -778,7 +778,7 @@ export default function EmployeeStatusReportPage() {
               {!isGenerating && !error && currentEmployee && (
                 <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-xs font-medium text-slate-500">
-                    {Math.max(visibleApplications.length, 1)} record
+                    {visibleApplications.length} record
                     {visibleApplications.length !== 1 ? "s" : ""} found
                   </span>
 

@@ -66,11 +66,15 @@ export async function PUT(request: Request, { params }: RouteContext) {
       ? null
       : await prisma.leaveCategoryMaster.findFirst({
           where: { id: leaveCategoryId, status: "ACTIVE" },
-          select: { id: true },
+          select: { id: true, isPaid: true },
         });
 
     if (leaveCategoryId !== undefined && !categoryMaster) {
       return Response.json({ error: "Select an active leave category." }, { status: 400 });
+    }
+
+    if (categoryMaster && !(body as Record<string, unknown>).paymentType) {
+      leaveTypeData.paymentType = categoryMaster.isPaid ? "PAID" : "UNPAID";
     }
 
     let group = leaveGroupId === undefined
