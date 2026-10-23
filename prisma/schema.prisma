@@ -417,11 +417,12 @@ model EmployeeLeaveApplication {
 model EmployeeApprover {
   id                 Int       @id @default(autoincrement())
   employeeId         String    @unique @map("employee_id")
-  firstLevelApprover String?   @map("first_level_approver")
-  finalLevelApprover String?   @map("final_level_approver")
-  backupOfficer      String?   @map("backup_officer")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  firstLevelApprover      String?   @map("first_level_approver")
+  finalLevelApprover      String?   @map("final_level_approver")
+  backupOfficer           String?   @map("backup_officer")
+  finalLevelBackupOfficer String?   @map("final_level_backup_officer")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at")
   employee           Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
   @@index([employeeId])
