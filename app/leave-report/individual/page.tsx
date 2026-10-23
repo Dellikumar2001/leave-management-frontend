@@ -14,12 +14,7 @@ type ReportData = EmployeeReportData;
 
 type Semester = "FULL" | "ODD" | "EVEN";
 
-function formatDate(value: string, options?: Intl.DateTimeFormatOptions) {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("en", { timeZone: "UTC", dateStyle: "medium", ...options }).format(date);
-}
+
 
 function academicYearStartFor(date: Date) {
   return date.getUTCMonth() >= 6 ? date.getUTCFullYear() : date.getUTCFullYear() - 1;

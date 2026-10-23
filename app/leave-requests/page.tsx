@@ -96,8 +96,9 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
         <Pencil size={16} />
       </button>
       <button
+        ref={actionsButtonRef}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggleMenu}
         className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
         title="Delete"
         aria-label="Delete"

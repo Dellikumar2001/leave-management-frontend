@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Search, Plus, Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -18,6 +17,7 @@ type LeaveType = {
   description: string;
   status: "ACTIVE" | "INACTIVE";
   isUsed?: boolean;
+  carryForward?: boolean;
 };
 
 type LeaveTypeForm = {
@@ -29,6 +29,7 @@ type LeaveTypeForm = {
   daysAllowed: number;
   description: string;
   status: LeaveType["status"];
+  carryForward: "YES" | "NO";
 };
 
 type LeaveGroupOption = {
@@ -155,6 +156,7 @@ export default function LeaveTypePage() {
     daysAllowed: 1,
     description: "",
     status: "ACTIVE",
+    carryForward: "NO",
   });
 
   useEffect(() => {
@@ -176,6 +178,7 @@ export default function LeaveTypePage() {
               leaveCategory: type.leaveCategory ? String(type.leaveCategory).toUpperCase() : null,
               description: String(type.description ?? "").toUpperCase(),
               status: type.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+              carryForward: Boolean(type.carryForward),
             }))
           );
         }
@@ -303,6 +306,7 @@ export default function LeaveTypePage() {
       daysAllowed: form.daysAllowed,
       description: form.description.trim().toUpperCase(),
       status: form.status,
+      carryForward: form.carryForward === "YES",
     };
 
     setError("");
@@ -323,6 +327,7 @@ export default function LeaveTypePage() {
           leaveGroup: String(result.leaveGroup ?? "").toUpperCase(),
           leaveCategory: result.leaveCategory ? String(result.leaveCategory).toUpperCase() : null,
           description: String(result.description ?? "").toUpperCase(),
+          carryForward: Boolean(result.carryForward),
         };
         setLeaveTypes((prev) => [
           updatedLeaveType,
@@ -339,6 +344,7 @@ export default function LeaveTypePage() {
           leaveGroup: String(result.leaveGroup ?? "").toUpperCase(),
           leaveCategory: result.leaveCategory ? String(result.leaveCategory).toUpperCase() : null,
           description: String(result.description ?? "").toUpperCase(),
+          carryForward: Boolean(result.carryForward),
         };
         setLeaveTypes((prev) => [createdLeaveType, ...prev]);
       }
@@ -355,6 +361,7 @@ export default function LeaveTypePage() {
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
+      carryForward: "NO",
     });
     setIsModalOpen(false);
     setSelectedLeaveTypeId(null);
@@ -395,6 +402,7 @@ export default function LeaveTypePage() {
       daysAllowed: leaveType.daysAllowed,
       description: leaveType.description.toUpperCase(),
       status: leaveType.status,
+      carryForward: leaveType.carryForward ? "YES" : "NO",
     });
     setError("");
     setIsModalOpen(true);
@@ -412,6 +420,7 @@ export default function LeaveTypePage() {
       daysAllowed: 1,
       description: "",
       status: "ACTIVE",
+      carryForward: "NO",
     });
     setError("");
     setIsModalOpen(true);
@@ -498,7 +507,14 @@ export default function LeaveTypePage() {
                       <td className="border-b border-slate-200 px-5 py-4 font-semibold text-slate-700">{leaveType.code}</td>
                       <td className="border-b border-slate-200 px-5 py-4">
                         <div>
-                          <p className="font-medium text-slate-800">{leaveType.name || "—"}</p>
+                          <p className="flex flex-wrap items-center gap-1.5 font-medium text-slate-800">
+                            <span>{leaveType.name || "—"}</span>
+                            {leaveType.carryForward && (
+                              <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200 normal-case">
+                                (Carry Forward)
+                              </span>
+                            )}
+                          </p>
                           <p className="mt-1 text-xs text-slate-500">{leaveType.description}</p>
                         </div>
                       </td>
@@ -728,6 +744,25 @@ export default function LeaveTypePage() {
                   >
                     <option value="ACTIVE">ACTIVE</option>
                     <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">CARRY FORWARD</label>
+                <div className="relative">
+                  <select
+                    value={form.carryForward}
+                    disabled={modalMode === "view"}
+                    onChange={(event) => setForm((prev) => ({
+                      ...prev,
+                      carryForward: event.target.value.toUpperCase() as "YES" | "NO",
+                    }))}
+                    className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                  >
+                    <option value="NO">NO</option>
+                    <option value="YES">YES</option>
                   </select>
                   <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>

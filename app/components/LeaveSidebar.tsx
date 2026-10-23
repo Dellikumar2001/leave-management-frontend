@@ -41,7 +41,8 @@ export type LeaveSidebarPage =
   | "paternity-leave"
   | "leave-status-report"
   | "employee-status-report"
-  | "approver-report";
+  | "approver-report"
+  | "leave-year-end";
 
 type LeaveSidebarProps = {
   activePage: LeaveSidebarPage;
@@ -83,13 +84,13 @@ const leaveSettingsNavigation: readonly NavItem[] = [
   },
   {
     id: "eligibility",
-    label: "Leave eligibility",
+    label: "Leave Entitlement",
     href: "/leave-eligibility",
     Icon: Users,
   },
   {
     id: "create-eligibility",
-    label: "Create leave eligibility",
+    label: "Create Leave Entitlement",
     href: "/create-eligibility",
     Icon: Users,
   },
@@ -104,6 +105,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     label: "Holiday Calendar",
     href: "/holiday-calendar",
     Icon: CalendarDays,
+  },
+  {
+    id: "leave-year-end",
+    label: "Leave Year-End Process",
+    href: "/leave-year-end",
+    Icon: RefreshCw,
   },
 ];
 

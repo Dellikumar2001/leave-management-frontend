@@ -364,7 +364,6 @@ export default function ApproverSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [hasAssigned, setHasAssigned] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Cascading Multi-Select Filters
@@ -396,26 +395,25 @@ export default function ApproverSettingsPage() {
   };
 
   // Fetch initial data
-  const loadData = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/approver-settings", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load approver settings.");
-      }
-      setEmployees(data.employees || []);
-      setApproverOptions(data.approverOptions || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load employees.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
+    const loadData = async () => {
+      try {
+        const response = await fetch("/api/approver-settings", { cache: "no-store" });
+        setError("");
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load approver settings.");
+        }
+        setEmployees(data.employees || []);
+        setApproverOptions(data.approverOptions || []);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load employees.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadData();
   }, []);
 
   // All available streams
@@ -501,7 +499,6 @@ export default function ApproverSettingsPage() {
     setFinalLevelApprover("");
     setSortField(null);
     setSortDirection(null);
-    setHasAssigned(false);
     setSuccessMessage("");
     setError("");
   };
@@ -675,7 +672,6 @@ export default function ApproverSettingsPage() {
       setSelectedRowIds([]);
       setFirstLevelApprover("");
       setFinalLevelApprover("");
-      setHasAssigned(true);
 
       // Silent background sync with database
       fetch("/api/approver-settings", { cache: "no-store" })
@@ -706,13 +702,7 @@ export default function ApproverSettingsPage() {
   // Only enable approvers if at least one employee is selected
   const isEmployeeSelected = effectiveSelectedEmployeeIds.length > 0;
 
-  // Clear approvers if employee selection becomes empty
-  useEffect(() => {
-    if (!isEmployeeSelected) {
-      if (firstLevelApprover) setFirstLevelApprover("");
-      if (finalLevelApprover) setFinalLevelApprover("");
-    }
-  }, [isEmployeeSelected, firstLevelApprover, finalLevelApprover]);
+
 
   // Is Assign Button Enabled?
   const isAssignButtonEnabled =

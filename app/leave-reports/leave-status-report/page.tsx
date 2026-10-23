@@ -563,7 +563,6 @@ export default function LeaveStatusReportPage() {
     doc.save("Leave Status Report.pdf");
   };
 
-  const currentDateStr = new Date().toISOString().split("T")[0];
 
   return (
     <div className="min-h-screen bg-[#e9edf3] text-slate-800">

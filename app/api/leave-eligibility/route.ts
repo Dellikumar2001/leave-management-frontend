@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
@@ -35,11 +36,16 @@ export async function GET() {
         const leaveType = leaveTypesById.get(record.leaveTypeId);
         const isEligible = record.isEligible && leaveType?.status === "ACTIVE";
 
+        // Prioritize persisted leave balance from employee_leave_eligibilities
+        const leaveBalance = isEligible && leaveType
+          ? (typeof record.leaveBalance === "number" && !isNaN(record.leaveBalance)
+              ? record.leaveBalance
+              : calculateLeaveBalance(record.daysAllowed || leaveType.daysAllowed, joiningDate, leaveYear) + record.creditedDays)
+          : 0;
+
         return {
           ...record,
-          leaveBalance: isEligible && leaveType
-            ? calculateLeaveBalance(leaveType.daysAllowed, joiningDate, leaveYear) + record.creditedDays
-            : 0,
+          leaveBalance,
         };
       }),
     }));

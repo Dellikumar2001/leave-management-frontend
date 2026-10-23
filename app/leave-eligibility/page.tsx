@@ -35,13 +35,13 @@ type LeaveEligibilityData = {
 function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
   const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
   if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
-  return `${leaveType.daysAllowed}`;
+  return `${record?.daysAllowed ?? leaveType.daysAllowed}`;
 }
 
 async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   const response = await fetch("/api/leave-eligibility", { cache: "no-store" });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Unable to load leave eligibility.");
+  if (!response.ok) throw new Error(result.error ?? "Unable to load leave entitlement.");
   return result as LeaveEligibilityData;
 }
 
@@ -242,7 +242,7 @@ export default function LeaveEligibilityPage() {
 
   const handleExport = () => {
     const rows = [
-      ["EMPLOYEE ID", "EMPLOYEE NAME", "STREAM", "DEPARTMENT", ...leaveTypes.map((leaveType) => `ELIGIBILITY: ${leaveType.code}`), ...leaveTypes.map((leaveType) => `BALANCE: ${leaveType.code}`)],
+      ["EMPLOYEE ID", "EMPLOYEE NAME", "STREAM", "DEPARTMENT", ...leaveTypes.map((leaveType) => `ENTITLEMENT: ${leaveType.code}`), ...leaveTypes.map((leaveType) => `BALANCE: ${leaveType.code}`)],
       ...visibleEmployees.map((employee) => [
         employee.employeeId,
         employee.name,
@@ -256,7 +256,7 @@ export default function LeaveEligibilityPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "leave-eligibility.csv";
+    link.download = "leave-entitlement.csv";
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -273,7 +273,7 @@ export default function LeaveEligibilityPage() {
       })
       .catch((loadError: unknown) => {
         if (isMounted) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load leave eligibility.");
+          setError(loadError instanceof Error ? loadError.message : "Unable to load leave entitlement.");
         }
       })
       .finally(() => {
@@ -291,7 +291,7 @@ export default function LeaveEligibilityPage() {
       <div className="p-4 min-[801px]:ml-[175px] uppercase">
         <div className="mx-auto max-w-[1400px]">
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-3xl font-bold text-slate-800">Leave Eligibility</h1>
+            <h1 className="text-3xl font-bold text-slate-800">Leave Entitlement</h1>
           </header>
 
           {/* Equal split filter bar without search bar */}
@@ -356,7 +356,7 @@ export default function LeaveEligibilityPage() {
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">EMPLOYEE NAME</th>
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">STREAM</th>
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">DEPARTMENT</th>
-                    <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium bg-green-100/60">LEAVE ELIGIBILITY IN DAYS</th>
+                    <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium bg-green-100/60">LEAVE ENTITLEMENT IN DAYS</th>
                     <th colSpan={leaveTypeColumnCount} className="px-5 py-3 text-center font-medium bg-yellow-100/50">LEAVE BALANCE IN DAYS</th>
                   </tr>
                   <tr>
