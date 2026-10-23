@@ -24,6 +24,7 @@ type Employee = {
   gender?: string | null;
   designation?: string | null;
   firstLevelApprover?: string | null;
+  secondLevelApprover?: string | null;
   finalLevelApprover?: string | null;
   backupOfficer?: string | null;
   updatedAt?: string | null;
@@ -313,7 +314,7 @@ function SingleSelectDropdown({
   );
 }
 
-type SortableColumnKey = "name" | "firstLevelApprover" | "finalLevelApprover" | "backupOfficer";
+type SortableColumnKey = "name" | "firstLevelApprover" | "secondLevelApprover" | "finalLevelApprover" | "backupOfficer";
 
 function SortHeaderButton({
   label,
@@ -378,6 +379,7 @@ export default function ApproverSettingsPage() {
 
   // Top level Approver Selection Fields (Directly on page, no modal)
   const [firstLevelApprover, setFirstLevelApprover] = useState<string>("");
+  const [secondLevelApprover, setSecondLevelApprover] = useState<string>("");
   const [finalLevelApprover, setFinalLevelApprover] = useState<string>("");
   const [backupOfficer, setBackupOfficer] = useState<string>("");
 
@@ -480,6 +482,7 @@ export default function ApproverSettingsPage() {
         setDepartmentFilters([emp.department]);
         setSelectedRowIds([emp.employeeId]);
         setFirstLevelApprover(emp.firstLevelApprover || "");
+        setSecondLevelApprover(emp.secondLevelApprover || "");
         setFinalLevelApprover(emp.finalLevelApprover || "");
         setBackupOfficer(emp.backupOfficer || "");
         setSuccessMessage(`Editing approvers for ${emp.name} (${emp.employeeId})`);
@@ -488,6 +491,7 @@ export default function ApproverSettingsPage() {
     } else if (newNames.length === 0) {
       setSelectedRowIds([]);
       setFirstLevelApprover("");
+      setSecondLevelApprover("");
       setFinalLevelApprover("");
       setBackupOfficer("");
     } else {
@@ -502,6 +506,7 @@ export default function ApproverSettingsPage() {
     setEmployeeNameFilters([]);
     setSelectedRowIds([]);
     setFirstLevelApprover("");
+    setSecondLevelApprover("");
     setFinalLevelApprover("");
     setBackupOfficer("");
     setSortField(null);
@@ -543,6 +548,16 @@ export default function ApproverSettingsPage() {
       if (sortField === "finalLevelApprover") {
         const valA = (a.finalLevelApprover || "").trim();
         const valB = (b.finalLevelApprover || "").trim();
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+        const comp = valA.localeCompare(valB, undefined, { sensitivity: "base" });
+        return sortDirection === "asc" ? comp : -comp;
+      }
+
+      if (sortField === "secondLevelApprover") {
+        const valA = (a.secondLevelApprover || "").trim();
+        const valB = (b.secondLevelApprover || "").trim();
         if (!valA && !valB) return 0;
         if (!valA) return 1;
         if (!valB) return -1;
@@ -608,6 +623,7 @@ export default function ApproverSettingsPage() {
         return emp ? prev.filter((name) => name !== emp.name) : prev;
       });
       setFirstLevelApprover("");
+      setSecondLevelApprover("");
       setFinalLevelApprover("");
       setBackupOfficer("");
     } else {
@@ -618,6 +634,7 @@ export default function ApproverSettingsPage() {
         setEmployeeNameFilters([emp.name]);
         setSelectedRowIds([emp.employeeId]);
         setFirstLevelApprover(emp.firstLevelApprover || "");
+        setSecondLevelApprover(emp.secondLevelApprover || "");
         setFinalLevelApprover(emp.finalLevelApprover || "");
         setBackupOfficer(emp.backupOfficer || "");
         setSuccessMessage(`Editing approvers for ${emp.name} (${emp.employeeId})`);
@@ -638,7 +655,7 @@ export default function ApproverSettingsPage() {
       return;
     }
 
-    if (!firstLevelApprover.trim() && !finalLevelApprover.trim() && !backupOfficer.trim()) {
+    if (!firstLevelApprover.trim() && !secondLevelApprover.trim() && !finalLevelApprover.trim() && !backupOfficer.trim()) {
       setError("Please select at least an Approver or Backup Officer.");
       return;
     }
@@ -653,6 +670,7 @@ export default function ApproverSettingsPage() {
         body: JSON.stringify({
           employeeIds: effectiveSelectedEmployeeIds,
           firstLevelApprover: firstLevelApprover.trim(),
+          secondLevelApprover: secondLevelApprover.trim(),
           finalLevelApprover: finalLevelApprover.trim(),
           backupOfficer: backupOfficer.trim(),
         }),
@@ -671,6 +689,7 @@ export default function ApproverSettingsPage() {
             ? {
                 ...emp,
                 firstLevelApprover: firstLevelApprover.trim() || emp.firstLevelApprover,
+                secondLevelApprover: secondLevelApprover.trim() || emp.secondLevelApprover,
                 finalLevelApprover: finalLevelApprover.trim() || emp.finalLevelApprover,
                 backupOfficer: backupOfficer.trim() || emp.backupOfficer,
                 updatedAt: new Date().toISOString(),
@@ -692,6 +711,7 @@ export default function ApproverSettingsPage() {
       setEmployeeNameFilters([]);
       setSelectedRowIds([]);
       setFirstLevelApprover("");
+      setSecondLevelApprover("");
       setFinalLevelApprover("");
       setBackupOfficer("");
       setHasAssigned(true);
@@ -729,15 +749,17 @@ export default function ApproverSettingsPage() {
   useEffect(() => {
     if (!isEmployeeSelected) {
       if (firstLevelApprover) setFirstLevelApprover("");
+      if (secondLevelApprover) setSecondLevelApprover("");
       if (finalLevelApprover) setFinalLevelApprover("");
       if (backupOfficer) setBackupOfficer("");
     }
-  }, [isEmployeeSelected, firstLevelApprover, finalLevelApprover, backupOfficer]);
+  }, [isEmployeeSelected, firstLevelApprover, secondLevelApprover, finalLevelApprover, backupOfficer]);
 
   // Is Assign Button Enabled?
   const isAssignButtonEnabled =
     isEmployeeSelected &&
     (Boolean(firstLevelApprover.trim()) ||
+      Boolean(secondLevelApprover.trim()) ||
      Boolean(finalLevelApprover.trim()) ||
      Boolean(backupOfficer.trim())) &&
     !isSubmitting;
@@ -759,7 +781,7 @@ export default function ApproverSettingsPage() {
                   Approver settings
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  Configure first level approvers, final level approvers, and backup officers for employees
+                  Configure HOD, vice principal, principal, and backup approvers for employees
                 </p>
               </div>
             </div>
@@ -835,10 +857,24 @@ export default function ApproverSettingsPage() {
               {/* Step 5: Final Level Approver dropdown (enabled ONLY when employee is selected) */}
               <div className="min-w-[170px] flex-1">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Second Level Approver
+                </label>
+                <SingleSelectDropdown
+                  label="Level 2 Approver"
+                  placeholder={isEmployeeSelected ? "Select Approver" : "Select Employee First"}
+                  options={approverListOptions}
+                  selectedValue={secondLevelApprover}
+                  onChange={setSecondLevelApprover}
+                  disabled={!isEmployeeSelected}
+                />
+              </div>
+
+              <div className="min-w-[170px] flex-1">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Final Level Approver
                 </label>
                 <SingleSelectDropdown
-                  label="Final Level Approver"
+                  label="Level 3 Approver"
                   placeholder={isEmployeeSelected ? "Select Approver" : "Select Employee First"}
                   options={approverListOptions}
                   selectedValue={finalLevelApprover}
@@ -878,7 +914,7 @@ export default function ApproverSettingsPage() {
                     !isAssignButtonEnabled
                       ? !isEmployeeSelected
                         ? "Select an employee first (using Employee Names or table checkboxes)"
-                        : "Select First Level, Final Level Approver, or Backup Officer"
+                        : "Select an approval level or a backup officer"
                       : `Assign approvers for ${effectiveSelectedEmployeeIds.length} employee(s)`
                   }
                 >
@@ -978,7 +1014,16 @@ export default function ApproverSettingsPage() {
                     </th>
                     <th scope="col" className="whitespace-nowrap px-6 py-3.5">
                       <SortHeaderButton
-                        label="Final Level Approver"
+                        label="Level 2 Approver"
+                        columnKey="secondLevelApprover"
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                    </th>
+                    <th scope="col" className="whitespace-nowrap px-6 py-3.5">
+                      <SortHeaderButton
+                        label="Level 3 Approver"
                         columnKey="finalLevelApprover"
                         sortField={sortField}
                         sortDirection={sortDirection}
@@ -1000,7 +1045,7 @@ export default function ApproverSettingsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex items-center justify-center gap-2">
                           <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
                           <span>Loading approver settings...</span>
@@ -1074,7 +1119,19 @@ export default function ApproverSettingsPage() {
                             )}
                           </td>
 
-                          {/* 5. Final Level Approver */}
+                          {/* 5. Level 2 Approver */}
+                          <td className="whitespace-nowrap px-6 py-4">
+                            {emp.secondLevelApprover ? (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
+                                <span className="h-2 w-2 rounded-full bg-cyan-500" />
+                                {emp.secondLevelApprover}
+                              </span>
+                            ) : (
+                              <span className="font-mono text-sm font-semibold text-slate-400">--</span>
+                            )}
+                          </td>
+
+                          {/* 6. Level 3 Approver */}
                           <td className="whitespace-nowrap px-6 py-4">
                             {emp.finalLevelApprover ? (
                               <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
@@ -1088,7 +1145,7 @@ export default function ApproverSettingsPage() {
                             )}
                           </td>
 
-                          {/* 6. Backup Officer */}
+                          {/* 7. Backup Officer */}
                           <td className="whitespace-nowrap px-6 py-4">
                             {emp.backupOfficer ? (
                               <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
@@ -1108,7 +1165,7 @@ export default function ApproverSettingsPage() {
 
                   {!isLoading && visibleEmployees.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                         {employees.length === 0
                           ? "No employees found in the database."
                           : "No employees match the selected filters."}

@@ -124,6 +124,20 @@ async function main() {
     }
   }
 
+  console.log("Seeding approvers for pending test requests...");
+  const pendingRequestApprovers = [
+    { employeeId: "EMP-001", firstLevelApprover: "CS HOD", secondLevelApprover: "Vice Principal", finalLevelApprover: "Principal", backupOfficer: "Dean" },
+    { employeeId: "EMP-002", firstLevelApprover: "Commerce HOD", secondLevelApprover: "Vice Principal", finalLevelApprover: "Principal", backupOfficer: "Dean" },
+  ];
+  for (const approvers of pendingRequestApprovers) {
+    const existing = await prisma.employeeApprover.findUnique({
+      where: { employeeId: approvers.employeeId },
+    });
+    if (!existing) {
+      await prisma.employeeApprover.create({ data: approvers });
+    }
+  }
+
   console.log("Seeding Holidays...");
   for (const h of starterHolidays) {
     const existing = await prisma.holiday.findFirst({

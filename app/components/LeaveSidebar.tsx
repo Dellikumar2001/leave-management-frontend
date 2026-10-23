@@ -32,6 +32,7 @@ export type LeaveSidebarPage =
   | "eligibility"
   | "create-eligibility"
   | "approver-settings"
+  | "leave-approve-reject"
   | "holiday-calendar"
   | "leave-mail-format"
   | "settings"
@@ -105,6 +106,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     label: "Approver settings",
     href: "/approver-settings",
     Icon: ShieldCheck,
+  },
+  {
+    id: "leave-approve-reject",
+    label: "Leave Approve/Reject",
+    href: "/leave-approve-reject",
+    Icon: CheckCircle2,
   },
   {
     id: "holiday-calendar",
