@@ -217,7 +217,7 @@ export default function LeaveTypePage() {
       .then((groups) => {
         if (isMounted) {
           setLeaveGroups(
-            groups.map((group) => ({
+            groups.map((group: LeaveGroupOption) => ({
               ...group,
               code: String(group.code ?? "").toUpperCase(),
               name: String(group.name ?? "").toUpperCase(),
