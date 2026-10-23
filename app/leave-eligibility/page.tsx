@@ -114,7 +114,20 @@ function MultiSelectDropdown({
               type="text"
               placeholder="Filter list..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (label.toLowerCase().includes("department")) {
+                  if (e.key.length === 1 && !/^[a-zA-Z0-9\s-]$/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }
+              }}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (label.toLowerCase().includes("department")) {
+                  val = val.replace(/[^a-zA-Z0-9\s-]/g, "");
+                }
+                setSearchTerm(val);
+              }}
               className="w-full rounded bg-slate-50 px-2.5 py-1.5 text-xs normal-case text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400"
             />
           </div>

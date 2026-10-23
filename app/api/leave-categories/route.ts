@@ -8,7 +8,12 @@ export async function GET() {
       orderBy: { name: "asc" },
     });
 
-    return Response.json({ data: categories });
+    const data = categories.map((cat) => ({
+      ...cat,
+      paymentType: cat.isPaid ? "PAID" : "UNPAID",
+    }));
+
+    return Response.json({ data });
   } catch (error) {
     console.error("Failed to load leave categories:", error);
     return Response.json({ error: "Unable to load leave categories from the database." }, { status: 503 });
@@ -28,6 +33,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Status must be ACTIVE or INACTIVE." }, { status: 400 });
   }
 
+  const isPaid = body.paymentType === "UNPAID" || body.isPaid === false ? false : true;
+
   try {
     const category = await prisma.leaveCategoryMaster.create({
       data: {
@@ -35,10 +42,16 @@ export async function POST(request: Request) {
         code,
         description: typeof body.description === "string" ? body.description.trim() || null : null,
         status: body.status ?? "ACTIVE",
+        isPaid,
       },
     });
 
-    return Response.json({ data: category }, { status: 201 });
+    return Response.json({
+      data: {
+        ...category,
+        paymentType: category.isPaid ? "PAID" : "UNPAID",
+      },
+    }, { status: 201 });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
       return Response.json({ error: "A category with this code already exists." }, { status: 409 });

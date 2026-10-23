@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
-const CLIENT_VERSION = "2026-10-15-approver-eligibility";
+const CLIENT_VERSION = "2026-10-21-category-master-sync";
+
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
   prismaVersion?: string;

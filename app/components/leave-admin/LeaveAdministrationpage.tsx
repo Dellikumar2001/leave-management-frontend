@@ -429,8 +429,22 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
         body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const result = await readJson<{ error?: string }>(response);
-        throw new Error(result.error ?? "Unable to update the leave record.");
+        let message = "Unable to update the leave record.";
+        try {
+          const result = await response.json();
+          if (result && typeof result === "object" && "error" in result && typeof (result as Record<string, unknown>).error === "string") {
+            message = (result as { error: string }).error;
+          }
+        } catch {}
+        throw new Error(message);
+      }
+      if (method === "DELETE" && "id" in body && typeof (body as { id?: unknown }).id === "number") {
+        const targetId = (body as { id: number }).id;
+        if (mode === "block") {
+          setBlockedLeaves((prev) => prev.filter((item) => item.id !== targetId));
+        } else {
+          setCredits((prev) => prev.filter((item) => item.id !== targetId));
+        }
       }
       setHistoryTarget(null);
       setIsLoading(true);

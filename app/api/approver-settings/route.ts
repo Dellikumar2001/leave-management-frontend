@@ -5,14 +5,62 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const employees = await prisma.employee.findMany({
-      orderBy: { employeeId: "asc" },
-      include: {
-        approverSettings: true,
-      },
-    });
+    let employeesWithApprovers: Array<{
+      employeeId: string;
+      name: string;
+      stream: string;
+      department: string;
+      gender: string;
+      designation: string | null;
+      approverSettings?: {
+        firstLevelApprover?: string | null;
+        finalLevelApprover?: string | null;
+        updatedAt?: Date | null;
+      } | null;
+    }> = [];
 
-    const formattedEmployees = employees.map((emp) => ({
+    try {
+      employeesWithApprovers = await prisma.employee.findMany({
+        orderBy: { employeeId: "asc" },
+        include: {
+          approverSettings: true,
+        },
+      });
+    } catch (primaryErr) {
+      console.warn("Falling back to raw query for approverSettings:", primaryErr);
+      const emps = await prisma.employee.findMany({
+        orderBy: { employeeId: "asc" },
+      });
+      const rawApprovers = await prisma.$queryRaw<
+        {
+          employee_id: string;
+          first_level_approver: string | null;
+          final_level_approver: string | null;
+          updated_at: Date | null;
+        }[]
+      >`
+        SELECT employee_id, first_level_approver, final_level_approver, updated_at
+        FROM employee_approvers
+      `.catch(() => []);
+
+      const approverMap = new Map(
+        rawApprovers.map((a) => [
+          a.employee_id,
+          {
+            firstLevelApprover: a.first_level_approver,
+            finalLevelApprover: a.final_level_approver,
+            updatedAt: a.updated_at,
+          },
+        ])
+      );
+
+      employeesWithApprovers = emps.map((emp) => ({
+        ...emp,
+        approverSettings: approverMap.get(emp.employeeId) || null,
+      }));
+    }
+
+    const formattedEmployees = employeesWithApprovers.map((emp) => ({
       employeeId: emp.employeeId,
       name: emp.name,
       stream: emp.stream,
@@ -25,7 +73,7 @@ export async function GET() {
     }));
 
     // List of potential approvers for dropdowns
-    const approverOptions = employees.map((emp) => ({
+    const approverOptions = employeesWithApprovers.map((emp) => ({
       employeeId: emp.employeeId,
       name: emp.name,
       department: emp.department,
@@ -40,7 +88,10 @@ export async function GET() {
   } catch (error) {
     console.error("Failed to load approver settings:", error);
     return Response.json(
-      { error: "Unable to load approver settings from the database." },
+      {
+        error: "Unable to load approver settings from the database.",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
@@ -89,23 +140,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const records = await Promise.all(
-      targetIds.map((id) =>
-        prisma.employeeApprover.upsert({
-          where: { employeeId: id },
-          create: {
-            employeeId: id,
-            firstLevelApprover: firstLevelApprover.trim(),
-            finalLevelApprover: finalLevelApprover.trim(),
-          },
-          update: {
-            firstLevelApprover: firstLevelApprover.trim(),
-            finalLevelApprover: finalLevelApprover.trim(),
-            updatedAt: new Date(),
-          },
-        })
-      )
-    );
+    let records: Array<{
+      employeeId: string;
+      firstLevelApprover: string;
+      finalLevelApprover: string;
+      updatedAt: Date;
+    }> = [];
+
+    try {
+      records = await Promise.all(
+        targetIds.map((id) =>
+          prisma.employeeApprover.upsert({
+            where: { employeeId: id },
+            create: {
+              employeeId: id,
+              firstLevelApprover: firstLevelApprover.trim(),
+              finalLevelApprover: finalLevelApprover.trim(),
+            },
+            update: {
+              firstLevelApprover: firstLevelApprover.trim(),
+              finalLevelApprover: finalLevelApprover.trim(),
+              updatedAt: new Date(),
+            },
+          })
+        )
+      );
+    } catch (primaryErr) {
+      console.warn("Falling back to raw query for employeeApprover upsert:", primaryErr);
+      const now = new Date();
+      await Promise.all(
+        targetIds.map((id) =>
+          prisma.$executeRaw`
+            INSERT INTO employee_approvers (employee_id, first_level_approver, final_level_approver, created_at, updated_at)
+            VALUES (${id}, ${firstLevelApprover.trim()}, ${finalLevelApprover.trim()}, ${now}, ${now})
+            ON CONFLICT (employee_id)
+            DO UPDATE SET
+              first_level_approver = ${firstLevelApprover.trim()},
+              final_level_approver = ${finalLevelApprover.trim()},
+              updated_at = ${now}
+          `
+        )
+      );
+
+      records = targetIds.map((id) => ({
+        employeeId: id,
+        firstLevelApprover: firstLevelApprover.trim(),
+        finalLevelApprover: finalLevelApprover.trim(),
+        updatedAt: now,
+      }));
+    }
 
     return Response.json({
       success: true,
@@ -142,9 +225,15 @@ export async function DELETE(request: NextRequest) {
       return Response.json({ error: "Employee ID is required." }, { status: 400 });
     }
 
-    await prisma.employeeApprover.deleteMany({
-      where: { employeeId: employeeId.trim() },
-    });
+    try {
+      await prisma.employeeApprover.deleteMany({
+        where: { employeeId: employeeId.trim() },
+      });
+    } catch {
+      await prisma.$executeRaw`
+        DELETE FROM employee_approvers WHERE employee_id = ${employeeId.trim()}
+      `;
+    }
 
     return Response.json({ success: true });
   } catch (error) {

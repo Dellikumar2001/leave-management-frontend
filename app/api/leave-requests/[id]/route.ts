@@ -82,6 +82,19 @@ export async function PUT(
       return Response.json({ error: "Leave group not found." }, { status: 404 });
     }
 
+    if (body.code) {
+      const nextCode = String(body.code).trim().toUpperCase();
+      const duplicate = await prisma.leaveGroup.findFirst({
+        where: {
+          code: nextCode,
+          NOT: { id: leaveGroupId },
+        },
+      });
+      if (duplicate) {
+        return Response.json({ error: `A leave group with code "${nextCode}" already exists.` }, { status: 400 });
+      }
+    }
+
     const effectiveFrom = getEffectiveFromDate(body.effectiveFrom);
     const status = normalizeStatus(body.status);
     let categoryIds: number[];
@@ -111,7 +124,7 @@ export async function PUT(
         : existingGroup.categoryId ? [existingGroup.categoryId] : [];
     }
     const leaveTypeCodes = Array.isArray(body.leaveTypeCodes)
-      ? [...new Set<string>(body.leaveTypeCodes.map((code: unknown) => String(code)))]
+      ? [...new Set<string>(body.leaveTypeCodes.map((code: unknown) => String(code).trim().toUpperCase()).filter(Boolean))]
       : [];
 
     const categories = categoryIds.length
@@ -127,10 +140,10 @@ export async function PUT(
     const leaveTypes = leaveTypeCodes.length
       ? await prisma.leaveType.findMany({
           where: {
-            status: "ACTIVE",
-            code: {
-              in: leaveTypeCodes,
-            },
+            status: { in: ["ACTIVE", "Active", "active"] },
+            OR: leaveTypeCodes.map((itemCode) => ({
+              code: { equals: itemCode, mode: "insensitive" },
+            })),
           },
         })
       : ([] as Awaited<ReturnType<typeof prisma.leaveType.findMany>>);
@@ -141,9 +154,9 @@ export async function PUT(
     const updatedGroup = await prisma.leaveGroup.update({
       where: { id: leaveGroupId },
       data: {
-        code: String(body.code ?? existingGroup.code).trim(),
-        name: String(body.name ?? existingGroup.name).trim(),
-        description: body.description !== undefined ? String(body.description).trim() || null : existingGroup.description,
+        code: String(body.code ?? existingGroup.code).trim().toUpperCase(),
+        name: String(body.name ?? existingGroup.name).trim().toUpperCase(),
+        description: body.description !== undefined ? String(body.description).trim().toUpperCase() || null : existingGroup.description,
         categoryId: categories[0]?.id ?? null,
         categories: {
           deleteMany: {},
@@ -155,7 +168,7 @@ export async function PUT(
         status,
         items: {
           deleteMany: {},
-          create: leaveTypes.map((leaveType: (typeof leaveTypes)[number]) => ({
+          create: leaveTypes.map((leaveType) => ({
             leaveType: {
               connect: { id: leaveType.id },
             },
@@ -175,7 +188,15 @@ export async function PUT(
 
     return Response.json({ data: updatedGroup });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to update leave group.";
+    console.error("Error updating leave group:", error);
+    let message = "Failed to update leave group.";
+    if (error instanceof Error) {
+      if (error.message.includes("Unique constraint failed") || error.message.includes("P2002")) {
+        message = "A leave group with this code already exists.";
+      } else {
+        message = error.message;
+      }
+    }
     return Response.json({ error: message }, { status: 400 });
   }
 }
@@ -184,24 +205,30 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const leaveGroupId = Number(id);
+  try {
+    const { id } = await params;
+    const leaveGroupId = Number(id);
 
-  const leaveGroup = await prisma.leaveGroup.findUnique({
-    where: { id: leaveGroupId },
-  });
+    const leaveGroup = await prisma.leaveGroup.findUnique({
+      where: { id: leaveGroupId },
+    });
 
-  if (!leaveGroup) {
-    return Response.json({ error: "Leave group not found." }, { status: 404 });
+    if (!leaveGroup) {
+      return Response.json({ error: "Leave group not found." }, { status: 404 });
+    }
+
+    if (leaveGroup.status === "INACTIVE") {
+      return Response.json({ error: "Inactive leave groups cannot be deleted." }, { status: 400 });
+    }
+
+    await prisma.leaveGroup.delete({
+      where: { id: leaveGroupId },
+    });
+
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting leave group:", error);
+    const message = error instanceof Error ? error.message : "Failed to delete leave group.";
+    return Response.json({ error: message }, { status: 400 });
   }
-
-  if (leaveGroup.status === "INACTIVE") {
-    return Response.json({ error: "Inactive leave groups cannot be deleted." }, { status: 400 });
-  }
-
-  await prisma.leaveGroup.delete({
-    where: { id: leaveGroupId },
-  });
-
-  return Response.json({ success: true });
 }

@@ -17,6 +17,10 @@ export async function PUT(request: Request, { params }: RouteContext) {
     return Response.json({ error: "Status must be ACTIVE or INACTIVE." }, { status: 400 });
   }
 
+  const isPaid = body.paymentType !== undefined
+    ? (body.paymentType === "UNPAID" ? false : true)
+    : (body.isPaid !== undefined ? Boolean(body.isPaid) : undefined);
+
   try {
     const category = await prisma.leaveCategoryMaster.update({
       where: { id },
@@ -25,10 +29,16 @@ export async function PUT(request: Request, { params }: RouteContext) {
         code,
         description: typeof body.description === "string" ? body.description.trim() || null : null,
         status: body.status ?? "ACTIVE",
+        ...(isPaid !== undefined ? { isPaid } : {}),
       },
     });
 
-    return Response.json({ data: category });
+    return Response.json({
+      data: {
+        ...category,
+        paymentType: category.isPaid ? "PAID" : "UNPAID",
+      },
+    });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error) {
       if (error.code === "P2002") {

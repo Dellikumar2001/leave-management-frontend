@@ -50,6 +50,8 @@ type LeaveCategoryOption = {
   code: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
+  paymentType?: "PAID" | "UNPAID";
+  isPaid?: boolean;
 };
 
 type RowActionsProps = {
@@ -86,18 +88,19 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
 
   return (
     <div className="relative flex items-center justify-end gap-1">
-      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="VIEW">
+      <button type="button" onClick={onView} className="p-1.5 text-slate-400 hover:text-slate-700" title="View">
         <Eye size={16} />
       </button>
-      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="EDIT">
+      <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-slate-700" title="Edit">
         <Pencil size={16} />
       </button>
       <button
         type="button"
         ref={actionsButtonRef}
         onClick={toggleMenu}
-        className="p-1.5 text-slate-400 hover:text-slate-700"
-        aria-label="MORE ACTIONS"
+        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+        title="Delete"
+        aria-label="Delete"
       >
         <Trash2 size={16} />
       </button>
@@ -117,13 +120,13 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm uppercase ${
+              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
                 isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
               }`}
-              title={isDeleteDisabled ? "INACTIVE LEAVE TYPES CANNOT BE DELETED." : "DELETE"}
+              title={isDeleteDisabled ? "Inactive leave types cannot be deleted." : "Delete"}
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "DELETE DISABLED" : "DELETE"}</span>
+              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
             </button>
           </div>
         </>
@@ -205,7 +208,7 @@ export default function LeaveTypePage() {
           return { ...group, categoryIds };
         });
       })
-      .then((groups) => {
+      .then((groups: Array<LeaveGroupOption & { categoryIds: number[] }>) => {
         if (isMounted) {
           setLeaveGroups(
             groups.map((group) => ({
@@ -218,7 +221,9 @@ export default function LeaveTypePage() {
         }
       })
       .catch((loadError: unknown) => {
-        if (isMounted) setError(loadError instanceof Error ? loadError.message.toUpperCase() : "UNABLE TO LOAD LEAVE GROUPS.");
+        // Degrade gracefully: leave-groups failing should not block the page.
+        // The leave types table remains usable; dropdowns will simply be empty.
+        console.warn("Unable to load leave groups (non-critical):", loadError instanceof Error ? loadError.message : loadError);
       });
     return () => {
       isMounted = false;
@@ -244,6 +249,8 @@ export default function LeaveTypePage() {
                 code: String(c.code ?? "").toUpperCase(),
                 name: String(c.name ?? "").toUpperCase(),
                 status: "ACTIVE",
+                paymentType: (c.paymentType === "UNPAID" || c.isPaid === false) ? "UNPAID" : "PAID",
+                isPaid: c.paymentType === "UNPAID" || c.isPaid === false ? false : true,
               }))
           );
         }
@@ -411,7 +418,7 @@ export default function LeaveTypePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#e9edf3] p-4 text-slate-800">
+    <main className="min-h-screen bg-[#e9edf3] text-slate-800">
       <LeaveSidebar activePage="leave-types" />
       <div className="p-4 min-[801px]:ml-[175px]">
         <div className="mx-auto max-w-[1400px] uppercase">
@@ -423,19 +430,17 @@ export default function LeaveTypePage() {
           {/* Inline Filter & Action bar */}
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Search Bar */}
               <div className="relative flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="SEARCH LEAVE TYPES..."
                   value={search}
-                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm uppercase text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
-              {/* Status Dropdown */}
               <div className="relative min-w-[170px]">
                 <select
                   value={statusFilter}
@@ -453,7 +458,6 @@ export default function LeaveTypePage() {
                 <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
 
-              {/* Add Leave Type Button */}
               <button
                 type="button"
                 onClick={openCreateModal}
@@ -536,11 +540,11 @@ export default function LeaveTypePage() {
               event.preventDefault();
               if (modalMode !== "view") void handleSaveType();
             }}
-            className="my-auto max-h-[90vh] w-full max-w-160 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
+            className="my-auto max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]"
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-xl font-bold uppercase text-slate-800">
+                <h2 className="text-[22px] font-bold uppercase text-slate-800">
                   {modalMode === "create" ? "CREATE LEAVE TYPE" : modalMode === "edit" ? "EDIT LEAVE TYPE" : "LEAVE TYPE DETAILS"}
                 </h2>
                 <p className="mt-1 text-sm uppercase text-slate-500">{modalMode === "view" ? "LEAVE TYPE CONFIGURATION" : "ENTER THE LEAVE TYPE DETAILS BELOW."}</p>
@@ -550,32 +554,35 @@ export default function LeaveTypePage() {
               </button>
             </div>
 
-            <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
+            <div className="grid gap-5 px-6 pb-6 pt-2 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE TYPE CODE <span className="text-red-500">*</span></label>
                 <input
                   required
                   value={form.code}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))}
                   placeholder="CL"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">PAYMENT TYPE</label>
-                <select
-                  value={form.paymentType}
-                  disabled={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({
-                    ...prev,
-                    paymentType: event.target.value.toUpperCase() as LeaveTypeForm["paymentType"],
-                  }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                >
-                  <option value="PAID">PAID</option>
-                  <option value="UNPAID">UNPAID</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={form.paymentType}
+                    disabled={modalMode === "view"}
+                    onChange={(event) => setForm((prev) => ({
+                      ...prev,
+                      paymentType: event.target.value.toUpperCase() as LeaveTypeForm["paymentType"],
+                    }))}
+                    className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                  >
+                    <option value="PAID">PAID</option>
+                    <option value="UNPAID">UNPAID</option>
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
 
               <div>
@@ -583,49 +590,55 @@ export default function LeaveTypePage() {
                 <input
                   value={form.name}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="CASUAL LEAVE"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE GROUP</label>
-                <select
-                  value={form.leaveGroupId}
-                  disabled={modalMode === "view"}
-                  onChange={(event) => {
-                    const nextGroupId = event.target.value;
-                    const group = leaveGroups.find((g) => String(g.id) === nextGroupId);
-                    setForm((prev) => ({
-                      ...prev,
-                      leaveGroupId: nextGroupId,
-                      ...(
-                        group && !group.categoryIds?.includes(Number(prev.leaveCategoryId))
-                          ? { leaveCategoryId: String(group.categoryIds?.[0] ?? group.categoryId ?? "") }
-                          : {}
-                      ),
-                    }));
-                  }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                >
-                  <option value="">SELECT A LEAVE GROUP</option>
-                  {leaveGroups
-                    .filter((group) => {
-                      const isActive = group.status === "ACTIVE" || String(group.id) === form.leaveGroupId;
-                      if (!form.leaveCategoryId) return isActive;
-                      return isActive && (
-                        group.categoryIds?.includes(Number(form.leaveCategoryId)) ||
-                        group.categoryId === Number(form.leaveCategoryId) ||
-                        String(group.id) === form.leaveGroupId
-                      );
-                    })
-                    .map((group) => (
-                      <option key={group.id} value={group.id} disabled={group.status !== "ACTIVE"}>
-                        {group.name} ({group.code}){group.status !== "ACTIVE" ? " - INACTIVE" : ""}
-                      </option>
-                    ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={form.leaveGroupId}
+                    disabled={modalMode === "view"}
+                    onChange={(event) => {
+                      const nextGroupId = event.target.value;
+                      const group = leaveGroups.find((g) => String(g.id) === nextGroupId);
+                      setForm((prev) => {
+                        const nextCatId = group && !group.categoryIds?.includes(Number(prev.leaveCategoryId))
+                          ? String(group.categoryIds?.[0] ?? group.categoryId ?? "")
+                          : prev.leaveCategoryId;
+                        const selectedCat = leaveCategories.find((c) => String(c.id) === nextCatId);
+                        return {
+                          ...prev,
+                          leaveGroupId: nextGroupId,
+                          leaveCategoryId: nextCatId,
+                          ...(selectedCat?.paymentType ? { paymentType: selectedCat.paymentType } : {}),
+                        };
+                      });
+                    }}
+                    className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                  >
+                    <option value="">SELECT A LEAVE GROUP</option>
+                    {leaveGroups
+                      .filter((group) => {
+                        const isActive = group.status === "ACTIVE" || String(group.id) === form.leaveGroupId;
+                        if (!form.leaveCategoryId) return isActive;
+                        return isActive && (
+                          group.categoryIds?.includes(Number(form.leaveCategoryId)) ||
+                          group.categoryId === Number(form.leaveCategoryId) ||
+                          String(group.id) === form.leaveGroupId
+                        );
+                      })
+                      .map((group) => (
+                        <option key={group.id} value={group.id} disabled={group.status !== "ACTIVE"}>
+                          {group.name} ({group.code}){group.status !== "ACTIVE" ? " - INACTIVE" : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
                 {leaveGroups.every((group) => group.status !== "ACTIVE") && modalMode === "create" && (
                   <p className="mt-1.5 text-xs uppercase text-slate-500">CREATE AN ACTIVE LEAVE GROUP BEFORE ADDING A LEAVE TYPE.</p>
                 )}
@@ -633,65 +646,91 @@ export default function LeaveTypePage() {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">LEAVE CATEGORY</label>
-                <select
-                  value={form.leaveCategoryId}
-                  disabled={modalMode === "view"}
-                  onChange={(event) => {
-                    const nextCatId = event.target.value;
-                    setForm((prev) => {
-                      const currentGroup = leaveGroups.find((g) => String(g.id) === prev.leaveGroupId);
-                      const groupMatches = nextCatId && (
-                        currentGroup?.categoryIds?.includes(Number(nextCatId)) ||
-                        currentGroup?.categoryId === Number(nextCatId)
-                      );
-                      return {
-                        ...prev,
-                        leaveCategoryId: nextCatId,
-                        leaveGroupId: groupMatches ? prev.leaveGroupId : "",
-                      };
-                    });
-                  }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                >
-                  <option value="">SELECT A LEAVE CATEGORY</option>
-                  {leaveCategories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name} ({category.code})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={form.leaveCategoryId}
+                    disabled={modalMode === "view"}
+                    onChange={(event) => {
+                      const nextCatId = event.target.value;
+                      const selectedCat = leaveCategories.find((c) => String(c.id) === nextCatId);
+                      setForm((prev) => {
+                        const currentGroup = leaveGroups.find((g) => String(g.id) === prev.leaveGroupId);
+                        const groupMatches = nextCatId && (
+                          currentGroup?.categoryIds?.includes(Number(nextCatId)) ||
+                          currentGroup?.categoryId === Number(nextCatId)
+                        );
+                        return {
+                          ...prev,
+                          leaveCategoryId: nextCatId,
+                          leaveGroupId: groupMatches ? prev.leaveGroupId : "",
+                          ...(selectedCat?.paymentType ? { paymentType: selectedCat.paymentType } : {}),
+                        };
+                      });
+                    }}
+                    className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                  >
+                    <option value="">SELECT A LEAVE CATEGORY</option>
+                    {leaveCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name} ({category.code})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">DAYS ALLOWED <span className="text-red-500">*</span></label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
-                  min={1}
-                  step={1}
                   value={form.daysAllowed || ""}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, daysAllowed: event.target.value === "" ? 0 : Number(event.target.value) }))}
-                  onKeyDown={(event) => {
-                    if (["ArrowUp", "ArrowDown", "e", "E", "+", "-", ".", ","].includes(event.key)) event.preventDefault();
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!/^\d*$/.test(value)) return;
+                    const daysAllowed = value === "" ? 0 : Number(value);
+                    if (Number.isSafeInteger(daysAllowed)) {
+                      setForm((prev) => ({ ...prev, daysAllowed }));
+                    }
                   }}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="h-[46px] w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   style={{ appearance: "textfield" }}
                 />
+                {modalMode !== "view" && (
+                  <div className="mt-2 flex gap-2">
+                    {[5, 7, 30].map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, daysAllowed: days }))}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase text-blue-700 transition hover:bg-blue-100"
+                      >
+                        {days} DAYS
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium uppercase text-slate-700">STATUS <span className="text-red-500">*</span></label>
-                <select
-                  required
-                  value={form.status}
-                  disabled={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value.toUpperCase() as LeaveType["status"] }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 disabled:text-slate-500"
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                </select>
+                <div className="relative">
+                  <select
+                    required
+                    value={form.status}
+                    disabled={modalMode === "view"}
+                    onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value.toUpperCase() as LeaveType["status"] }))}
+                    className="h-[46px] w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 px-3.5 pr-10 text-sm uppercase text-slate-700 outline-none transition focus:border-blue-300 disabled:text-slate-500"
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
 
               <div className="sm:col-span-2">
@@ -699,29 +738,29 @@ export default function LeaveTypePage() {
                 <textarea
                   value={form.description}
                   readOnly={modalMode === "view"}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value.toUpperCase() }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
                   placeholder="DESCRIBE WHEN THIS LEAVE TYPE CAN BE USED."
                   rows={4}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
+                  className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-base uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                 />
               </div>
               {error && <p role="alert" className="text-sm uppercase text-red-700 sm:col-span-2">{error}</p>}
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-6 py-4 uppercase sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium uppercase text-slate-700 hover:bg-slate-50"
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium uppercase text-slate-700 transition hover:bg-slate-50"
               >
                 {modalMode === "view" ? "CLOSE" : "CANCEL"}
               </button>
               {modalMode !== "view" && (
                 <button
                   type="submit"
-                  className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-semibold uppercase text-white hover:bg-[#294f9c]"
+                  className="rounded-xl bg-[#2f5fbb] px-5 py-2.5 text-sm font-medium uppercase text-white transition hover:bg-[#294f9c]"
                 >
-                  {modalMode === "edit" ? "SAVE CHANGES" : "CREATE"}
+                  {modalMode === "edit" ? "UPDATE" : "CREATE"}
                 </button>
               )}
             </div>
