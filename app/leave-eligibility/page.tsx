@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Download } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
+import { leaveEligibilityValue } from "../../lib/year-end-leave-report";
 
 type LeaveType = {
   code: string;
+  category: string | null;
   daysAllowed: number;
   id: number;
+  leaveGroup: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
 };
@@ -31,12 +34,6 @@ type LeaveEligibilityData = {
   employees: Employee[];
   leaveTypes: LeaveType[];
 };
-
-function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
-  const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
-  if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
-  return `${leaveType.daysAllowed}`;
-}
 
 async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   const response = await fetch("/api/leave-eligibility", { cache: "no-store" });
@@ -248,7 +245,10 @@ export default function LeaveEligibilityPage() {
         employee.name,
         employee.stream,
         employee.department,
-        ...leaveTypes.map((leaveType) => getEligibilityValue(employee, leaveType)),
+        ...leaveTypes.map((leaveType) => leaveEligibilityValue(
+          leaveType,
+          employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id),
+        )),
         ...leaveTypes.map((leaveType) => employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"),
       ]),
     ];
@@ -381,7 +381,10 @@ export default function LeaveEligibilityPage() {
                       <td className="whitespace-nowrap px-5 py-4 text-slate-700">{employee.department}</td>
                       {leaveTypes.map((leaveType) => (
                         <td key={`eligibility-${employee.employeeId}-${leaveType.id}`} className="whitespace-nowrap px-5 py-4 text-slate-700 bg-green-100/60">
-                          {getEligibilityValue(employee, leaveType)}
+                          {leaveEligibilityValue(
+                            leaveType,
+                            employee.leaveRecords.find((record) => record.leaveTypeId === leaveType.id),
+                          )}
                         </td>
                       ))}
                       {leaveTypes.map((leaveType) => (

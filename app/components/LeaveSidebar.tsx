@@ -161,6 +161,12 @@ const leaveReportNavigation: readonly NavItem[] = [
     Icon: Coins,
   },
   {
+    id: "year-end-leave-report",
+    label: "Year End Leave Report",
+    href: "/leave-report/year-end",
+    Icon: FileBarChart,
+  },
+  {
     id: "individual-report",
     label: "Individual Report",
     href: "/leave-report/individual",

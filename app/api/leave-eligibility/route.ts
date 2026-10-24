@@ -3,7 +3,13 @@ import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const yearParam = new URL(request.url).searchParams.get("year");
+  const leaveYear = yearParam === null ? new Date().getUTCFullYear() : Number(yearParam);
+  if (!Number.isInteger(leaveYear) || leaveYear < 1900 || leaveYear > 9999) {
+    return Response.json({ error: "Choose a valid leave year." }, { status: 400 });
+  }
+
   try {
     const [employees, leaveTypes] = await Promise.all([
       prisma.employee.findMany({
@@ -23,12 +29,19 @@ export async function GET() {
       }),
       prisma.leaveType.findMany({
         orderBy: { id: "asc" },
-        select: { id: true, code: true, name: true, status: true, daysAllowed: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+          daysAllowed: true,
+          category: true,
+          leaveGroup: true,
+        },
       }),
     ]);
 
     const leaveTypesById = new Map(leaveTypes.map((leaveType) => [leaveType.id, leaveType]));
-    const leaveYear = new Date().getUTCFullYear();
     const employeesWithBalances = employees.map((employee) => ({
       ...employee,
       leaveRecords: employee.leaveRecords.map(({ joiningDate, ...record }) => {
