@@ -9,10 +9,12 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Filter,
   Info,
   Loader2,
-  Search,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Users,
@@ -81,6 +83,7 @@ type RecordResult = {
   leaveTypeCode: string;
   leaveTypeName: string;
   rule: string;
+  entitlement?: number;
   carriedForwardDays: number;
   proposedOpeningBalance: number;
   status: "SUCCESS" | "SKIPPED" | "FAILED";
@@ -175,7 +178,6 @@ export default function LeaveYearEndPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
   const [selectedEmployeeType, setSelectedEmployeeType] = useState<string>("ALL");
   const [selectedEmploymentType, setSelectedEmploymentType] = useState<string>("ALL");
-  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Data
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
@@ -191,6 +193,14 @@ export default function LeaveYearEndPage() {
   const [error, setError] = useState<string>("");
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [confirmedAcknowledgement, setConfirmedAcknowledgement] = useState<boolean>(false);
+
+  // Processed preview mode: when false, default table hides Carried Forward and Proposed Opening;
+  // when true (after clicking Process Year-End), shows both columns.
+  const [isProcessedPreview, setIsProcessedPreview] = useState<boolean>(false);
+
+  // Pagination state (default: 10 per page)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // Completed Process Summary Modal
   const [completedSummary, setCompletedSummary] = useState<ProcessResult | null>(null);
@@ -321,15 +331,9 @@ export default function LeaveYearEndPage() {
       if (selectedDepartment !== "ALL" && emp.department !== selectedDepartment) return false;
       if (selectedEmployeeType !== "ALL" && emp.employeeType !== selectedEmployeeType) return false;
       if (selectedEmploymentType !== "ALL" && emp.employmentType !== selectedEmploymentType) return false;
-      if (searchQuery.trim()) {
-        const query = searchQuery.trim().toLowerCase();
-        const matchesName = emp.name.toLowerCase().includes(query);
-        const matchesId = emp.employeeId.toLowerCase().includes(query);
-        if (!matchesName && !matchesId) return false;
-      }
       return true;
     });
-  }, [employees, selectedStream, selectedDepartment, selectedEmployeeType, selectedEmploymentType, searchQuery]);
+  }, [employees, selectedStream, selectedDepartment, selectedEmployeeType, selectedEmploymentType]);
 
   const filteredEmployeeIds = useMemo(() => {
     return new Set(filteredEmployees.map((e) => e.employeeId));
@@ -408,6 +412,16 @@ export default function LeaveYearEndPage() {
     });
   }, [dynamicPreviewRecords, filteredEmployeeIds, sortField, sortDirection]);
 
+  // Pagination calculations
+  const totalRecords = visiblePreviewRecords.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
+  const clampedCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (clampedCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalRecords);
+  const paginatedRecords = useMemo(() => {
+    return visiblePreviewRecords.slice(startIndex, endIndex);
+  }, [visiblePreviewRecords, startIndex, endIndex]);
+
   // Master Checkbox Toggle for Visible Table Rows
   const isAllVisibleSelected =
     filteredEmployees.length > 0 &&
@@ -440,10 +454,15 @@ export default function LeaveYearEndPage() {
     setError("");
 
     try {
+      const targetEmployeeIds = selectedEmployeeIds.filter((id) => filteredEmployeeIds.has(id));
+      if (targetEmployeeIds.length === 0) {
+        throw new Error("No employees selected under current filter criteria.");
+      }
+
       const payload = {
         currentCycle: currentCycleCode,
         nextCycle: nextCycleCode,
-        employeeIds: selectedEmployeeIds,
+        employeeIds: targetEmployeeIds,
         rules: rules.map((r) => ({
           leaveTypeId: r.leaveTypeId,
           rule: r.rule,
@@ -463,8 +482,11 @@ export default function LeaveYearEndPage() {
         throw new Error(data.error || "Failed to execute year-end leave process.");
       }
 
+      const targetIdsSet = new Set(targetEmployeeIds);
+      const filteredResultRecords = (data.records || []).filter((r: RecordResult) => targetIdsSet.has(r.employeeId));
+
       setCompletedSummary(data.summary);
-      setSummaryRecords(data.records || []);
+      setSummaryRecords(filteredResultRecords);
       setShowConfirmModal(false);
       setConfirmedAcknowledgement(false);
 
@@ -599,7 +621,8 @@ export default function LeaveYearEndPage() {
                   setSelectedDepartment("ALL");
                   setSelectedEmployeeType("ALL");
                   setSelectedEmploymentType("ALL");
-                  setSearchQuery("");
+                  setCurrentPage(1);
+                  setIsProcessedPreview(false);
                 }}
                 className="text-xs font-medium text-emerald-800 hover:underline"
               >
@@ -607,7 +630,7 @@ export default function LeaveYearEndPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {/* All Streams Dropdown */}
               <div>
                 <label htmlFor="streamFilter" className="mb-1 block text-xs font-medium text-slate-600">Stream</label>
@@ -615,7 +638,11 @@ export default function LeaveYearEndPage() {
                   <select
                     id="streamFilter"
                     value={selectedStream}
-                    onChange={(e) => setSelectedStream(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedStream(e.target.value);
+                      setCurrentPage(1);
+                      setIsProcessedPreview(false);
+                    }}
                     className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-emerald-600"
                   >
                     <option value="ALL">All Streams</option>
@@ -634,7 +661,11 @@ export default function LeaveYearEndPage() {
                   <select
                     id="deptFilter"
                     value={selectedDepartment}
-                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedDepartment(e.target.value);
+                      setCurrentPage(1);
+                      setIsProcessedPreview(false);
+                    }}
                     className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-emerald-600"
                   >
                     <option value="ALL">All Departments</option>
@@ -653,7 +684,11 @@ export default function LeaveYearEndPage() {
                   <select
                     id="empTypeFilter"
                     value={selectedEmployeeType}
-                    onChange={(e) => setSelectedEmployeeType(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedEmployeeType(e.target.value);
+                      setCurrentPage(1);
+                      setIsProcessedPreview(false);
+                    }}
                     className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-emerald-600"
                   >
                     <option value="ALL">All Employee Types</option>
@@ -672,7 +707,11 @@ export default function LeaveYearEndPage() {
                   <select
                     id="employmentTypeFilter"
                     value={selectedEmploymentType}
-                    onChange={(e) => setSelectedEmploymentType(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedEmploymentType(e.target.value);
+                      setCurrentPage(1);
+                      setIsProcessedPreview(false);
+                    }}
                     className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-emerald-600"
                   >
                     <option value="ALL">All Employment Types</option>
@@ -683,44 +722,54 @@ export default function LeaveYearEndPage() {
                   <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
               </div>
-
-              {/* Employee Search */}
-              <div>
-                <label htmlFor="searchEmployee" className="mb-1 block text-xs font-medium text-slate-600">Search Employee</label>
-                <div className="relative">
-                  <input
-                    id="searchEmployee"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search name or ID..."
-                    className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-8 pr-3 text-xs outline-none focus:border-emerald-600"
-                  />
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                </div>
-              </div>
             </div>
           </section>
 
           {/* Action Row */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-              Preview Next-Cycle Balances ({visiblePreviewRecords.length})
+              {isProcessedPreview
+                ? `Preview Next-Cycle Balances (${visiblePreviewRecords.length})`
+                : `Employee Leave Balances (${visiblePreviewRecords.length})`}
             </h2>
 
-            {/* Main Action: Process Year-End */}
-            <button
-              type="button"
-              disabled={metrics.selectedCount === 0 || isLoading || isProcessing}
-              onClick={() => {
-                setConfirmedAcknowledgement(false);
-                setShowConfirmModal(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <CalendarCheck size={18} />
-              Process Year-End ({metrics.selectedCount} Employees)
-            </button>
+            <div className="flex items-center gap-2.5">
+              {/* Revert Button: Active and visible after Generate has been clicked */}
+              {isProcessedPreview && (
+                <button
+                  type="button"
+                  onClick={() => setIsProcessedPreview(false)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]"
+                >
+                  <RotateCcw size={16} className="text-slate-500" />
+                  Revert
+                </button>
+              )}
+
+              {/* Main Action: Generate -> Process Year-End */}
+              <button
+                type="button"
+                disabled={metrics.selectedCount === 0 || isLoading || isProcessing}
+                onClick={() => {
+                  if (!isProcessedPreview) {
+                    setIsProcessedPreview(true);
+                  } else {
+                    setConfirmedAcknowledgement(false);
+                    setShowConfirmModal(true);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 active:scale-[0.99]"
+              >
+                {!isProcessedPreview ? (
+                  <span>Generate</span>
+                ) : (
+                  <>
+                    <CalendarCheck size={18} />
+                    <span>Process Year-End</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -737,7 +786,9 @@ export default function LeaveYearEndPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Users size={18} className="text-slate-500" />
                   <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                    Next Cycle Opening Balance Preview ({currentCycleCode} → {nextCycleCode})
+                    {isProcessedPreview
+                      ? `Next Cycle Opening Balance Preview (${currentCycleCode} → ${nextCycleCode})`
+                      : `Current Employee Leave Balances (${currentCycleCode})`}
                   </h2>
                   <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                     {visiblePreviewRecords.length} records
@@ -776,7 +827,8 @@ export default function LeaveYearEndPage() {
                   <p className="mt-3 text-sm">Calculating year-end leave preview from database...</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                  <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse text-left text-xs align-middle">
                     <thead className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-tight text-slate-600 font-semibold">
                       <tr>
@@ -862,26 +914,30 @@ export default function LeaveYearEndPage() {
                             align="right"
                           />
                         </th>
-                        <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                          <SortHeaderButton
-                            label="Carried Forward"
-                            columnKey="carriedForwardDays"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="right"
-                          />
-                        </th>
-                        <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                          <SortHeaderButton
-                            label={`Proposed Opening (${nextCycleCode})`}
-                            columnKey="proposedOpeningBalance"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="right"
-                          />
-                        </th>
+                        {isProcessedPreview && (
+                          <>
+                            <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/60">
+                              <SortHeaderButton
+                                label="Carried Forward"
+                                columnKey="carriedForwardDays"
+                                sortField={sortField}
+                                sortDirection={sortDirection}
+                                onSort={handleSort}
+                                align="right"
+                              />
+                            </th>
+                            <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/60">
+                              <SortHeaderButton
+                                label={`Proposed Opening (${nextCycleCode})`}
+                                columnKey="proposedOpeningBalance"
+                                sortField={sortField}
+                                sortDirection={sortDirection}
+                                onSort={handleSort}
+                                align="right"
+                              />
+                            </th>
+                          </>
+                        )}
                         <th scope="col" className="whitespace-nowrap px-3 py-3 text-center align-middle">
                           <SortHeaderButton
                             label="Status"
@@ -895,7 +951,7 @@ export default function LeaveYearEndPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
-                      {visiblePreviewRecords.map((record) => {
+                      {paginatedRecords.map((record) => {
                         const isSelected = selectedEmployeeIds.includes(record.employeeId);
                         return (
                           <tr
@@ -926,7 +982,7 @@ export default function LeaveYearEndPage() {
                             <td className="whitespace-nowrap px-3 py-3 text-left align-middle">
                               <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
                                 <span>{record.leaveTypeCode} - {record.leaveTypeName}</span>
-                                {record.rule === "CARRY_FORWARD" && (
+                                {record.carryForward && (
                                   <span className="font-semibold text-emerald-700">
                                     (Carry Forward)
                                   </span>
@@ -945,22 +1001,30 @@ export default function LeaveYearEndPage() {
                               <span className="font-mono font-bold">{record.availableBalance}</span>{" "}
                               <span className="text-[11px] text-slate-400">days</span>
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                              <span
-                                className={`font-mono font-bold ${
-                                  record.carriedForwardDays > 0 ? "text-emerald-700" : "text-slate-400"
-                                }`}
-                              >
-                                {record.carriedForwardDays > 0 ? `+${record.carriedForwardDays}` : "0"}
-                              </span>{" "}
-                              <span className="text-[11px] text-slate-400">days</span>
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                              <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-900 border border-emerald-200">
-                                <span className="font-mono">{record.proposedOpeningBalance}</span>{" "}
-                                <span className="text-[10px] font-normal text-emerald-700">days</span>
-                              </span>
-                            </td>
+                            {isProcessedPreview && (
+                              <>
+                                <td className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/20">
+                                  <span
+                                    className={`font-mono font-bold ${
+                                      record.carriedForwardDays > 0 ? "text-emerald-700" : "text-slate-400"
+                                    }`}
+                                  >
+                                    {record.carriedForwardDays > 0 ? `+${record.carriedForwardDays}` : "0"}
+                                  </span>{" "}
+                                  <span className="text-[11px] text-slate-400">days</span>
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/30">
+                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-900 border border-emerald-200">
+                                    <span className="font-mono">
+                                      {record.carriedForwardDays > 0
+                                        ? `${record.entitlement} + ${record.carriedForwardDays}`
+                                        : record.proposedOpeningBalance}
+                                    </span>{" "}
+                                    <span className="text-[10px] font-normal text-emerald-700">days</span>
+                                  </span>
+                                </td>
+                              </>
+                            )}
                             <td className="whitespace-nowrap px-3 py-3 text-center align-middle">
                               {record.isAlreadyProcessed ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-medium text-amber-800">
@@ -980,7 +1044,7 @@ export default function LeaveYearEndPage() {
 
                       {visiblePreviewRecords.length === 0 && (
                         <tr>
-                          <td colSpan={11} className="px-6 py-12 text-center text-slate-400 align-middle">
+                          <td colSpan={isProcessedPreview ? 11 : 9} className="px-6 py-12 text-center text-slate-400 align-middle">
                             No employee records match the selected filter criteria.
                           </td>
                         </tr>
@@ -988,7 +1052,87 @@ export default function LeaveYearEndPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
+
+                {/* Pagination Controls */}
+                {visiblePreviewRecords.length > 0 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/60 px-6 py-3">
+                    <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
+                      <span>
+                        Showing <strong className="font-semibold text-slate-800">{startIndex + 1}</strong> to{" "}
+                        <strong className="font-semibold text-slate-800">{endIndex}</strong> of{" "}
+                        <strong className="font-semibold text-slate-800">{totalRecords}</strong> records
+                      </span>
+                      <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+                      <div className="flex items-center gap-2">
+                        <label htmlFor="pageSizeSelect" className="whitespace-nowrap font-medium text-slate-500">
+                          Rows per page:
+                        </label>
+                        <div className="relative inline-flex items-center">
+                          <select
+                            id="pageSizeSelect"
+                            value={pageSize}
+                            onChange={(e) => {
+                              setPageSize(Number(e.target.value));
+                              setCurrentPage(1);
+                            }}
+                            className="h-8 cursor-pointer appearance-none rounded-lg border border-slate-300 bg-white py-1 pl-3 pr-7 text-xs font-semibold leading-tight text-slate-700 shadow-sm outline-none transition hover:border-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500"
+                          >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                          <ChevronDown
+                            size={13}
+                            className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Page Navigation */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={clampedCurrentPage <= 1}
+                        onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <ChevronLeft size={14} />
+                        <span>Previous</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            className={`flex size-8 items-center justify-center rounded-lg text-xs font-semibold shadow-sm transition ${
+                              page === clampedCurrentPage
+                                ? "bg-emerald-700 text-white"
+                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={clampedCurrentPage >= totalPages}
+                        onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             </section>
         </div>
       </main>
@@ -1100,30 +1244,6 @@ export default function LeaveYearEndPage() {
               </button>
             </div>
 
-            {/* Exactly Expected Output KPI Cards */}
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Employees</span>
-                <p className="mt-1 text-2xl font-black text-slate-800">{completedSummary.totalEmployees}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Balances Created</span>
-                <p className="mt-1 text-2xl font-black text-emerald-700">{completedSummary.totalBalancesCreated}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Carried Forward</span>
-                <p className="mt-1 text-2xl font-black text-emerald-700">+{completedSummary.totalCarriedForward}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Leave Types Reset</span>
-                <p className="mt-1 text-2xl font-black text-blue-700">{completedSummary.totalReset}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Skipped Records</span>
-                <p className="mt-1 text-2xl font-black text-amber-700">{completedSummary.totalSkipped}</p>
-              </div>
-            </div>
-
             {/* Records Breakdown */}
             <div className="mt-4 flex flex-1 flex-col overflow-hidden">
               <div className="mb-2 flex items-center justify-between text-xs">
@@ -1150,7 +1270,6 @@ export default function LeaveYearEndPage() {
                     <tr>
                       <th className="px-3 py-2">Employee</th>
                       <th className="px-3 py-2">Leave Type</th>
-                      <th className="px-3 py-2">Rule</th>
                       <th className="px-3 py-2 text-right">Carried</th>
                       <th className="px-3 py-2 text-right">Opening Balance</th>
                       <th className="px-3 py-2 text-center">Status</th>
@@ -1168,14 +1287,13 @@ export default function LeaveYearEndPage() {
                           <td className="px-3 py-2 text-slate-700">
                             {rec.leaveTypeCode} - {rec.leaveTypeName}
                           </td>
-                          <td className="px-3 py-2">
-                            <span className="text-[11px] font-semibold text-slate-600">{rec.rule}</span>
-                          </td>
                           <td className="px-3 py-2 text-right font-bold text-emerald-700">
-                            +{rec.carriedForwardDays}
+                            {rec.carriedForwardDays > 0 ? `+${rec.carriedForwardDays}` : "0"}
                           </td>
                           <td className="px-3 py-2 text-right font-extrabold text-slate-900">
-                            {rec.proposedOpeningBalance} days
+                            {rec.carriedForwardDays > 0
+                              ? `${rec.entitlement ?? (rec.proposedOpeningBalance - rec.carriedForwardDays)} + ${rec.carriedForwardDays} days`
+                              : `${rec.proposedOpeningBalance} days`}
                           </td>
                           <td className="px-3 py-2 text-center">
                             {rec.status === "SUCCESS" ? (

@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
           employeeLeaveApplications: {
             where: {
               status: "Approved",
-              startDate: { gte: cycleStart },
-              endDate: { lte: cycleEnd },
+              startDate: { lte: cycleEnd },
+              endDate: { gte: cycleStart },
             },
           },
         },
@@ -66,9 +66,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const processedMap = new Set(
-      existingNextCycleRecords
-        .filter((r) => r.status === "SUCCESS")
-        .map((r) => `${r.employeeId}-${r.leaveTypeId}`)
+      existingNextCycleRecords.map((r) => `${r.employeeId}-${r.leaveTypeId}`)
     );
 
     // Extract unique filter options
@@ -94,26 +92,37 @@ export async function GET(request: NextRequest) {
 
       return leaveTypes.map((lt) => {
         const eligibility = employee.leaveRecords.find((r) => r.leaveTypeId === lt.id);
-        const isEligible = eligibility ? eligibility.isEligible : true;
-        const entitlement = eligibility?.daysAllowed || lt.daysAllowed;
-        const credited = eligibility?.creditedDays || 0;
+        const isEligible = Boolean(eligibility ? eligibility.isEligible && lt.status === "ACTIVE" : lt.status === "ACTIVE");
+        const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
+        const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
 
         // Calculate leave used in the current cycle
         const matchingApps = employee.employeeLeaveApplications.filter(
           (app) => app.leaveTypeId === lt.id
         );
-        const leaveUsed = matchingApps.reduce((sum, app) => sum + (app.daysCount || 0), 0);
+        const leaveUsed = isEligible ? matchingApps.reduce((sum, app) => {
+          const appStart = new Date(app.startDate);
+          const appEnd = new Date(app.endDate);
+          const clampedStart = appStart < cycleStart ? cycleStart : appStart;
+          const clampedEnd = appEnd > cycleEnd ? cycleEnd : appEnd;
 
-        // Available balance at cycle closing
-        const availableBalance = Math.max(0, entitlement - leaveUsed) + credited;
+          const totalDays = Math.max(1, Math.round((appEnd.getTime() - appStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          const clampedDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+          const days = app.daysCount ? Math.min(app.daysCount, Math.round(app.daysCount * (clampedDays / totalDays))) : clampedDays;
+          return sum + days;
+        }, 0) : 0;
+
+        // Available balance at cycle closing: (entitlement + credited) - leaveUsed
+        const availableBalance = isEligible ? Math.max(0, (entitlement + credited) - leaveUsed) : 0;
 
         // Rule calculation
         const ruleConfig = rules.find((r) => r.leaveTypeId === lt.id);
-        const rule = ruleConfig?.rule || "RESET";
+        const rule = ruleConfig?.rule || (lt.carryForward ? "CARRY_FORWARD" : "RESET");
         const maxLimit = ruleConfig?.maxCarryForwardDays ?? null;
 
         let carriedForwardDays = 0;
-        if (rule === "CARRY_FORWARD") {
+        if (isEligible && rule === "CARRY_FORWARD") {
           carriedForwardDays = maxLimit !== null ? Math.min(availableBalance, maxLimit) : availableBalance;
         }
 
@@ -226,7 +235,7 @@ export async function POST(request: NextRequest) {
     const cycleEnd = new Date(`${currentCycle.endDate}T23:59:59.999Z`);
 
     // Fetch target employees and leave types
-    const [employees, leaveTypes, existingRecords] = await Promise.all([
+    const [employees, leaveTypes] = await Promise.all([
       prisma.employee.findMany({
         where: { employeeId: { in: employeeIds } },
         include: {
@@ -236,8 +245,8 @@ export async function POST(request: NextRequest) {
           employeeLeaveApplications: {
             where: {
               status: "Approved",
-              startDate: { gte: cycleStart },
-              endDate: { lte: cycleEnd },
+              startDate: { lte: cycleEnd },
+              endDate: { gte: cycleStart },
             },
           },
         },
@@ -246,20 +255,7 @@ export async function POST(request: NextRequest) {
         where: { status: "ACTIVE" },
         orderBy: { id: "asc" },
       }),
-      prisma.leaveYearEndRecord.findMany({
-        where: {
-          nextCycle: nextCycle.code,
-          employeeId: { in: employeeIds },
-        },
-        select: { employeeId: true, leaveTypeId: true, status: true },
-      }),
     ]);
-
-    const alreadyProcessedMap = new Set(
-      existingRecords
-        .filter((r) => r.status === "SUCCESS")
-        .map((r) => `${r.employeeId}-${r.leaveTypeId}`)
-    );
 
     // Prepare rule lookup
     const ruleMap = new Map<number, { rule: "CARRY_FORWARD" | "RESET"; maxCarryForwardDays: number | null }>();
@@ -325,51 +321,36 @@ export async function POST(request: NextRequest) {
 
     for (const employee of employees) {
       for (const lt of leaveTypes) {
-        const key = `${employee.employeeId}-${lt.id}`;
-
-        // Duplicate prevention check!
-        if (alreadyProcessedMap.has(key)) {
-          totalSkipped++;
-          recordsToCreate.push({
-            employeeId: employee.employeeId,
-            employeeName: employee.name,
-            department: employee.department,
-            stream: employee.stream,
-            leaveTypeId: lt.id,
-            leaveTypeCode: lt.code,
-            leaveTypeName: lt.name,
-            currentCycle: currentCycle.code,
-            nextCycle: nextCycle.code,
-            entitlement: lt.daysAllowed,
-            leaveUsed: 0,
-            availableBalance: 0,
-            rule: "SKIPPED",
-            maxCarryForward: null,
-            carriedForwardDays: 0,
-            proposedOpeningBalance: 0,
-            status: "SKIPPED",
-            reason: `Already processed for cycle ${nextCycle.code}. Duplicate runs prevented.`,
-          });
-          continue;
-        }
-
         const eligibility = employee.leaveRecords.find((r) => r.leaveTypeId === lt.id);
-        const isEligible = eligibility ? eligibility.isEligible : true;
-        const entitlement = eligibility?.daysAllowed || lt.daysAllowed;
-        const credited = eligibility?.creditedDays || 0;
+        const isEligible = Boolean(eligibility ? eligibility.isEligible && lt.status === "ACTIVE" : lt.status === "ACTIVE");
+        const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
+        const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
 
         const matchingApps = employee.employeeLeaveApplications.filter(
           (app) => app.leaveTypeId === lt.id
         );
-        const leaveUsed = matchingApps.reduce((sum, app) => sum + (app.daysCount || 0), 0);
-        const availableBalance = Math.max(0, entitlement - leaveUsed) + credited;
+        const leaveUsed = isEligible ? matchingApps.reduce((sum, app) => {
+          const appStart = new Date(app.startDate);
+          const appEnd = new Date(app.endDate);
+          const clampedStart = appStart < cycleStart ? cycleStart : appStart;
+          const clampedEnd = appEnd > cycleEnd ? cycleEnd : appEnd;
+
+          const totalDays = Math.max(1, Math.round((appEnd.getTime() - appStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          const clampedDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+          const days = app.daysCount ? Math.min(app.daysCount, Math.round(app.daysCount * (clampedDays / totalDays))) : clampedDays;
+          return sum + days;
+        }, 0) : 0;
+
+        const availableBalance = isEligible ? Math.max(0, (entitlement + credited) - leaveUsed) : 0;
 
         const ruleConfig = ruleMap.get(lt.id);
-        const rule = ruleConfig?.rule || "RESET";
+        const rule = ruleConfig?.rule || (lt.carryForward ? "CARRY_FORWARD" : "RESET");
         const maxLimit = ruleConfig?.maxCarryForwardDays ?? null;
 
+        const isCarryForward = isEligible && rule === "CARRY_FORWARD";
         let carriedForwardDays = 0;
-        if (rule === "CARRY_FORWARD") {
+        if (isCarryForward) {
           carriedForwardDays = maxLimit !== null ? Math.min(availableBalance, maxLimit) : availableBalance;
           totalCarriedForward += carriedForwardDays;
         } else {
@@ -378,6 +359,11 @@ export async function POST(request: NextRequest) {
 
         const proposedOpeningBalance = isEligible ? carriedForwardDays + entitlement : 0;
         totalBalancesCreated++;
+
+        const status: "SUCCESS" | "SKIPPED" = isCarryForward ? "SUCCESS" : "SKIPPED";
+        if (status === "SKIPPED") {
+          totalSkipped++;
+        }
 
         recordsToCreate.push({
           employeeId: employee.employeeId,
@@ -396,7 +382,8 @@ export async function POST(request: NextRequest) {
           maxCarryForward: maxLimit,
           carriedForwardDays,
           proposedOpeningBalance,
-          status: "SUCCESS",
+          status,
+          reason: isCarryForward ? undefined : "Reset (No carry forward for this leave type)",
         });
 
         if (isEligible) {
@@ -423,6 +410,14 @@ export async function POST(request: NextRequest) {
 
     // Execute in a transaction for complete safety and atomicity
     const result = await prisma.$transaction(async (tx) => {
+      // Clean up previous records for these employees in this cycle so re-running is cleanly supported
+      await tx.leaveYearEndRecord.deleteMany({
+        where: {
+          nextCycle: nextCycle.code,
+          employeeId: { in: employees.map((e) => e.employeeId) },
+        },
+      });
+
       // 1. Create the parent process record
       const process = await tx.leaveYearEndProcess.create({
         data: {
@@ -533,5 +528,29 @@ export async function POST(request: NextRequest) {
       { error: "Failed to execute Year-End Process. Transaction rolled back." },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const cycle = searchParams.get("cycle") || "2026-2027";
+
+    await prisma.$transaction(async (tx) => {
+      await tx.leaveYearEndRecord.deleteMany({
+        where: { nextCycle: cycle },
+      });
+      await tx.leaveYearEndProcess.deleteMany({
+        where: { nextCycle: cycle },
+      });
+      await tx.employeeCycleBalance.deleteMany({
+        where: { cycle },
+      });
+    });
+
+    return Response.json({ success: true, message: `Reverted year-end records for cycle ${cycle}` });
+  } catch (error) {
+    console.error("Failed to revert year-end process:", error);
+    return Response.json({ error: "Failed to revert year-end process." }, { status: 500 });
   }
 }

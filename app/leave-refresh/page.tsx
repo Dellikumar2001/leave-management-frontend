@@ -39,7 +39,7 @@ type LeaveData = {
 function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
   const record = employee.leaveRecords.find((r) => r.leaveTypeId === leaveType.id);
   if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
-  return `${leaveType.daysAllowed}`;
+  return `${record?.daysAllowed ?? leaveType.daysAllowed}`;
 }
 
 async function fetchData(signal?: AbortSignal): Promise<LeaveData> {

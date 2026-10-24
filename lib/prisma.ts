@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-const CLIENT_VERSION = "2026-10-23-leave-year-end-process";
+const CLIENT_VERSION = "2026-10-24-leave-year-end-process-v2";
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
@@ -16,6 +16,7 @@ const isStale =
   !("employeeApprover" in globalForPrisma.prisma) ||
   !("leaveEligibility" in globalForPrisma.prisma) ||
   !("leaveYearEndProcess" in globalForPrisma.prisma) ||
+  !("leaveYearEndRecord" in globalForPrisma.prisma) ||
   !("employeeCycleBalance" in globalForPrisma.prisma);
 
 export const prisma =
