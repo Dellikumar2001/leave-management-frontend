@@ -68,10 +68,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
       return Response.json({ error: "Leave category not found." }, { status: 404 });
     }
 
-    if (category.status === "INACTIVE") {
-      return Response.json({ error: "Inactive leave categories cannot be deleted." }, { status: 400 });
-    }
-
     await prisma.leaveCategoryMaster.delete({ where: { id } });
     return Response.json({ success: true });
   } catch (error) {
