@@ -1,15 +1,83 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+interface ApproverRecord {
+  id?: number;
+  employeeId: string;
+  firstLevelApprover: string | null;
+  finalLevelApprover: string | null;
+  backupOfficer: string | null;
+  finalLevelBackupOfficer?: string | null;
+  createdAt?: Date;
+  updatedAt?: Date | null;
+}
 
 export async function GET() {
   try {
-    const employees = await prisma.employee.findMany({
-      orderBy: { employeeId: "asc" },
-      include: {
-        approverSettings: true,
-      },
+    const [employees, approverRows] = await Promise.all([
+      prisma.employee.findMany({
+        orderBy: { employeeId: "asc" },
+        include: {
+          approverSettings: true,
+        },
+      }),
+      prisma.$queryRawUnsafe<
+        Array<{
+          employee_id: string;
+          first_level_approver: string | null;
+          final_level_approver: string | null;
+          backup_officer: string | null;
+          final_level_backup_officer: string | null;
+          updated_at: Date | null;
+        }>
+      >(
+        `SELECT employee_id, first_level_approver, final_level_approver, backup_officer, final_level_backup_officer, updated_at FROM employee_approvers`
+      ).catch(() => []),
+    ]);
+
+    const approverMap = new Map(approverRows.map((r) => [r.employee_id, r]));
+
+    const formattedEmployees = employees.map((emp) => {
+      const setting = emp.approverSettings as
+        | (ApproverRecord & { backupOfficer?: string | null; finalLevelBackupOfficer?: string | null })
+        | null;
+      const raw = approverMap.get(emp.employeeId);
+
+      const firstLevel =
+        setting?.firstLevelApprover?.trim() ||
+        raw?.first_level_approver?.trim() ||
+        null;
+      const finalLevel =
+        setting?.finalLevelApprover?.trim() ||
+        raw?.final_level_approver?.trim() ||
+        null;
+      const backup =
+        setting?.backupOfficer?.trim() ||
+        raw?.backup_officer?.trim() ||
+        null;
+      const finalBackup =
+        setting?.finalLevelBackupOfficer?.trim() ||
+        raw?.final_level_backup_officer?.trim() ||
+        null;
+      const updated = setting?.updatedAt || raw?.updated_at || null;
+
+      return {
+        employeeId: emp.employeeId,
+        name: emp.name,
+        stream: emp.stream,
+        department: emp.department,
+        gender: emp.gender,
+        designation: emp.designation,
+        firstLevelApprover: firstLevel,
+        finalLevelApprover: finalLevel,
+        backupOfficer: backup,
+        finalLevelBackupOfficer: finalBackup,
+        updatedAt: updated,
+      };
     });
 
     const formattedEmployees = employees.map((emp) => ({
@@ -35,7 +103,7 @@ export async function GET() {
       label: emp.name,
     }));
 
-    return Response.json({
+    return NextResponse.json({
       employees: formattedEmployees,
       approverOptions,
     });
@@ -54,7 +122,14 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { employeeId, employeeIds, firstLevelApprover, secondLevelApprover, finalLevelApprover, backupOfficer } = body;
+    const {
+      employeeId,
+      employeeIds,
+      firstLevelApprover,
+      finalLevelApprover,
+      backupOfficer,
+      finalLevelBackupOfficer,
+    } = body;
 
     let targetIds: string[] = [];
     if (Array.isArray(employeeIds)) {
@@ -66,7 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (targetIds.length === 0) {
-      return Response.json(
+      return NextResponse.json(
         { error: "At least one Employee ID is required." },
         { status: 400 }
       );
@@ -76,6 +151,7 @@ export async function POST(request: NextRequest) {
     const hasSecond = Object.prototype.hasOwnProperty.call(body, "secondLevelApprover");
     const hasFinal = Object.prototype.hasOwnProperty.call(body, "finalLevelApprover");
     const hasBackup = Object.prototype.hasOwnProperty.call(body, "backupOfficer");
+    const hasFinalBackup = Object.prototype.hasOwnProperty.call(body, "finalLevelBackupOfficer");
 
     const cleanStr = (val: unknown) => {
       if (typeof val !== "string") return null;
@@ -87,9 +163,10 @@ export async function POST(request: NextRequest) {
     const secondVal = cleanStr(secondLevelApprover);
     const finalVal = cleanStr(finalLevelApprover);
     const backupVal = cleanStr(backupOfficer);
+    const finalBackupVal = cleanStr(finalLevelBackupOfficer);
 
-    if (!firstVal && !secondVal && !finalVal && !backupVal) {
-      return Response.json(
+    if (!firstVal && !finalVal && !backupVal && !finalBackupVal) {
+      return NextResponse.json(
         { error: "Please select at least one approver or backup officer." },
         { status: 400 }
       );
@@ -101,16 +178,19 @@ export async function POST(request: NextRequest) {
         let existingSecond: string | null = null;
         let existingFinal: string | null = null;
         let existingBackup: string | null = null;
+        let existingFinalBackup: string | null = null;
 
         try {
-          const existing = await prisma.employeeApprover.findUnique({
+          const existing = (await prisma.employeeApprover.findUnique({
             where: { employeeId: id },
-          });
+          })) as ApproverRecord | null;
+
           if (existing) {
             existingFirst = existing.firstLevelApprover ?? null;
             existingSecond = existing.secondLevelApprover ?? null;
             existingFinal = existing.finalLevelApprover ?? null;
             existingBackup = existing.backupOfficer ?? null;
+            existingFinalBackup = existing.finalLevelBackupOfficer ?? null;
           }
         } catch {
           const rawExisting = await prisma.$queryRawUnsafe<
@@ -119,9 +199,10 @@ export async function POST(request: NextRequest) {
               second_level_approver: string | null;
               final_level_approver: string | null;
               backup_officer: string | null;
+              final_level_backup_officer: string | null;
             }>
           >(
-            `SELECT first_level_approver, second_level_approver, final_level_approver, backup_officer FROM employee_approvers WHERE employee_id = $1 LIMIT 1`,
+            `SELECT first_level_approver, final_level_approver, backup_officer, final_level_backup_officer FROM employee_approvers WHERE employee_id = $1 LIMIT 1`,
             id
           ).catch(() => null);
 
@@ -130,6 +211,7 @@ export async function POST(request: NextRequest) {
             existingSecond = rawExisting[0].second_level_approver ?? null;
             existingFinal = rawExisting[0].final_level_approver ?? null;
             existingBackup = rawExisting[0].backup_officer ?? null;
+            existingFinalBackup = rawExisting[0].final_level_backup_officer ?? null;
           }
         }
 
@@ -137,9 +219,12 @@ export async function POST(request: NextRequest) {
         const newSecondLevel = hasSecond ? secondVal : existingSecond;
         const newFinalLevel = hasFinal ? finalVal : existingFinal;
         const newBackup = hasBackup ? backupVal : existingBackup;
+        const newFinalBackup = hasFinalBackup ? finalBackupVal : existingFinalBackup;
 
         try {
-          return await prisma.employeeApprover.upsert({
+          const upsertResult = (await (prisma.employeeApprover as unknown as {
+            upsert: (args: unknown) => Promise<ApproverRecord>;
+          }).upsert({
             where: { employeeId: id },
             create: {
               employeeId: id,
@@ -147,19 +232,23 @@ export async function POST(request: NextRequest) {
               secondLevelApprover: newSecondLevel,
               finalLevelApprover: newFinalLevel,
               backupOfficer: newBackup,
+              finalLevelBackupOfficer: newFinalBackup,
             },
             update: {
               firstLevelApprover: newFirstLevel,
               secondLevelApprover: newSecondLevel,
               finalLevelApprover: newFinalLevel,
               backupOfficer: newBackup,
+              finalLevelBackupOfficer: newFinalBackup,
               updatedAt: new Date(),
             },
-          });
+          })) as ApproverRecord;
+
+          return upsertResult;
         } catch (upsertError) {
           console.warn("Prisma upsert fallback to SQL:", upsertError);
           await prisma.$executeRawUnsafe(
-            `INSERT INTO employee_approvers (employee_id, first_level_approver, second_level_approver, final_level_approver, backup_officer, created_at, updated_at)
+            `INSERT INTO employee_approvers (employee_id, first_level_approver, final_level_approver, backup_officer, final_level_backup_officer, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
              ON CONFLICT (employee_id)
              DO UPDATE SET
@@ -167,12 +256,14 @@ export async function POST(request: NextRequest) {
                second_level_approver = EXCLUDED.second_level_approver,
                final_level_approver = EXCLUDED.final_level_approver,
                backup_officer = EXCLUDED.backup_officer,
+               final_level_backup_officer = EXCLUDED.final_level_backup_officer,
                updated_at = NOW();`,
             id,
             newFirstLevel,
             newSecondLevel,
             newFinalLevel,
-            newBackup
+            newBackup,
+            newFinalBackup
           );
 
           return {
@@ -182,6 +273,7 @@ export async function POST(request: NextRequest) {
             secondLevelApprover: newSecondLevel,
             finalLevelApprover: newFinalLevel,
             backupOfficer: newBackup,
+            finalLevelBackupOfficer: newFinalBackup,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -189,7 +281,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    return Response.json({
+    return NextResponse.json({
       success: true,
       records: records.map((record) => ({
         employeeId: record.employeeId,
@@ -197,6 +289,7 @@ export async function POST(request: NextRequest) {
         secondLevelApprover: record.secondLevelApprover,
         finalLevelApprover: record.finalLevelApprover,
         backupOfficer: record.backupOfficer,
+        finalLevelBackupOfficer: record.finalLevelBackupOfficer,
         updatedAt: record.updatedAt,
       })),
       record: records[0]
@@ -206,13 +299,14 @@ export async function POST(request: NextRequest) {
             secondLevelApprover: records[0].secondLevelApprover,
             finalLevelApprover: records[0].finalLevelApprover,
             backupOfficer: records[0].backupOfficer,
+            finalLevelBackupOfficer: records[0].finalLevelBackupOfficer,
             updatedAt: records[0].updatedAt,
           }
         : null,
     });
   } catch (error) {
     console.error("Failed to assign approvers:", error);
-    return Response.json(
+    return NextResponse.json(
       {
         error:
           error instanceof Error
@@ -230,7 +324,7 @@ export async function DELETE(request: NextRequest) {
     const employeeId = searchParams.get("employeeId");
 
     if (!employeeId) {
-      return Response.json({ error: "Employee ID is required." }, { status: 400 });
+      return NextResponse.json({ error: "Employee ID is required." }, { status: 400 });
     }
 
     try {
@@ -243,10 +337,10 @@ export async function DELETE(request: NextRequest) {
       `;
     }
 
-    return Response.json({ success: true });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete approver settings:", error);
-    return Response.json(
+    return NextResponse.json(
       { error: "Unable to delete approver settings." },
       { status: 500 }
     );
