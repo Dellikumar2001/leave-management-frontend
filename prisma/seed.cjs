@@ -54,6 +54,8 @@ const employeeGenders = {
   "EMP-008": "Male",
 };
 
+const religions = ["Hindu", "Christian", "Muslim", "Sikh", "Jain", "Buddhist"];
+
 async function main() {
   console.log("Seeding Leave Categories...");
   for (const cat of categories) {
@@ -91,10 +93,15 @@ async function main() {
   console.log("Seeding Employees and Eligibility...");
   for (const employee of employees) {
     const gender = employeeGenders[employee.employeeId] || "Male";
+    const existingEmp = await prisma.employee.findUnique({
+      where: { employeeId: employee.employeeId },
+      select: { religion: true },
+    });
+    const religion = existingEmp?.religion || religions[Math.floor(Math.random() * religions.length)];
     await prisma.employee.upsert({
       where: { employeeId: employee.employeeId },
-      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status, gender },
-      create: { ...employee, gender },
+      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status, gender, religion },
+      create: { ...employee, gender, religion },
     });
 
     for (const lt of allLeaveTypes) {
