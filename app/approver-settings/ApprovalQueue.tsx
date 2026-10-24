@@ -16,6 +16,7 @@ type ApprovalRequest = {
   endDate: string;
   daysCount: number;
   reason: string;
+  status: string;
   appliedAt: string;
   currentApprovalLevel: number;
   pendingWith: string;
@@ -23,11 +24,11 @@ type ApprovalRequest = {
   approvals: { level: number; approver: string; action: string; isBackup: boolean; remarks: string | null }[];
 };
 
-const roles: { id: QueueRole; label: string; subtitle: string; level: number }[] = [
-  { id: "level1", label: "Level 1 Approver", subtitle: "HOD", level: 1 },
-  { id: "level2", label: "Level 2 Approver", subtitle: "Vice Principal", level: 2 },
-  { id: "level3", label: "Level 3 Approver", subtitle: "Principal", level: 3 },
-  { id: "backup", label: "Backup Officer", subtitle: "Dean / Leave In-charge", level: 1 },
+const roles: { id: QueueRole; label: string; level: number }[] = [
+  { id: "level1", label: "Level 1 Approver", level: 1 },
+  { id: "level2", label: "Level 2 Approver", level: 2 },
+  { id: "level3", label: "Level 3 Approver", level: 3 },
+  { id: "backup", label: "Backup Officer", level: 1 },
 ];
 
 function formatDate(value: string) {
@@ -44,11 +45,15 @@ function canActForRole(request: ApprovalRequest, role: QueueRole, level: number)
 
 export default function ApprovalQueue() {
   const [activeRole, setActiveRole] = useState<QueueRole>("level1");
+  const [activeQueueView, setActiveQueueView] = useState<"needs-approval" | "approved-by-me">("needs-approval");
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
+  const [decisionRequest, setDecisionRequest] = useState<{
+    request: ApprovalRequest;
+    action: "APPROVED" | "REJECTED";
+  } | null>(null);
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
@@ -92,44 +97,64 @@ export default function ApprovalQueue() {
 
   const currentRole = roles.find((role) => role.id === activeRole)!;
   const queueRequests = useMemo(() => requests.filter((request) => {
-    if (activeRole === "backup") return Boolean(request.approvers.backup);
-    const approver = request.approvers[`level${currentRole.level}` as ApprovalLevelKey];
-    return request.currentApprovalLevel <= currentRole.level && Boolean(approver);
-  }), [activeRole, currentRole.level, requests]);
+    const assignedApprover = activeRole === "backup"
+      ? request.approvers.backup
+      : request.approvers[`level${currentRole.level}` as ApprovalLevelKey];
+    if (!assignedApprover) return false;
+
+    if (activeQueueView === "approved-by-me") {
+      return request.approvals.some((approval) =>
+        approval.action.toUpperCase() === "APPROVED" &&
+        approval.approver.toLowerCase() === assignedApprover.toLowerCase() &&
+        (activeRole === "backup"
+          ? approval.isBackup
+          : !approval.isBackup && approval.level === currentRole.level)
+      );
+    }
+
+    return request.status.toLowerCase() === "pending" &&
+      (activeRole === "backup" || request.currentApprovalLevel <= currentRole.level);
+  }), [activeQueueView, activeRole, currentRole.level, requests]);
 
   const visibleRequests = useMemo(() => queueRequests.filter((request) => {
     if (leaveTypeFilter !== "all" && request.leaveType !== leaveTypeFilter) return false;
     if (departmentFilter !== "all" && request.department !== departmentFilter) return false;
-    if (activeRole !== "backup" && statusFilter === "actionable" && request.currentApprovalLevel !== currentRole.level) return false;
-    if (activeRole !== "backup" && statusFilter === "previous" && request.currentApprovalLevel >= currentRole.level) return false;
     if (search && !`${request.employeeId} ${request.employeeName} ${request.department}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [activeRole, currentRole.level, departmentFilter, leaveTypeFilter, queueRequests, search, statusFilter]);
+  }), [departmentFilter, leaveTypeFilter, queueRequests, search]);
 
   const leaveTypes = [...new Set(queueRequests.map((request) => request.leaveType))].sort();
   const departments = [...new Set(queueRequests.map((request) => request.department))].sort();
-  const actionableCount = activeRole === "backup"
+  const actionableCount = activeQueueView === "approved-by-me"
     ? queueRequests.length
-    : queueRequests.filter((request) => request.currentApprovalLevel === currentRole.level).length;
-  const previousLevelCount = activeRole === "backup"
-    ? queueRequests.filter((request) => request.currentApprovalLevel > 1).length
-    : queueRequests.filter((request) => request.currentApprovalLevel < currentRole.level).length;
-  const pendingWith = (request: ApprovalRequest) => `Level ${request.currentApprovalLevel} (${request.pendingWith || "approver not assigned"})`;
+    : queueRequests.filter((request) => canActForRole(request, activeRole, currentRole.level)).length;
+  const previousLevelCount = queueRequests.filter((request) => !canActForRole(request, activeRole, currentRole.level)).length;
+  const pendingWith = (request: ApprovalRequest) => request.status.toLowerCase() === "pending"
+    ? `Level ${request.currentApprovalLevel} (${request.pendingWith || "approver not assigned"})`
+    : request.status;
+
+  const handleResetFilters = () => {
+    setLeaveTypeFilter("all");
+    setDepartmentFilter("all");
+    setSearch("");
+    setActiveQueueView("needs-approval");
+  };
 
   const handleDecision = async (action: "APPROVED" | "REJECTED") => {
-    if (!selectedRequest) return;
+    if (!decisionRequest) return;
+    const request = decisionRequest.request;
     setSubmitting(true);
     setError("");
     try {
       const actor = activeRole === "backup"
-        ? selectedRequest.approvers.backup
-        : selectedRequest.approvers[`level${currentRole.level}` as ApprovalLevelKey];
-      const decisionLevel = activeRole === "backup" ? selectedRequest.currentApprovalLevel : currentRole.level;
+        ? request.approvers.backup
+        : request.approvers[`level${currentRole.level}` as ApprovalLevelKey];
+      const decisionLevel = activeRole === "backup" ? request.currentApprovalLevel : currentRole.level;
       const response = await fetch("/api/employee-leave-approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          applicationId: selectedRequest.id,
+          applicationId: request.id,
           level: decisionLevel,
           actor,
           action,
@@ -139,7 +164,7 @@ export default function ApprovalQueue() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to save decision.");
-      setSelectedRequest(null);
+      setDecisionRequest(null);
       setRemarks("");
       setNotice(action === "APPROVED" ? "Approval recorded. The request moved to the next level." : "Request rejected.");
       await loadRequests();
@@ -171,30 +196,34 @@ export default function ApprovalQueue() {
               onClick={() => setActiveRole(role.id)}
               className={`min-w-max border-b-2 px-3 py-2.5 text-left text-xs font-semibold transition-colors ${activeRole === role.id ? "border-violet-600 bg-violet-600 text-white" : "border-transparent text-slate-600 hover:bg-slate-100"}`}
             >
-              {role.label}<span className={`ml-1.5 ${activeRole === role.id ? "text-violet-100" : "text-slate-400"}`}>· {role.subtitle}</span>
+              {role.label}<span className={`ml-1.5 ${activeRole === role.id ? "text-violet-100" : "text-slate-400"}`}></span>
             </button>
           ))}
+        </div>
+        <div role="tablist" aria-label="Approval request status" className="mt-3 flex gap-2 border-t border-slate-200 pt-3">
+          <button type="button" role="tab" aria-selected={activeQueueView === "needs-approval"} onClick={() => setActiveQueueView("needs-approval")} className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${activeQueueView === "needs-approval" ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Needs Approval</button>
+          <button type="button" role="tab" aria-selected={activeQueueView === "approved-by-me"} onClick={() => setActiveQueueView("approved-by-me")} className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors ${activeQueueView === "approved-by-me" ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Approved by Me</button>
         </div>
       </div>
 
       <div className="p-4 sm:p-5">
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="flex items-center gap-3 rounded-md bg-violet-50 px-3 py-2.5 text-violet-900"><Users size={21} /><div><p className="text-[11px]">Requests in this queue</p><strong className="text-lg leading-5">{queueRequests.length.toString().padStart(2, "0")}</strong></div></div>
-          <div className="flex items-center gap-3 rounded-md bg-blue-50 px-3 py-2.5 text-blue-900"><Clock3 size={21} /><div><p className="text-[11px]">{activeRole === "backup" ? "Available to backup" : "Ready for this level"}</p><strong className="text-lg leading-5">{actionableCount.toString().padStart(2, "0")}</strong></div></div>
-          <div className="flex items-center gap-3 rounded-md bg-amber-50 px-3 py-2.5 text-amber-900"><AlertTriangle size={21} /><div><p className="text-[11px]">{activeRole === "backup" ? "Level 2/3 requests" : "Waiting for previous level"}</p><strong className="text-lg leading-5">{previousLevelCount.toString().padStart(2, "0")}</strong></div></div>
+        <div className={`grid gap-2 ${activeQueueView === "needs-approval" ? "sm:grid-cols-3" : "sm:grid-cols-1"}`}>
+          <div className="flex items-center gap-3 rounded-md bg-violet-50 px-3 py-2.5 text-violet-900"><Users size={21} /><div><p className="text-[11px]">{activeQueueView === "approved-by-me" ? "Approved by this approver" : "Requests in this queue"}</p><strong className="text-lg leading-5">{queueRequests.length.toString().padStart(2, "0")}</strong></div></div>
+          {activeQueueView === "needs-approval" && <>
+            <div className="flex items-center gap-3 rounded-md bg-blue-50 px-3 py-2.5 text-blue-900"><Clock3 size={21} /><div><p className="text-[11px]">{activeRole === "backup" ? "Available to backup" : "Ready for this level"}</p><strong className="text-lg leading-5">{actionableCount.toString().padStart(2, "0")}</strong></div></div>
+            <div className="flex items-center gap-3 rounded-md bg-amber-50 px-3 py-2.5 text-amber-900"><AlertTriangle size={21} /><div><p className="text-[11px]">Waiting for previous level</p><strong className="text-lg leading-5">{previousLevelCount.toString().padStart(2, "0")}</strong></div></div>
+          </>}
         </div>
 
         <div className="mt-3 flex items-start gap-2 rounded-md bg-blue-50 px-3 py-2.5 text-xs leading-5 text-blue-900">
           <Info size={16} className="mt-0.5 shrink-0" />
-          <p>{activeRole === "backup" ? "Approval order: HOD (Level 1) → Vice Principal (Level 2) → Principal (Level 3). The backup officer may substitute for the HOD; the request keeps its Level 1 pending label and the decision is recorded as a backup action. A rejection ends the request." : `Approval order: HOD (Level 1) → Vice Principal (Level 2) → Principal (Level 3). ${currentRole.label} can act only after all earlier levels approve; earlier requests stay visible but locked. A rejection ends the request.`}</p>
+          <p>{activeQueueView === "approved-by-me" ? `Showing leave requests approved by ${activeRole === "backup" ? "the backup officer" : currentRole.label}.` : activeRole === "backup" ? "The backup officer can act for any currently pending approval level. A rejection ends the request." : `Approval order: Level 1 → Level 2 → Level 3. ${currentRole.label} can act only after all earlier levels approve; earlier requests stay visible. A rejection ends the request.`}</p>
         </div>
-
-        <div className="my-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="my-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <select aria-label="Leave type" value={leaveTypeFilter} onChange={(event) => setLeaveTypeFilter(event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700"><option value="all">All Leave Types</option>{leaveTypes.map((type) => <option key={type}>{type}</option>)}</select>
           <select aria-label="Department" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700"><option value="all">All Departments</option>{departments.map((department) => <option key={department}>{department}</option>)}</select>
-          <select aria-label="Approval status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700"><option value="all">All Queue Statuses</option><option value="actionable">Ready for this level</option><option value="previous">Pending with previous level</option></select>
           <label className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" /><input aria-label="Search employee" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employee..." className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs outline-none focus:border-blue-500" /></label>
-          <button type="button" onClick={() => { setLeaveTypeFilter("all"); setDepartmentFilter("all"); setStatusFilter("all"); setSearch(""); }} className="h-9 rounded-md border border-violet-300 bg-white px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">Reset filters</button>
+          <button type="button" onClick={handleResetFilters} className="h-9 rounded-md border border-violet-300 bg-white px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">Reset filters</button>
         </div>
 
         {(error || notice) && <p role={error ? "alert" : "status"} className={`mb-3 rounded-md px-3 py-2 text-xs ${error ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-800"}`}>{error || notice}</p>}
@@ -202,23 +231,30 @@ export default function ApprovalQueue() {
         <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="min-w-280 w-full text-left text-xs">
             <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600">
-              <tr>{["Employee ID", "Employee Name", "Department", "Leave Type", "From Date", "To Date", "Duration", "Current Approval Level", "Pending With", "Applied On", "Remarks", "View Details"].map((label) => <th key={label} className="border-b border-slate-200 px-3 py-2.5">{label}</th>)}</tr>
+              <tr>{["Employee ID", "Employee Name", "Department", "Leave Type", "From Date", "To Date", "Duration", "Pending With", "Applied On", "Remarks", "Action"].map((label) => <th key={label} className="border-b border-slate-200 px-3 py-2.5">{label}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {loading ? <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-400">Loading approval requests...</td></tr> : visibleRequests.length === 0 ? <tr><td colSpan={12} className="px-4 py-10 text-center text-slate-400">No requests found for this queue.</td></tr> : visibleRequests.map((request) => (
+              {loading ? <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">Loading approval requests...</td></tr> : visibleRequests.length === 0 ? <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">{activeQueueView === "approved-by-me" ? "No leave requests have been approved by this approver." : "No requests need approval in this queue."}</td></tr> : visibleRequests.map((request) => (
                 <tr key={request.id} className="hover:bg-slate-50">
                   <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold">{request.employeeId}</td>
                   <td className="px-3 py-3 font-medium">{request.employeeName}</td>
                   <td className="px-3 py-3">{request.department}</td>
-                  <td className="px-3 py-3"><span className="rounded bg-violet-50 px-2 py-1 font-semibold text-violet-800">{request.leaveType}</span></td>
+                  <td className="px-3 py-3"><span className="inline-flex items-center gap-1 rounded border border-violet-600 bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800  hover:bg-violet-100">{request.leaveType}</span></td>
                   <td className="whitespace-nowrap px-3 py-3">{formatDate(request.startDate)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{formatDate(request.endDate)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{request.daysCount} {request.daysCount === 1 ? "Day" : "Days"}</td>
-                  <td className="whitespace-nowrap px-3 py-3">Level {request.currentApprovalLevel}</td>
                   <td className="px-3 py-3">{pendingWith(request)}</td>
                   <td className="whitespace-nowrap px-3 py-3">{formatDate(request.appliedAt)}</td>
                   <td className="max-w-36 truncate px-3 py-3" title={request.reason}>{request.reason || "—"}</td>
-                  <td className="px-3 py-3"><button type="button" onClick={() => { setSelectedRequest(request); setRemarks(""); }} className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-800 hover:bg-blue-100"><Eye size={13} /> View</button></td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => setSelectedRequest(request)} title="View leave request details" className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-800 hover:bg-blue-100"><Eye size={13} /> View</button>
+                      {activeQueueView === "needs-approval" && canActForRole(request, activeRole, currentRole.level) && <>
+                        <button type="button" disabled={submitting} onClick={() => { setDecisionRequest({ request, action: "APPROVED" }); setRemarks(""); }} title="Accept leave request" className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"><Check size={13} /> Accept</button>
+                        <button type="button" disabled={submitting} onClick={() => { setDecisionRequest({ request, action: "REJECTED" }); setRemarks(""); }} title="Reject leave request" className="inline-flex items-center gap-1 rounded border border-rose-200 bg-rose-50 px-2.5 py-1.5 font-semibold text-rose-800 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"><X size={13} /> Reject</button>
+                      </>}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -233,7 +269,24 @@ export default function ApprovalQueue() {
           <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
             <p><strong>Department:</strong> {selectedRequest.department}</p><p><strong>Leave:</strong> {selectedRequest.leaveType}, {formatDate(selectedRequest.startDate)} to {formatDate(selectedRequest.endDate)} ({selectedRequest.daysCount} days)</p><p><strong>Reason:</strong> {selectedRequest.reason || "No reason provided"}</p><p><strong>Pending with:</strong> {pendingWith(selectedRequest)}</p>
             {selectedRequest.approvals.length > 0 && <div className="rounded bg-slate-50 p-3 text-xs"><strong>Approval history</strong>{selectedRequest.approvals.map((approval) => <p key={approval.level} className="mt-1">Level {approval.level}: {approval.action.toLowerCase()} by {approval.approver}{approval.isBackup ? " (backup officer)" : ""}{approval.remarks ? ` · ${approval.remarks}` : ""}</p>)}</div>}
-            {canActForRole(selectedRequest, activeRole, currentRole.level) ? <><label className="block text-xs font-semibold text-slate-600">Remarks<textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={3} className="mt-1 w-full rounded-md border border-slate-300 p-2 text-sm font-normal outline-none focus:border-blue-500" /></label><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-slate-500">Decision by {activeRole === "backup" ? selectedRequest.approvers.backup : selectedRequest.approvers[`level${currentRole.level}` as ApprovalLevelKey]}</span><div className="flex gap-2"><button type="button" disabled={submitting} onClick={() => void handleDecision("REJECTED")} className="inline-flex items-center gap-1 rounded-md border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50"><X size={14} /> Reject</button><button type="button" disabled={submitting} onClick={() => void handleDecision("APPROVED")} className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"><Check size={14} /> Approve</button></div></div></> : <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">Action disabled: this request must be approved by {pendingWith(selectedRequest)} first.</p>}
+          </div>
+        </section>
+      </div>}
+
+      {decisionRequest && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !submitting) setDecisionRequest(null); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="approval-decision-title" className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+          <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h3 id="approval-decision-title" className="font-bold text-slate-900">{decisionRequest.action === "APPROVED" ? "Accept leave request?" : "Reject leave request?"}</h3><p className="mt-0.5 text-xs text-slate-500">{decisionRequest.request.employeeName} · {decisionRequest.request.employeeId}</p></div><button type="button" onClick={() => setDecisionRequest(null)} aria-label="Close decision" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button></header>
+          <div className="space-y-4 px-5 py-4 text-sm text-slate-700">
+            <p>{decisionRequest.action === "APPROVED" ? "This will record your approval and move the request to the next approval level." : "This will reject the leave request and end its approval process."}</p>
+            <p className="text-xs text-slate-500">{decisionRequest.request.leaveType}, {formatDate(decisionRequest.request.startDate)} to {formatDate(decisionRequest.request.endDate)} ({decisionRequest.request.daysCount} days)</p>
+            <label className="block text-xs font-semibold text-slate-600">Remarks<textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={3} className="mt-1 w-full rounded-md border border-slate-300 p-2 text-sm font-normal outline-none focus:border-blue-500" /></label>
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={submitting} onClick={() => setDecisionRequest(null)} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50">Cancel</button>
+              <button type="button" disabled={submitting} onClick={() => void handleDecision(decisionRequest.action)} className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 ${decisionRequest.action === "APPROVED" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"}`}>
+                {submitting ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : decisionRequest.action === "APPROVED" ? <Check size={14} /> : <X size={14} />}
+                {decisionRequest.action === "APPROVED" ? "Accept" : "Reject"}
+              </button>
+            </div>
           </div>
         </section>
       </div>}

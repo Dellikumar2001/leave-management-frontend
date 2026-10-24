@@ -12,7 +12,12 @@ const levelFields = [
 export async function GET() {
   try {
     const applications = await prisma.employeeLeaveApplication.findMany({
-      where: { status: { equals: "Pending", mode: "insensitive" } },
+      where: {
+        OR: [
+          { status: { equals: "Pending", mode: "insensitive" } },
+          { approvals: { some: { action: { equals: "APPROVED", mode: "insensitive" } } } },
+        ],
+      },
       include: {
         employee: { include: { approverSettings: true } },
         leaveType: { select: { name: true, code: true } },
