@@ -9,6 +9,7 @@ interface ApproverRecord {
   id?: number;
   employeeId: string;
   firstLevelApprover: string | null;
+  secondLevelApprover?: string | null;
   finalLevelApprover: string | null;
   backupOfficer: string | null;
   finalLevelBackupOfficer?: string | null;
@@ -29,13 +30,14 @@ export async function GET() {
         Array<{
           employee_id: string;
           first_level_approver: string | null;
+          second_level_approver: string | null;
           final_level_approver: string | null;
           backup_officer: string | null;
           final_level_backup_officer: string | null;
           updated_at: Date | null;
         }>
       >(
-        `SELECT employee_id, first_level_approver, final_level_approver, backup_officer, final_level_backup_officer, updated_at FROM employee_approvers`
+        `SELECT employee_id, first_level_approver, second_level_approver, final_level_approver, backup_officer, final_level_backup_officer, updated_at FROM employee_approvers`
       ).catch(() => []),
     ]);
 
@@ -50,6 +52,10 @@ export async function GET() {
       const firstLevel =
         setting?.firstLevelApprover?.trim() ||
         raw?.first_level_approver?.trim() ||
+        null;
+      const secondLevel =
+        setting?.secondLevelApprover?.trim() ||
+        raw?.second_level_approver?.trim() ||
         null;
       const finalLevel =
         setting?.finalLevelApprover?.trim() ||
@@ -73,6 +79,7 @@ export async function GET() {
         gender: emp.gender,
         designation: emp.designation,
         firstLevelApprover: firstLevel,
+        secondLevelApprover: secondLevel,
         finalLevelApprover: finalLevel,
         backupOfficer: backup,
         finalLevelBackupOfficer: finalBackup,
@@ -112,6 +119,7 @@ export async function POST(request: NextRequest) {
       employeeId,
       employeeIds,
       firstLevelApprover,
+      secondLevelApprover,
       finalLevelApprover,
       backupOfficer,
       finalLevelBackupOfficer,
@@ -134,6 +142,7 @@ export async function POST(request: NextRequest) {
     }
 
     const hasFirst = Object.prototype.hasOwnProperty.call(body, "firstLevelApprover");
+    const hasSecond = Object.prototype.hasOwnProperty.call(body, "secondLevelApprover");
     const hasFinal = Object.prototype.hasOwnProperty.call(body, "finalLevelApprover");
     const hasBackup = Object.prototype.hasOwnProperty.call(body, "backupOfficer");
     const hasFinalBackup = Object.prototype.hasOwnProperty.call(body, "finalLevelBackupOfficer");
@@ -145,11 +154,12 @@ export async function POST(request: NextRequest) {
     };
 
     const firstVal = cleanStr(firstLevelApprover);
+    const secondVal = cleanStr(secondLevelApprover);
     const finalVal = cleanStr(finalLevelApprover);
     const backupVal = cleanStr(backupOfficer);
     const finalBackupVal = cleanStr(finalLevelBackupOfficer);
 
-    if (!firstVal && !finalVal && !backupVal && !finalBackupVal) {
+    if (!firstVal && !secondVal && !finalVal && !backupVal && !finalBackupVal) {
       return NextResponse.json(
         { error: "Please select at least one approver or backup officer." },
         { status: 400 }
@@ -159,6 +169,7 @@ export async function POST(request: NextRequest) {
     const records = await Promise.all(
       targetIds.map(async (id) => {
         let existingFirst: string | null = null;
+        let existingSecond: string | null = null;
         let existingFinal: string | null = null;
         let existingBackup: string | null = null;
         let existingFinalBackup: string | null = null;
@@ -170,6 +181,7 @@ export async function POST(request: NextRequest) {
 
           if (existing) {
             existingFirst = existing.firstLevelApprover ?? null;
+            existingSecond = existing.secondLevelApprover ?? null;
             existingFinal = existing.finalLevelApprover ?? null;
             existingBackup = existing.backupOfficer ?? null;
             existingFinalBackup = existing.finalLevelBackupOfficer ?? null;
@@ -178,17 +190,19 @@ export async function POST(request: NextRequest) {
           const rawExisting = await prisma.$queryRawUnsafe<
             Array<{
               first_level_approver: string | null;
+              second_level_approver: string | null;
               final_level_approver: string | null;
               backup_officer: string | null;
               final_level_backup_officer: string | null;
             }>
           >(
-            `SELECT first_level_approver, final_level_approver, backup_officer, final_level_backup_officer FROM employee_approvers WHERE employee_id = $1 LIMIT 1`,
+            `SELECT first_level_approver, second_level_approver, final_level_approver, backup_officer, final_level_backup_officer FROM employee_approvers WHERE employee_id = $1 LIMIT 1`,
             id
           ).catch(() => null);
 
           if (rawExisting && rawExisting[0]) {
             existingFirst = rawExisting[0].first_level_approver ?? null;
+            existingSecond = rawExisting[0].second_level_approver ?? null;
             existingFinal = rawExisting[0].final_level_approver ?? null;
             existingBackup = rawExisting[0].backup_officer ?? null;
             existingFinalBackup = rawExisting[0].final_level_backup_officer ?? null;
@@ -196,6 +210,7 @@ export async function POST(request: NextRequest) {
         }
 
         const newFirstLevel = hasFirst ? firstVal : existingFirst;
+        const newSecondLevel = hasSecond ? secondVal : existingSecond;
         const newFinalLevel = hasFinal ? finalVal : existingFinal;
         const newBackup = hasBackup ? backupVal : existingBackup;
         const newFinalBackup = hasFinalBackup ? finalBackupVal : existingFinalBackup;
@@ -208,12 +223,14 @@ export async function POST(request: NextRequest) {
             create: {
               employeeId: id,
               firstLevelApprover: newFirstLevel,
+              secondLevelApprover: newSecondLevel,
               finalLevelApprover: newFinalLevel,
               backupOfficer: newBackup,
               finalLevelBackupOfficer: newFinalBackup,
             },
             update: {
               firstLevelApprover: newFirstLevel,
+              secondLevelApprover: newSecondLevel,
               finalLevelApprover: newFinalLevel,
               backupOfficer: newBackup,
               finalLevelBackupOfficer: newFinalBackup,
@@ -225,17 +242,19 @@ export async function POST(request: NextRequest) {
         } catch (upsertError) {
           console.warn("Prisma upsert fallback to SQL:", upsertError);
           await prisma.$executeRawUnsafe(
-            `INSERT INTO employee_approvers (employee_id, first_level_approver, final_level_approver, backup_officer, final_level_backup_officer, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            `INSERT INTO employee_approvers (employee_id, first_level_approver, second_level_approver, final_level_approver, backup_officer, final_level_backup_officer, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
              ON CONFLICT (employee_id)
              DO UPDATE SET
                first_level_approver = EXCLUDED.first_level_approver,
+               second_level_approver = EXCLUDED.second_level_approver,
                final_level_approver = EXCLUDED.final_level_approver,
                backup_officer = EXCLUDED.backup_officer,
                final_level_backup_officer = EXCLUDED.final_level_backup_officer,
                updated_at = NOW();`,
             id,
             newFirstLevel,
+            newSecondLevel,
             newFinalLevel,
             newBackup,
             newFinalBackup
@@ -245,6 +264,7 @@ export async function POST(request: NextRequest) {
             id: 0,
             employeeId: id,
             firstLevelApprover: newFirstLevel,
+            secondLevelApprover: newSecondLevel,
             finalLevelApprover: newFinalLevel,
             backupOfficer: newBackup,
             finalLevelBackupOfficer: newFinalBackup,
@@ -260,6 +280,7 @@ export async function POST(request: NextRequest) {
       records: records.map((record) => ({
         employeeId: record.employeeId,
         firstLevelApprover: record.firstLevelApprover,
+        secondLevelApprover: record.secondLevelApprover,
         finalLevelApprover: record.finalLevelApprover,
         backupOfficer: record.backupOfficer,
         finalLevelBackupOfficer: record.finalLevelBackupOfficer,
@@ -269,6 +290,7 @@ export async function POST(request: NextRequest) {
         ? {
             employeeId: records[0].employeeId,
             firstLevelApprover: records[0].firstLevelApprover,
+            secondLevelApprover: records[0].secondLevelApprover,
             finalLevelApprover: records[0].finalLevelApprover,
             backupOfficer: records[0].backupOfficer,
             finalLevelBackupOfficer: records[0].finalLevelBackupOfficer,

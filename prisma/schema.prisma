@@ -436,6 +436,7 @@ model EmployeeApprover {
   id                 Int       @id @default(autoincrement())
   employeeId         String    @unique @map("employee_id")
   firstLevelApprover      String?   @map("first_level_approver")
+  secondLevelApprover     String?   @map("second_level_approver")
   finalLevelApprover      String?   @map("final_level_approver")
   backupOfficer           String?   @map("backup_officer")
   finalLevelBackupOfficer String?   @map("final_level_backup_officer")
