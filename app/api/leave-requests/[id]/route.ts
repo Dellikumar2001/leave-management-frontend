@@ -217,12 +217,13 @@ export async function DELETE(
       return Response.json({ error: "Leave group not found." }, { status: 404 });
     }
 
-    if (leaveGroup.status === "INACTIVE") {
-      return Response.json({ error: "Inactive leave groups cannot be deleted." }, { status: 400 });
-    }
-
-    await prisma.leaveGroup.delete({
-      where: { id: leaveGroupId },
+    await prisma.$transaction(async (transaction) => {
+      await transaction.leaveGroupItem.deleteMany({
+        where: { leaveGroupId },
+      });
+      await transaction.leaveGroup.delete({
+        where: { id: leaveGroupId },
+      });
     });
 
     return Response.json({ success: true });

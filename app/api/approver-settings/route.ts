@@ -9,6 +9,7 @@ interface ApproverRecord {
   id?: number;
   employeeId: string;
   firstLevelApprover: string | null;
+  secondLevelApprover?: string | null;
   finalLevelApprover: string | null;
   backupOfficer: string | null;
   finalLevelBackupOfficer?: string | null;
@@ -29,13 +30,14 @@ export async function GET() {
         Array<{
           employee_id: string;
           first_level_approver: string | null;
+          second_level_approver: string | null;
           final_level_approver: string | null;
           backup_officer: string | null;
           final_level_backup_officer: string | null;
           updated_at: Date | null;
         }>
       >(
-        `SELECT employee_id, first_level_approver, final_level_approver, backup_officer, final_level_backup_officer, updated_at FROM employee_approvers`
+        `SELECT employee_id, first_level_approver, second_level_approver, final_level_approver, backup_officer, final_level_backup_officer, updated_at FROM employee_approvers`
       ).catch(() => []),
     ]);
 
@@ -50,6 +52,10 @@ export async function GET() {
       const firstLevel =
         setting?.firstLevelApprover?.trim() ||
         raw?.first_level_approver?.trim() ||
+        null;
+      const secondLevel =
+        setting?.secondLevelApprover?.trim() ||
+        raw?.second_level_approver?.trim() ||
         null;
       const finalLevel =
         setting?.finalLevelApprover?.trim() ||
@@ -73,26 +79,13 @@ export async function GET() {
         gender: emp.gender,
         designation: emp.designation,
         firstLevelApprover: firstLevel,
+        secondLevelApprover: secondLevel,
         finalLevelApprover: finalLevel,
         backupOfficer: backup,
         finalLevelBackupOfficer: finalBackup,
         updatedAt: updated,
       };
     });
-
-    const formattedEmployees = employees.map((emp) => ({
-      employeeId: emp.employeeId,
-      name: emp.name,
-      stream: emp.stream,
-      department: emp.department,
-      gender: emp.gender,
-      designation: emp.designation,
-      firstLevelApprover: emp.approverSettings?.firstLevelApprover?.trim() || null,
-      secondLevelApprover: emp.approverSettings?.secondLevelApprover?.trim() || null,
-      finalLevelApprover: emp.approverSettings?.finalLevelApprover?.trim() || null,
-      backupOfficer: emp.approverSettings?.backupOfficer?.trim() || null,
-      updatedAt: emp.approverSettings?.updatedAt || null,
-    }));
 
     // List of potential approvers for dropdowns
     const approverOptions = employees.map((emp) => ({
@@ -126,6 +119,7 @@ export async function POST(request: NextRequest) {
       employeeId,
       employeeIds,
       firstLevelApprover,
+      secondLevelApprover,
       finalLevelApprover,
       backupOfficer,
       finalLevelBackupOfficer,
@@ -165,7 +159,7 @@ export async function POST(request: NextRequest) {
     const backupVal = cleanStr(backupOfficer);
     const finalBackupVal = cleanStr(finalLevelBackupOfficer);
 
-    if (!firstVal && !finalVal && !backupVal && !finalBackupVal) {
+    if (!firstVal && !secondVal && !finalVal && !backupVal && !finalBackupVal) {
       return NextResponse.json(
         { error: "Please select at least one approver or backup officer." },
         { status: 400 }
@@ -202,7 +196,7 @@ export async function POST(request: NextRequest) {
               final_level_backup_officer: string | null;
             }>
           >(
-            `SELECT first_level_approver, final_level_approver, backup_officer, final_level_backup_officer FROM employee_approvers WHERE employee_id = $1 LIMIT 1`,
+            `SELECT first_level_approver, second_level_approver, final_level_approver, backup_officer, final_level_backup_officer FROM employee_approvers WHERE employee_id = $1 LIMIT 1`,
             id
           ).catch(() => null);
 
@@ -248,8 +242,8 @@ export async function POST(request: NextRequest) {
         } catch (upsertError) {
           console.warn("Prisma upsert fallback to SQL:", upsertError);
           await prisma.$executeRawUnsafe(
-            `INSERT INTO employee_approvers (employee_id, first_level_approver, final_level_approver, backup_officer, final_level_backup_officer, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            `INSERT INTO employee_approvers (employee_id, first_level_approver, second_level_approver, final_level_approver, backup_officer, final_level_backup_officer, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
              ON CONFLICT (employee_id)
              DO UPDATE SET
                first_level_approver = EXCLUDED.first_level_approver,

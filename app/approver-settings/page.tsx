@@ -724,26 +724,30 @@ export default function ApproverSettingsPage() {
   };
 
   // Fetch initial data
-  const loadData = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/approver-settings", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load approver settings.");
-      }
-      setEmployees(data.employees || []);
-      setApproverOptions(data.approverOptions || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load employees.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
+    let active = true;
+    const loadData = async () => {
+      try {
+        const response = await fetch("/api/approver-settings", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load approver settings.");
+        }
+        if (active) {
+          setEmployees(data.employees || []);
+          setApproverOptions(data.approverOptions || []);
+        }
+      } catch (err: unknown) {
+        if (active) setError(err instanceof Error ? err.message : "Failed to load employees.");
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    void loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // All available streams
@@ -779,13 +783,26 @@ export default function ApproverSettingsPage() {
     return [...new Set(pool.map((e) => e.name))].filter(Boolean).sort();
   }, [employees, streamFilters, departmentFilters]);
 
+  const clearApproverFields = () => {
+    setFirstLevelApprover("");
+    setBackupOfficer("");
+    setFinalLevelApprover("");
+    setFinalLevelBackupOfficer("");
+  };
+
   // Direct independent filter handlers
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
+    if (newStreams.length === 0 && departmentFilters.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
+      clearApproverFields();
+    }
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    if (streamFilters.length === 0 && newDepts.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
+      clearApproverFields();
+    }
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
@@ -814,10 +831,7 @@ export default function ApproverSettingsPage() {
       }
     } else if (newNames.length === 0) {
       setSelectedRowIds([]);
-      setFirstLevelApprover("");
-      setBackupOfficer("");
-      setFinalLevelApprover("");
-      setFinalLevelBackupOfficer("");
+      clearApproverFields();
     } else {
       const matching = employees.filter((e) => newNames.includes(e.name));
       setSelectedRowIds(matching.map((e) => e.employeeId));
@@ -829,10 +843,7 @@ export default function ApproverSettingsPage() {
     setDepartmentFilters([]);
     setEmployeeNameFilters([]);
     setSelectedRowIds([]);
-    setFirstLevelApprover("");
-    setBackupOfficer("");
-    setFinalLevelApprover("");
-    setFinalLevelBackupOfficer("");
+    clearApproverFields();
     setSortField(null);
     setSortDirection(null);
     setHasAssigned(false);
@@ -872,16 +883,6 @@ export default function ApproverSettingsPage() {
       if (sortField === "finalLevelApprover") {
         const valA = (a.finalLevelApprover || a.finalLevelBackupOfficer || "").trim();
         const valB = (b.finalLevelApprover || b.finalLevelBackupOfficer || "").trim();
-        if (!valA && !valB) return 0;
-        if (!valA) return 1;
-        if (!valB) return -1;
-        const comp = valA.localeCompare(valB, undefined, { sensitivity: "base" });
-        return sortDirection === "asc" ? comp : -comp;
-      }
-
-      if (sortField === "secondLevelApprover") {
-        const valA = (a.secondLevelApprover || "").trim();
-        const valB = (b.secondLevelApprover || "").trim();
         if (!valA && !valB) return 0;
         if (!valA) return 1;
         if (!valB) return -1;
@@ -957,10 +958,7 @@ export default function ApproverSettingsPage() {
         const emp = employees.find((e) => e.employeeId === employeeId);
         return emp ? prev.filter((name) => name !== emp.name) : prev;
       });
-      setFirstLevelApprover("");
-      setBackupOfficer("");
-      setFinalLevelApprover("");
-      setFinalLevelBackupOfficer("");
+      clearApproverFields();
     } else {
       const emp = employees.find((e) => e.employeeId === employeeId);
       if (emp) {
@@ -1077,16 +1075,6 @@ export default function ApproverSettingsPage() {
         value: name,
       }));
   }, [approverOptions]);
-
-  // Clear approvers if all selections become completely empty
-  useEffect(() => {
-    if (!isSelectionActive) {
-      setFirstLevelApprover((prev) => (prev ? "" : prev));
-      setBackupOfficer((prev) => (prev ? "" : prev));
-      setFinalLevelApprover((prev) => (prev ? "" : prev));
-      setFinalLevelBackupOfficer((prev) => (prev ? "" : prev));
-    }
-  }, [isSelectionActive]);
 
   // Is Assign Button Enabled?
   const isAssignButtonEnabled =

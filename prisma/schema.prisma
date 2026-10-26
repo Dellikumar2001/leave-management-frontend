@@ -98,6 +98,7 @@ model Employee {
   status                    String                     @default("Approved")
   gender                    String
   designation               String?
+  religion                  String?
   mobileNumber              String?                    @map("mobile_number")
   workEmail                 String?                    @map("work_email")
   leaveRecords              EmployeeLeaveEligibility[]
@@ -143,6 +144,8 @@ model EmployeeLeaveEligibility {
   daysAllowed  Int       @default(0) @map("days_allowed")
   leaveBalance Int       @default(0) @map("leave_balance")
   creditedDays Int       @default(0) @map("credited_days")
+  bf           Int       @default(0) @map("bf")
+  earned       Int       @default(0) @map("earned")
   joiningDate   DateTime  @default(dbgenerated("('2026-01-01'::date + (floor((random() * (364)::double precision)))::integer)")) @map("joining_date") @db.Date
   gender       String    @default("") @map("gender")
   employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
@@ -436,6 +439,7 @@ model EmployeeApprover {
   id                 Int       @id @default(autoincrement())
   employeeId         String    @unique @map("employee_id")
   firstLevelApprover      String?   @map("first_level_approver")
+  secondLevelApprover     String?   @map("second_level_approver")
   finalLevelApprover      String?   @map("final_level_approver")
   backupOfficer           String?   @map("backup_officer")
   finalLevelBackupOfficer String?   @map("final_level_backup_officer")

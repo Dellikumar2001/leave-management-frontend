@@ -44,7 +44,7 @@ export default function CreateEligibilityPage() {
   const [form, setForm] = useState<EligibilityForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingLeaveGroups, setIsLoadingLeaveGroups] = useState(false);
+  const [isLoadingLeaveGroups, setIsLoadingLeaveGroups] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState("");
@@ -77,22 +77,6 @@ export default function CreateEligibilityPage() {
         if (isMounted) setIsLoading(false);
       });
 
-    // Also fetch active leave groups for the dropdown
-    fetch("/api/leave-requests")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (isMounted && Array.isArray(json?.data)) {
-          const names = json.data
-            .filter((g: { status?: string }) => g.status === "ACTIVE")
-            .map((g: { name?: string }) => String(g.name ?? "").toUpperCase())
-            .filter(Boolean);
-          if (names.length > 0) {
-            setLeaveGroupOptions(names);
-          }
-        }
-      })
-      .catch(() => {});
-
     return () => {
       isMounted = false;
     };
@@ -100,7 +84,6 @@ export default function CreateEligibilityPage() {
 
   useEffect(() => {
     let isMounted = true;
-    setIsLoadingLeaveGroups(true);
     fetch("/api/leave-requests")
       .then(async (response) => {
         const result = await response.json();
