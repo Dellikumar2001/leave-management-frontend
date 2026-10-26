@@ -43,6 +43,8 @@ function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
   const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
   if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
   return `${record?.daysAllowed ?? leaveType.daysAllowed}`;
+}
+
 const TARGET_LEAVES = ["CL", "EL", "ML", "RH"] as const;
 
 const LEAVE_STYLE_CONFIG: Record<

@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [employees, leaveTypes, approvedApplications, yearEndRecords] = await Promise.all([
+    const [employees, leaveTypes, yearEndRecords, approvedApplications] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
         include: {
