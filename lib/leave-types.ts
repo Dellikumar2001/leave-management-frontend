@@ -10,6 +10,7 @@ export type LeaveTypeInput = {
   daysAllowed: number;
   description: string;
   status: "ACTIVE" | "INACTIVE";
+  carryForward: boolean;
 };
 
 export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
@@ -26,22 +27,9 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
     daysAllowed,
     description,
     status,
+    carryForward,
   } = input;
 
-  // Previously mandatory validation:
-  // if (
-  //   typeof code !== "string" || !code.trim() ||
-  //   typeof name !== "string" || !name.trim() ||
-  //   typeof leaveGroup !== "string" || !leaveGroup.trim() ||
-  //   (leaveGroupId !== undefined && (!Number.isSafeInteger(leaveGroupId) || Number(leaveGroupId) <= 0)) ||
-  //   typeof daysAllowed !== "number" || !Number.isSafeInteger(daysAllowed) || daysAllowed < 1 ||
-  //   typeof description !== "string" ||
-  //   (status !== "ACTIVE" && status !== "INACTIVE" && status !== "Active" && status !== "Inactive")
-  // ) {
-  //   return null;
-  // }
-
-  // Code, daysAllowed, description, payment type, and status remain validated; name and leave group are optional:
   if (
     typeof code !== "string" || !code.trim() ||
     (leaveGroupId !== undefined && leaveGroupId !== null && (!Number.isSafeInteger(Number(leaveGroupId)) || Number(leaveGroupId) <= 0)) ||
@@ -64,6 +52,8 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
       ? Number(leaveCategoryId)
       : undefined;
 
+  const isCarryForward = carryForward === true || carryForward === "YES" || carryForward === "true";
+
   return {
     code: code.trim().toUpperCase(),
     name: trimmedName,
@@ -74,6 +64,7 @@ export function parseLeaveTypeInput(value: unknown): LeaveTypeInput | null {
     daysAllowed,
     description: description.trim().toUpperCase(),
     status: status.toUpperCase() as LeaveTypeInput["status"],
+    carryForward: isCarryForward,
   };
 }
 
@@ -87,6 +78,7 @@ export function serializeLeaveType<T extends {
   description: string | null;
   status: string;
   isUsed: boolean;
+  carryForward?: boolean;
   categoryMaster?: { id: number; name: string; code: string } | null;
   groupItems?: {
     leaveGroup: {
@@ -121,5 +113,6 @@ export function serializeLeaveType<T extends {
     description: leaveType.description ?? "",
     status: leaveType.status.toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     isUsed: leaveType.isUsed,
+    carryForward: Boolean(leaveType.carryForward),
   };
 }

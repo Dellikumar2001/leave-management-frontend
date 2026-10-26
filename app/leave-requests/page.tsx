@@ -51,10 +51,9 @@ type RowActionsProps = {
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  isDeleteDisabled?: boolean;
 };
 
-function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowActionsProps) {
+function RowActions({ onView, onEdit, onDelete }: RowActionsProps) {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
@@ -96,8 +95,9 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
         <Pencil size={16} />
       </button>
       <button
+        ref={actionsButtonRef}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={toggleMenu}
         className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
         title="Delete"
         aria-label="Delete"
@@ -114,18 +114,15 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
           >
             <button
               type="button"
-              disabled={isDeleteDisabled}
               onClick={() => {
-                if (isDeleteDisabled) return;
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-                }`}
-              title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              title="Delete"
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
+              <span>Delete</span>
             </button>
           </div>
         </>
@@ -759,7 +756,6 @@ export default function StudentLeaveRequestsPage() {
                             onView={() => handleViewGroup(group)}
                             onEdit={() => handleEditGroup(group)}
                             onDelete={() => handleDeleteGroup(group.id)}
-                            isDeleteDisabled={group.status === "INACTIVE" || Boolean(group.isUsed)}
                           />
                         </td>
                       </tr>

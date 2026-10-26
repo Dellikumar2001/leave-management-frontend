@@ -84,8 +84,12 @@ async function refreshDatabase() {
       await exec(`ALTER TABLE "maternity_leaves" ADD COLUMN "id" SERIAL PRIMARY KEY;`);
     }
 
-    // 7. Clear postgres cached plans by terminating idle connections
-    console.log("7. Terminating stale backend connections to clear cache...");
+    // 7. Ensure approver settings contain the final-level backup column
+    console.log("7. Checking employee_approvers columns...");
+    await exec(`ALTER TABLE IF EXISTS "employee_approvers" ADD COLUMN IF NOT EXISTS "final_level_backup_officer" TEXT;`);
+
+    // 8. Clear postgres cached plans by terminating idle connections
+    console.log("8. Terminating stale backend connections to clear cache...");
     try {
       await prisma.$executeRawUnsafe(`
         SELECT pg_terminate_backend(pid)

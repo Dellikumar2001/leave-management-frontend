@@ -24,8 +24,10 @@ type Employee = {
   gender?: string | null;
   designation?: string | null;
   firstLevelApprover?: string | null;
+  secondLevelApprover?: string | null;
   finalLevelApprover?: string | null;
   backupOfficer?: string | null;
+  finalLevelBackupOfficer?: string | null;
   updatedAt?: string | null;
 };
 
@@ -313,6 +315,329 @@ function SingleSelectDropdown({
   );
 }
 
+/* ─── Dual Column Approver & Backup Officer Dropdown ─── */
+function DualApproverDropdown({
+  approverLabel = "Approver List",
+  backupLabel = "Backup Officer List",
+  options,
+  selectedApprover,
+  selectedBackup,
+  onChangeApprover,
+  onChangeBackup,
+  placeholder,
+  disabled = false,
+  approverDotColor = "bg-emerald-500",
+  backupDotColor = "bg-purple-500",
+  approverSelectedClass = "bg-emerald-50 text-emerald-800 font-semibold ring-1 ring-emerald-500/30",
+  backupSelectedClass = "bg-purple-50 text-purple-800 font-semibold ring-1 ring-purple-500/30",
+  approverCheckColor = "text-emerald-600",
+  backupCheckColor = "text-purple-600",
+  approverFocusBorder = "focus:border-emerald-500",
+  backupFocusBorder = "focus:border-purple-500",
+  approverTextColor = "text-slate-800",
+  backupTextColor = "text-purple-700",
+}: {
+  approverLabel?: string;
+  backupLabel?: string;
+  options: { label: string; value: string; subtitle?: string }[];
+  selectedApprover: string;
+  selectedBackup: string;
+  onChangeApprover: (value: string) => void;
+  onChangeBackup: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  approverDotColor?: string;
+  backupDotColor?: string;
+  approverSelectedClass?: string;
+  backupSelectedClass?: string;
+  approverCheckColor?: string;
+  backupCheckColor?: string;
+  approverFocusBorder?: string;
+  backupFocusBorder?: string;
+  approverTextColor?: string;
+  backupTextColor?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [approverSearch, setApproverSearch] = useState("");
+  const [backupSearch, setBackupSearch] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredApprovers = useMemo(() => {
+    if (!approverSearch.trim()) return options;
+    const term = approverSearch.toLowerCase();
+    return options.filter((opt) => opt.label.toLowerCase().includes(term));
+  }, [options, approverSearch]);
+
+  const filteredBackups = useMemo(() => {
+    if (!backupSearch.trim()) return options;
+    const term = backupSearch.toLowerCase();
+    return options.filter((opt) => opt.label.toLowerCase().includes(term));
+  }, [options, backupSearch]);
+
+  const handleApproverSelect = (val: string) => {
+    const nextVal = val === selectedApprover ? "" : val;
+    onChangeApprover(nextVal);
+
+    // If backup officer is already selected and we just selected an approver, auto-close!
+    if (nextVal && selectedBackup) {
+      setTimeout(() => {
+        setIsOpen(false);
+      }, 280);
+    }
+  };
+
+  const handleBackupSelect = (val: string) => {
+    const nextVal = val === selectedBackup ? "" : val;
+    onChangeBackup(nextVal);
+
+    // If approver is already selected and we just selected a backup officer, auto-close!
+    if (selectedApprover && nextVal) {
+      setTimeout(() => {
+        setIsOpen(false);
+      }, 280);
+    }
+  };
+
+  // Label text to show inside the input button
+  const renderButtonContent = () => {
+    if (disabled) {
+      return (
+        <span className="truncate text-slate-400">
+          {placeholder || "Select Stream or Employee First"}
+        </span>
+      );
+    }
+
+    if (!selectedApprover && !selectedBackup) {
+      return (
+        <span className="truncate text-slate-400">
+          {placeholder || "Select Approver & Backup Officer"}
+        </span>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1.5 truncate text-xs sm:text-sm font-medium">
+        <span className="inline-flex items-center gap-1">
+          <span className={`h-2 w-2 rounded-full shrink-0 ${approverDotColor}`} />
+          <span className={selectedApprover ? `${approverTextColor} font-semibold truncate` : "text-slate-400 italic"}>
+            {selectedApprover || "Select Approver"}
+          </span>
+        </span>
+        <span className="text-slate-400 font-bold px-0.5">/</span>
+        <span className="inline-flex items-center gap-1">
+          <span className={`h-2 w-2 rounded-full shrink-0 ${backupDotColor}`} />
+          <span className={selectedBackup ? `${backupTextColor} font-semibold truncate` : "text-slate-400 italic"}>
+            {selectedBackup || "Select Backup"}
+          </span>
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-all ${
+          disabled
+            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+            : isOpen
+            ? "border-emerald-500 ring-2 ring-emerald-500/20 text-slate-800"
+            : "border-slate-300 text-slate-700 hover:border-slate-400"
+        }`}
+      >
+        <div className="truncate">{renderButtonContent()}</div>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-full min-w-[340px] sm:min-w-[540px] max-w-[95vw] rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+          {/* Header bar */}
+          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Select Both Columns
+              </span>
+              <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                {selectedApprover && selectedBackup
+                  ? "Both Selected ✓ (Auto-closing)"
+                  : selectedApprover
+                  ? "Approver chosen (1/2)"
+                  : selectedBackup
+                  ? "Backup chosen (1/2)"
+                  : "0/2 selected"}
+              </span>
+            </div>
+            {(selectedApprover || selectedBackup) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChangeApprover("");
+                  onChangeBackup("");
+                }}
+                className="text-xs text-rose-600 hover:text-rose-700 font-medium"
+              >
+                Clear both
+              </button>
+            )}
+          </div>
+
+          {/* 2 Columns container */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+            {/* Column 1: Approver List */}
+            <div className="flex flex-col p-2.5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <span className={`h-2 w-2 rounded-full ${approverDotColor}`} />
+                  {approverLabel}
+                </span>
+                {selectedApprover && (
+                  <button
+                    type="button"
+                    onClick={() => onChangeApprover("")}
+                    className="text-[11px] text-slate-400 hover:text-rose-600"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Search box for Approvers */}
+              <div className="relative mb-2">
+                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search approver..."
+                  value={approverSearch}
+                  onChange={(e) => setApproverSearch(e.target.value)}
+                  className={`w-full rounded bg-slate-50 pl-8 pr-3 py-1.5 text-xs text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400 ${approverFocusBorder}`}
+                />
+              </div>
+
+              {/* List */}
+              <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
+                {filteredApprovers.length > 0 ? (
+                  filteredApprovers.map((opt) => {
+                    const isSelected = selectedApprover === opt.value;
+                    return (
+                      <button
+                        key={`approver-${opt.value}`}
+                        type="button"
+                        onClick={() => handleApproverSelect(opt.value)}
+                        className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                          isSelected
+                            ? approverSelectedClass
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {isSelected && <Check size={14} className={`shrink-0 ${approverCheckColor}`} />}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="py-4 text-center text-xs text-slate-400">No approvers found</p>
+                )}
+              </div>
+            </div>
+
+            {/* Column 2: Backup Officer List */}
+            <div className="flex flex-col p-2.5 bg-slate-50/30">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <span className={`h-2 w-2 rounded-full ${backupDotColor}`} />
+                  {backupLabel}
+                </span>
+                {selectedBackup && (
+                  <button
+                    type="button"
+                    onClick={() => onChangeBackup("")}
+                    className="text-[11px] text-slate-400 hover:text-rose-600"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Search box for Backup Officer */}
+              <div className="relative mb-2">
+                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search backup officer..."
+                  value={backupSearch}
+                  onChange={(e) => setBackupSearch(e.target.value)}
+                  className={`w-full rounded bg-white pl-8 pr-3 py-1.5 text-xs text-slate-700 outline-none border border-slate-200 placeholder:text-slate-400 ${backupFocusBorder}`}
+                />
+              </div>
+
+              {/* List */}
+              <div className="max-h-56 overflow-y-auto space-y-0.5 pr-1">
+                {filteredBackups.length > 0 ? (
+                  filteredBackups.map((opt) => {
+                    const isSelected = selectedBackup === opt.value;
+                    return (
+                      <button
+                        key={`backup-${opt.value}`}
+                        type="button"
+                        onClick={() => handleBackupSelect(opt.value)}
+                        className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+                          isSelected
+                            ? backupSelectedClass
+                            : "text-slate-700 hover:bg-slate-100/70"
+                        }`}
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {isSelected && <Check size={14} className={`shrink-0 ${backupCheckColor}`} />}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="py-4 text-center text-xs text-slate-400">No officers found</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer bar */}
+          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-3.5 py-2 text-xs">
+            <span className="text-[11px] text-slate-500 italic">
+              {selectedApprover && selectedBackup
+                ? "Both selected — closing automatically..."
+                : "Select 1 from Approver List and 1 from Backup Officer List"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="rounded bg-slate-200 hover:bg-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type SortableColumnKey = "name" | "firstLevelApprover" | "finalLevelApprover" | "backupOfficer";
 
 function SortHeaderButton({
@@ -365,7 +690,6 @@ export default function ApproverSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [hasAssigned, setHasAssigned] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Cascading Multi-Select Filters
@@ -378,8 +702,9 @@ export default function ApproverSettingsPage() {
 
   // Top level Approver Selection Fields (Directly on page, no modal)
   const [firstLevelApprover, setFirstLevelApprover] = useState<string>("");
-  const [finalLevelApprover, setFinalLevelApprover] = useState<string>("");
   const [backupOfficer, setBackupOfficer] = useState<string>("");
+  const [finalLevelApprover, setFinalLevelApprover] = useState<string>("");
+  const [finalLevelBackupOfficer, setFinalLevelBackupOfficer] = useState<string>("");
 
   // Column sorting state
   const [sortField, setSortField] = useState<SortableColumnKey | null>(null);
@@ -398,26 +723,25 @@ export default function ApproverSettingsPage() {
   };
 
   // Fetch initial data
-  const loadData = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/approver-settings", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to load approver settings.");
-      }
-      setEmployees(data.employees || []);
-      setApproverOptions(data.approverOptions || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load employees.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
+    const loadData = async () => {
+      try {
+        const response = await fetch("/api/approver-settings", { cache: "no-store" });
+        setError("");
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load approver settings.");
+        }
+        setEmployees(data.employees || []);
+        setApproverOptions(data.approverOptions || []);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load employees.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadData();
   }, []);
 
   // All available streams
@@ -453,13 +777,26 @@ export default function ApproverSettingsPage() {
     return [...new Set(pool.map((e) => e.name))].filter(Boolean).sort();
   }, [employees, streamFilters, departmentFilters]);
 
+  const clearApproverFields = () => {
+    setFirstLevelApprover("");
+    setBackupOfficer("");
+    setFinalLevelApprover("");
+    setFinalLevelBackupOfficer("");
+  };
+
   // Direct independent filter handlers
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
+    if (newStreams.length === 0 && departmentFilters.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
+      clearApproverFields();
+    }
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    if (streamFilters.length === 0 && newDepts.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
+      clearApproverFields();
+    }
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
@@ -480,16 +817,15 @@ export default function ApproverSettingsPage() {
         setDepartmentFilters([emp.department]);
         setSelectedRowIds([emp.employeeId]);
         setFirstLevelApprover(emp.firstLevelApprover || "");
-        setFinalLevelApprover(emp.finalLevelApprover || "");
         setBackupOfficer(emp.backupOfficer || "");
+        setFinalLevelApprover(emp.finalLevelApprover || "");
+        setFinalLevelBackupOfficer(emp.finalLevelBackupOfficer || "");
         setSuccessMessage(`Editing approvers for ${emp.name} (${emp.employeeId})`);
         setTimeout(() => setSuccessMessage(""), 3500);
       }
     } else if (newNames.length === 0) {
       setSelectedRowIds([]);
-      setFirstLevelApprover("");
-      setFinalLevelApprover("");
-      setBackupOfficer("");
+      clearApproverFields();
     } else {
       const matching = employees.filter((e) => newNames.includes(e.name));
       setSelectedRowIds(matching.map((e) => e.employeeId));
@@ -501,12 +837,9 @@ export default function ApproverSettingsPage() {
     setDepartmentFilters([]);
     setEmployeeNameFilters([]);
     setSelectedRowIds([]);
-    setFirstLevelApprover("");
-    setFinalLevelApprover("");
-    setBackupOfficer("");
+    clearApproverFields();
     setSortField(null);
     setSortDirection(null);
-    setHasAssigned(false);
     setSuccessMessage("");
     setError("");
   };
@@ -531,8 +864,8 @@ export default function ApproverSettingsPage() {
       }
 
       if (sortField === "firstLevelApprover") {
-        const valA = (a.firstLevelApprover || "").trim();
-        const valB = (b.firstLevelApprover || "").trim();
+        const valA = (a.firstLevelApprover || a.backupOfficer || "").trim();
+        const valB = (b.firstLevelApprover || b.backupOfficer || "").trim();
         if (!valA && !valB) return 0;
         if (!valA) return 1;
         if (!valB) return -1;
@@ -541,8 +874,8 @@ export default function ApproverSettingsPage() {
       }
 
       if (sortField === "finalLevelApprover") {
-        const valA = (a.finalLevelApprover || "").trim();
-        const valB = (b.finalLevelApprover || "").trim();
+        const valA = (a.finalLevelApprover || a.finalLevelBackupOfficer || "").trim();
+        const valB = (b.finalLevelApprover || b.finalLevelBackupOfficer || "").trim();
         if (!valA && !valB) return 0;
         if (!valA) return 1;
         if (!valB) return -1;
@@ -564,7 +897,14 @@ export default function ApproverSettingsPage() {
     });
   }, [employees, streamFilters, departmentFilters, employeeNameFilters, sortField, sortDirection]);
 
-  // Selected employee IDs: ONLY from table checkboxes OR from Employee Name dropdown selection
+  // Active selection flag: enabled if stream, department, employee name, or table rows are selected
+  const isSelectionActive =
+    streamFilters.length > 0 ||
+    departmentFilters.length > 0 ||
+    employeeNameFilters.length > 0 ||
+    selectedRowIds.length > 0;
+
+  // Selected employee IDs: table checkboxes > employee name filter > stream/department filters
   const effectiveSelectedEmployeeIds = useMemo(() => {
     if (selectedRowIds.length > 0) {
       return selectedRowIds;
@@ -576,8 +916,12 @@ export default function ApproverSettingsPage() {
         .map((emp) => emp.employeeId);
     }
 
+    if (streamFilters.length > 0 || departmentFilters.length > 0) {
+      return visibleEmployees.map((emp) => emp.employeeId);
+    }
+
     return [];
-  }, [selectedRowIds, employeeNameFilters, visibleEmployees]);
+  }, [selectedRowIds, employeeNameFilters, streamFilters, departmentFilters, visibleEmployees]);
 
   // Master Checkbox Toggle for Visible Table Rows
   const isAllVisibleSelected =
@@ -607,9 +951,7 @@ export default function ApproverSettingsPage() {
         const emp = employees.find((e) => e.employeeId === employeeId);
         return emp ? prev.filter((name) => name !== emp.name) : prev;
       });
-      setFirstLevelApprover("");
-      setFinalLevelApprover("");
-      setBackupOfficer("");
+      clearApproverFields();
     } else {
       const emp = employees.find((e) => e.employeeId === employeeId);
       if (emp) {
@@ -618,27 +960,29 @@ export default function ApproverSettingsPage() {
         setEmployeeNameFilters([emp.name]);
         setSelectedRowIds([emp.employeeId]);
         setFirstLevelApprover(emp.firstLevelApprover || "");
-        setFinalLevelApprover(emp.finalLevelApprover || "");
         setBackupOfficer(emp.backupOfficer || "");
+        setFinalLevelApprover(emp.finalLevelApprover || "");
+        setFinalLevelBackupOfficer(emp.finalLevelBackupOfficer || "");
         setSuccessMessage(`Editing approvers for ${emp.name} (${emp.employeeId})`);
         setTimeout(() => setSuccessMessage(""), 3500);
       }
     }
   };
 
-  const handleBackupOfficerChange = (val: string) => {
-    setBackupOfficer(val);
-  };
-
   // Assign Approvers directly (No popup form)
   const handleAssignSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (effectiveSelectedEmployeeIds.length === 0) {
-      setError("Please select at least one employee using the dropdown or table checkboxes.");
+      setError("Please select a stream, department, or employee first.");
       return;
     }
 
-    if (!firstLevelApprover.trim() && !finalLevelApprover.trim() && !backupOfficer.trim()) {
+    if (
+      !firstLevelApprover.trim() &&
+      !backupOfficer.trim() &&
+      !finalLevelApprover.trim() &&
+      !finalLevelBackupOfficer.trim()
+    ) {
       setError("Please select at least an Approver or Backup Officer.");
       return;
     }
@@ -653,8 +997,9 @@ export default function ApproverSettingsPage() {
         body: JSON.stringify({
           employeeIds: effectiveSelectedEmployeeIds,
           firstLevelApprover: firstLevelApprover.trim(),
-          finalLevelApprover: finalLevelApprover.trim(),
           backupOfficer: backupOfficer.trim(),
+          finalLevelApprover: finalLevelApprover.trim(),
+          finalLevelBackupOfficer: finalLevelBackupOfficer.trim(),
         }),
       });
 
@@ -671,8 +1016,9 @@ export default function ApproverSettingsPage() {
             ? {
                 ...emp,
                 firstLevelApprover: firstLevelApprover.trim() || emp.firstLevelApprover,
-                finalLevelApprover: finalLevelApprover.trim() || emp.finalLevelApprover,
                 backupOfficer: backupOfficer.trim() || emp.backupOfficer,
+                finalLevelApprover: finalLevelApprover.trim() || emp.finalLevelApprover,
+                finalLevelBackupOfficer: finalLevelBackupOfficer.trim() || emp.finalLevelBackupOfficer,
                 updatedAt: new Date().toISOString(),
               }
             : emp
@@ -692,8 +1038,9 @@ export default function ApproverSettingsPage() {
       setEmployeeNameFilters([]);
       setSelectedRowIds([]);
       setFirstLevelApprover("");
-      setFinalLevelApprover("");
       setBackupOfficer("");
+      setFinalLevelApprover("");
+      setFinalLevelBackupOfficer("");
       setHasAssigned(true);
 
       // Silent background sync with database
@@ -725,21 +1072,15 @@ export default function ApproverSettingsPage() {
   // Only enable approvers if at least one employee is selected
   const isEmployeeSelected = effectiveSelectedEmployeeIds.length > 0;
 
-  // Clear approvers if employee selection becomes empty
-  useEffect(() => {
-    if (!isEmployeeSelected) {
-      if (firstLevelApprover) setFirstLevelApprover("");
-      if (finalLevelApprover) setFinalLevelApprover("");
-      if (backupOfficer) setBackupOfficer("");
-    }
-  }, [isEmployeeSelected, firstLevelApprover, finalLevelApprover, backupOfficer]);
+
 
   // Is Assign Button Enabled?
   const isAssignButtonEnabled =
-    isEmployeeSelected &&
+    effectiveSelectedEmployeeIds.length > 0 &&
     (Boolean(firstLevelApprover.trim()) ||
+     Boolean(backupOfficer.trim()) ||
      Boolean(finalLevelApprover.trim()) ||
-     Boolean(backupOfficer.trim())) &&
+     Boolean(finalLevelBackupOfficer.trim())) &&
     !isSubmitting;
 
   return (
@@ -759,7 +1100,7 @@ export default function ApproverSettingsPage() {
                   Approver settings
                 </h1>
                 <p className="text-xs font-medium text-slate-500">
-                  Configure first level approvers, final level approvers, and backup officers for employees
+                  Configure HOD, vice principal, principal, and backup approvers for employees
                 </p>
               </div>
             </div>
@@ -779,7 +1120,7 @@ export default function ApproverSettingsPage() {
           >
             <div className="flex flex-wrap items-end gap-3">
               {/* Step 1: Stream Multi-Select Dropdown with checkboxes */}
-              <div className="min-w-[170px] flex-1">
+              <div className="min-w-[160px] flex-1">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Streams
                 </label>
@@ -792,7 +1133,7 @@ export default function ApproverSettingsPage() {
               </div>
 
               {/* Step 2: Department Multi-Select Dropdown with checkboxes */}
-              <div className="min-w-[170px] flex-1">
+              <div className="min-w-[160px] flex-1">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Departments
                 </label>
@@ -805,7 +1146,7 @@ export default function ApproverSettingsPage() {
               </div>
 
               {/* Step 3: Employee Multi-Select Dropdown with checkboxes (ONLY NAMES, NO IDs) */}
-              <div className="min-w-[170px] flex-1">
+              <div className="min-w-[160px] flex-1">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Employee Names
                 </label>
@@ -817,48 +1158,67 @@ export default function ApproverSettingsPage() {
                 />
               </div>
 
-              {/* Step 4: First Level Approver dropdown (enabled ONLY when employee is selected) */}
-              <div className="min-w-[170px] flex-1">
+              {/* Step 4: 1st Level Approver & Backup Officer Dual Dropdown */}
+              <div className="min-w-[260px] flex-[1.4]">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  First Level Approver
+                  1st Level Approver &amp; Backup Officer
                 </label>
-                <SingleSelectDropdown
-                  label="First Level Approver"
-                  placeholder={isEmployeeSelected ? "Select Approver" : "Select Employee First"}
+                <DualApproverDropdown
+                  approverLabel="Approver List"
+                  backupLabel="Backup Officer List"
                   options={approverListOptions}
-                  selectedValue={firstLevelApprover}
-                  onChange={(val) => setFirstLevelApprover(val)}
-                  disabled={!isEmployeeSelected}
+                  selectedApprover={firstLevelApprover}
+                  selectedBackup={backupOfficer}
+                  onChangeApprover={(val) => setFirstLevelApprover(val)}
+                  onChangeBackup={(val) => setBackupOfficer(val)}
+                  disabled={!isSelectionActive}
+                  placeholder={
+                    isSelectionActive
+                      ? "Select 1st Level Approver & Backup Officer"
+                      : "Select Stream or Employee First"
+                  }
+                  approverDotColor="bg-emerald-500"
+                  backupDotColor="bg-purple-500"
+                  approverSelectedClass="bg-emerald-50 text-emerald-800 font-semibold ring-1 ring-emerald-500/30"
+                  backupSelectedClass="bg-purple-50 text-purple-800 font-semibold ring-1 ring-purple-500/30"
+                  approverCheckColor="text-emerald-600"
+                  backupCheckColor="text-purple-600"
+                  approverFocusBorder="focus:border-emerald-500"
+                  backupFocusBorder="focus:border-purple-500"
+                  approverTextColor="text-slate-800"
+                  backupTextColor="text-purple-700"
                 />
               </div>
 
-              {/* Step 5: Final Level Approver dropdown (enabled ONLY when employee is selected) */}
-              <div className="min-w-[170px] flex-1">
+              {/* Step 5: Final Level Approver & Backup Officer Dual Dropdown */}
+              <div className="min-w-[260px] flex-[1.4]">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Final Level Approver
+                  Final Level Approver &amp; Backup Officer
                 </label>
-                <SingleSelectDropdown
-                  label="Final Level Approver"
-                  placeholder={isEmployeeSelected ? "Select Approver" : "Select Employee First"}
+                <DualApproverDropdown
+                  approverLabel="Approver List"
+                  backupLabel="Backup Officer List"
                   options={approverListOptions}
-                  selectedValue={finalLevelApprover}
-                  onChange={(val) => setFinalLevelApprover(val)}
-                  disabled={!isEmployeeSelected}
-                />
-              </div>
-
-              {/* Step 6: Backup Officer dropdown (enabled ONLY when employee is selected) */}
-              <div className="min-w-[170px] flex-1">
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Backup Officer
-                </label>
-                <SingleSelectDropdown
-                  label="Backup Officer"
-                  placeholder={isEmployeeSelected ? "Select Approver" : "Select Employee First"}
-                  options={approverListOptions}
-                  selectedValue={backupOfficer}
-                  onChange={handleBackupOfficerChange}
-                  disabled={!isEmployeeSelected}
+                  selectedApprover={finalLevelApprover}
+                  selectedBackup={finalLevelBackupOfficer}
+                  onChangeApprover={(val) => setFinalLevelApprover(val)}
+                  onChangeBackup={(val) => setFinalLevelBackupOfficer(val)}
+                  disabled={!isSelectionActive}
+                  placeholder={
+                    isSelectionActive
+                      ? "Select Final Level Approver & Backup Officer"
+                      : "Select Stream or Employee First"
+                  }
+                  approverDotColor="bg-blue-500"
+                  backupDotColor="bg-amber-500"
+                  approverSelectedClass="bg-blue-50 text-blue-800 font-semibold ring-1 ring-blue-500/30"
+                  backupSelectedClass="bg-amber-50 text-amber-800 font-semibold ring-1 ring-amber-500/30"
+                  approverCheckColor="text-blue-600"
+                  backupCheckColor="text-amber-600"
+                  approverFocusBorder="focus:border-blue-500"
+                  backupFocusBorder="focus:border-amber-500"
+                  approverTextColor="text-slate-800"
+                  backupTextColor="text-amber-700"
                 />
               </div>
 
@@ -876,9 +1236,9 @@ export default function ApproverSettingsPage() {
                   }`}
                   title={
                     !isAssignButtonEnabled
-                      ? !isEmployeeSelected
-                        ? "Select an employee first (using Employee Names or table checkboxes)"
-                        : "Select First Level, Final Level Approver, or Backup Officer"
+                      ? !isSelectionActive
+                        ? "Select a stream, department, or employee first"
+                        : "Select 1st Level or Final Level Approver or Backup Officer"
                       : `Assign approvers for ${effectiveSelectedEmployeeIds.length} employee(s)`
                   }
                 >
@@ -908,9 +1268,11 @@ export default function ApproverSettingsPage() {
                 <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                   {visibleEmployees.length} of {employees.length}
                 </span>
-                {selectedRowIds.length > 0 && (
+                {effectiveSelectedEmployeeIds.length > 0 && (
                   <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                    {selectedRowIds.length === 1 ? "1 employee selected (Editing)" : `${selectedRowIds.length} selected`}
+                    {selectedRowIds.length === 1
+                      ? "1 employee selected (Editing)"
+                      : `${effectiveSelectedEmployeeIds.length} employee(s) targeted for assignment`}
                   </span>
                 )}
               </div>
@@ -969,7 +1331,7 @@ export default function ApproverSettingsPage() {
                     </th>
                     <th scope="col" className="whitespace-nowrap px-6 py-3.5">
                       <SortHeaderButton
-                        label="First Level Approver"
+                        label="1st level approver/backup officer"
                         columnKey="firstLevelApprover"
                         sortField={sortField}
                         sortDirection={sortDirection}
@@ -978,17 +1340,8 @@ export default function ApproverSettingsPage() {
                     </th>
                     <th scope="col" className="whitespace-nowrap px-6 py-3.5">
                       <SortHeaderButton
-                        label="Final Level Approver"
+                        label="final level approver/backup officer"
                         columnKey="finalLevelApprover"
-                        sortField={sortField}
-                        sortDirection={sortDirection}
-                        onSort={handleSort}
-                      />
-                    </th>
-                    <th scope="col" className="whitespace-nowrap px-6 py-3.5">
-                      <SortHeaderButton
-                        label="Backup Officer"
-                        columnKey="backupOfficer"
                         sortField={sortField}
                         sortDirection={sortDirection}
                         onSort={handleSort}
@@ -1000,7 +1353,7 @@ export default function ApproverSettingsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex items-center justify-center gap-2">
                           <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
                           <span>Loading approver settings...</span>
@@ -1060,13 +1413,30 @@ export default function ApproverSettingsPage() {
                             </span>
                           </td>
 
-                          {/* 4. First Level Approver */}
+                          {/* 4. 1st Level Approver / Backup Officer */}
                           <td className="whitespace-nowrap px-6 py-4">
-                            {emp.firstLevelApprover ? (
-                              <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                                {emp.firstLevelApprover}
-                              </span>
+                            {emp.firstLevelApprover || emp.backupOfficer ? (
+                              <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"
+                                    title="1st Level Approver"
+                                  />
+                                  <span className={emp.firstLevelApprover ? "text-slate-800" : "text-slate-400 font-mono"}>
+                                    {emp.firstLevelApprover || "--"}
+                                  </span>
+                                </span>
+                                <span className="text-slate-400 font-bold px-0.5">/</span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-purple-500 shrink-0"
+                                    title="1st Level Backup Officer"
+                                  />
+                                  <span className={emp.backupOfficer ? "text-purple-700 font-medium" : "text-slate-400 font-mono"}>
+                                    {emp.backupOfficer || "--"}
+                                  </span>
+                                </span>
+                              </div>
                             ) : (
                               <span className="font-mono text-sm font-semibold text-slate-400">
                                 --
@@ -1074,27 +1444,30 @@ export default function ApproverSettingsPage() {
                             )}
                           </td>
 
-                          {/* 5. Final Level Approver */}
+                          {/* 5. Final Level Approver / Backup Officer */}
                           <td className="whitespace-nowrap px-6 py-4">
-                            {emp.finalLevelApprover ? (
-                              <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                                <span className="h-2 w-2 rounded-full bg-blue-500" />
-                                {emp.finalLevelApprover}
-                              </span>
-                            ) : (
-                              <span className="font-mono text-sm font-semibold text-slate-400">
-                                --
-                              </span>
-                            )}
-                          </td>
-
-                          {/* 6. Backup Officer */}
-                          <td className="whitespace-nowrap px-6 py-4">
-                            {emp.backupOfficer ? (
-                              <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                                <span className="h-2 w-2 rounded-full bg-purple-500" />
-                                {emp.backupOfficer}
-                              </span>
+                            {emp.finalLevelApprover || emp.finalLevelBackupOfficer ? (
+                              <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-blue-500 shrink-0"
+                                    title="Final Level Approver"
+                                  />
+                                  <span className={emp.finalLevelApprover ? "text-slate-800" : "text-slate-400 font-mono"}>
+                                    {emp.finalLevelApprover || "--"}
+                                  </span>
+                                </span>
+                                <span className="text-slate-400 font-bold px-0.5">/</span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-amber-500 shrink-0"
+                                    title="Final Level Backup Officer"
+                                  />
+                                  <span className={emp.finalLevelBackupOfficer ? "text-amber-700 font-medium" : "text-slate-400 font-mono"}>
+                                    {emp.finalLevelBackupOfficer || "--"}
+                                  </span>
+                                </span>
+                              </div>
                             ) : (
                               <span className="font-mono text-sm font-semibold text-slate-400">
                                 --
@@ -1108,7 +1481,7 @@ export default function ApproverSettingsPage() {
 
                   {!isLoading && visibleEmployees.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                         {employees.length === 0
                           ? "No employees found in the database."
                           : "No employees match the selected filters."}

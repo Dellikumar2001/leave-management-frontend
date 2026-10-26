@@ -40,7 +40,7 @@ type LeaveData = {
 function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
   const record = employee.leaveRecords.find((r) => r.leaveTypeId === leaveType.id);
   if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
-  return `${leaveType.daysAllowed}`;
+  return `${record?.daysAllowed ?? leaveType.daysAllowed}`;
 }
 
 async function fetchData(signal?: AbortSignal): Promise<LeaveData> {
@@ -448,7 +448,7 @@ export default function LeaveRefreshPage() {
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">STREAM</th>
                     <th rowSpan={2} className="whitespace-nowrap px-5 py-3 font-medium">DEPARTMENT</th>
                     <th colSpan={leaveTypeColumnCount} className="bg-green-100/60 px-5 py-3 text-center font-medium">
-                      LEAVE ELIGIBILITY IN DAYS
+                      LEAVE ENTITLEMENT IN DAYS
                     </th>
                     <th colSpan={leaveTypeColumnCount} className="bg-yellow-100/50 px-5 py-3 text-center font-medium">
                       LEAVE BALANCE IN DAYS

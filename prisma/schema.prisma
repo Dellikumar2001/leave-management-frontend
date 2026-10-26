@@ -64,6 +64,7 @@ model LeaveType {
   status              String                     @default("ACTIVE")
   applicableTo        EmployeeCategory[]         @default([STUDENT])
   isUsed              Boolean                    @default(false) @map("is_used")
+  carryForward        Boolean                    @default(false) @map("carry_forward")
   createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
   employeeEligibility EmployeeLeaveEligibility[]
@@ -71,6 +72,7 @@ model LeaveType {
   leaveCredits        LeaveCredit[]
   leaveApplications   EmployeeLeaveApplication[]
   usageRecords        EmployeeLeaveUsage[]
+  cycleBalances       EmployeeCycleBalance[]
 
   @@map("leave_types")
 }
@@ -99,6 +101,7 @@ model Employee {
   status                    String                     @default("Approved")
   gender                    String
   designation               String?
+  religion                  String?
   mobileNumber              String?                    @map("mobile_number")
   workEmail                 String?                    @map("work_email")
   leaveRecords              EmployeeLeaveEligibility[]
@@ -111,6 +114,9 @@ model Employee {
   notifications             EmployeeNotification[]
   employeeLeaveApplications EmployeeLeaveApplication[]
   approverSettings          EmployeeApprover?
+  employeeType              String?                    @default("Teaching") @map("employee_type")
+  employmentType            String?                    @default("Permanent") @map("employment_type")
+  cycleBalances             EmployeeCycleBalance[]
 
   @@map("employees")
 }
@@ -146,6 +152,8 @@ model EmployeeLeaveEligibility {
   leaveBalance Int       @default(0) @map("leave_balance")
   creditedDays Int       @default(0) @map("credited_days")
   joiningDate  DateTime  @default(dbgenerated("('2026-01-01'::date + (floor((random() * (364)::double precision)))::integer)")) @map("joining_date") @db.Date
+  bf           Int       @default(0) @map("bf")
+  earned       Int       @default(0) @map("earned")
   gender       String    @default("") @map("gender")
   employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
@@ -404,15 +412,18 @@ model EmployeeLeaveApplication {
   endDate     DateTime  @map("end_date") @db.Date
   daysCount   Int       @default(1) @map("days_count")
   reason      String
-  status      String    @default("Approved")
+  status      String    @default("Pending")
+  currentApprovalLevel Int @default(1) @map("current_approval_level")
   appliedAt   DateTime  @default(now()) @map("applied_at")
   reviewedBy  String?   @map("reviewed_by")
   reviewedAt  DateTime? @map("reviewed_at")
   remarks     String?
   employee    Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  approvals   EmployeeLeaveApproval[]
 
   @@index([employeeId, startDate, endDate])
+  @@index([status, currentApprovalLevel])
   @@map("employee_leave_applications")
 }
 
@@ -435,18 +446,102 @@ model EmployeeLeaveUsage {
   @@unique([employeeId, leaveTypeId, startDate])
   @@index([employeeId, startDate, endDate])
   @@map("employee_leave_usage")
+model EmployeeLeaveApproval {
+  id            Int       @id @default(autoincrement())
+  applicationId Int       @map("application_id")
+  level         Int
+  approver      String
+  action        String
+  isBackup      Boolean   @default(false) @map("is_backup")
+  remarks       String?
+  actionAt      DateTime  @default(now()) @map("action_at")
+  application   EmployeeLeaveApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, level])
+  @@map("employee_leave_approvals")
 }
 
 model EmployeeApprover {
   id                 Int       @id @default(autoincrement())
   employeeId         String    @unique @map("employee_id")
-  firstLevelApprover String?   @map("first_level_approver")
-  finalLevelApprover String?   @map("final_level_approver")
-  backupOfficer      String?   @map("backup_officer")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  firstLevelApprover      String?   @map("first_level_approver")
+  secondLevelApprover     String?   @map("second_level_approver")
+  finalLevelApprover      String?   @map("final_level_approver")
+  backupOfficer           String?   @map("backup_officer")
+  finalLevelBackupOfficer String?   @map("final_level_backup_officer")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at")
   employee           Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
   @@index([employeeId])
   @@map("employee_approvers")
 }
+
+model LeaveYearEndProcess {
+  id                   Int                  @id @default(autoincrement())
+  currentCycle         String               @map("current_cycle")
+  nextCycle            String               @map("next_cycle")
+  processedBy          String               @default("Administrator") @map("processed_by")
+  processedAt          DateTime             @default(now()) @map("processed_at")
+  totalEmployees       Int                  @default(0) @map("total_employees")
+  totalBalancesCreated Int                  @default(0) @map("total_balances_created")
+  totalCarriedForward  Int                  @default(0) @map("total_carried_forward")
+  totalReset           Int                  @default(0) @map("total_reset")
+  totalSkipped         Int                  @default(0) @map("total_skipped")
+  totalFailed          Int                  @default(0) @map("total_failed")
+  status               String               @default("COMPLETED")
+  records              LeaveYearEndRecord[]
+
+  @@index([currentCycle, nextCycle])
+  @@map("leave_year_end_processes")
+}
+
+model LeaveYearEndRecord {
+  id                     Int                 @id @default(autoincrement())
+  processId              Int                 @map("process_id")
+  employeeId             String              @map("employee_id")
+  employeeName           String              @map("employee_name")
+  department             String              @default("")
+  stream                 String              @default("")
+  leaveTypeId            Int                 @map("leave_type_id")
+  leaveTypeCode          String              @map("leave_type_code")
+  leaveTypeName          String              @map("leave_type_name")
+  currentCycle           String              @map("current_cycle")
+  nextCycle              String              @map("next_cycle")
+  entitlement            Int                 @default(0)
+  leaveUsed              Int                 @default(0) @map("leave_used")
+  availableBalance       Int                 @default(0) @map("available_balance")
+  rule                   String              @default("RESET")
+  maxCarryForward        Int?                @map("max_carry_forward")
+  carriedForwardDays     Int                 @default(0) @map("carried_forward_days")
+  proposedOpeningBalance Int                 @default(0) @map("proposed_opening_balance")
+  status                 String              @default("SUCCESS")
+  reason                 String?
+  createdAt              DateTime            @default(now()) @map("created_at")
+  process                LeaveYearEndProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@unique([processId, employeeId, leaveTypeId])
+  @@index([employeeId, leaveTypeId, nextCycle])
+  @@index([processId, employeeId, nextCycle])
+  @@map("leave_year_end_records")
+}
+
+model EmployeeCycleBalance {
+  id             Int       @id @default(autoincrement())
+  employeeId     String    @map("employee_id")
+  leaveTypeId    Int       @map("leave_type_id")
+  cycle          String
+  openingBalance Int       @default(0) @map("opening_balance")
+  carriedForward Int       @default(0) @map("carried_forward")
+  entitlement    Int       @default(0)
+  currentBalance Int       @default(0) @map("current_balance")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  employee       Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType      LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, leaveTypeId, cycle])
+  @@index([cycle, employeeId])
+  @@map("employee_cycle_balances")
+}
+

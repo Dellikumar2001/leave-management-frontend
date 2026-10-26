@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   ChevronDown,
@@ -477,7 +477,6 @@ export default function EmployeeStatusReportPage() {
     }
   };
 
-  const currentDateStr = new Date().toISOString().split("T")[0];
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
