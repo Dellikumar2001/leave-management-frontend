@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Baby,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   Ban,
@@ -12,11 +13,15 @@ import {
   FileBarChart,
   FileText,
   FileCheck,
+  Mail,
   RefreshCw,
+  Send,
   Settings,
   ShieldCheck,
+  User,
   UserCheck,
   Users,
+  XCircle,
 } from "lucide-react";
 
 export type LeaveSidebarPage =
@@ -27,7 +32,9 @@ export type LeaveSidebarPage =
   | "eligibility"
   | "create-eligibility"
   | "approver-settings"
+  | "leave-approve-reject"
   | "holiday-calendar"
+  | "leave-mail-format"
   | "settings"
   | "leave-refresh"
   | "maternity-leave"
@@ -45,23 +52,24 @@ export type LeaveSidebarPage =
   | "leave-year-end";
 
 type LeaveSidebarProps = {
-  activePage: LeaveSidebarPage;
+  activePage: LeaveSidebarPage | string;
 };
 
-type SubItem = {
+export type NavItem = {
   id: string;
   label: string;
-  href: string;
+  href?: string;
   Icon?: ComponentType<{ size?: number; className?: string }>;
+  subItems?: readonly NavItem[];
 };
 
-type NavItem = {
-  id: string;
-  label: string;
-  href: string;
-  Icon: ComponentType<{ size?: number; className?: string }>;
-  subItems?: readonly SubItem[];
-};
+function isItemActive(item: NavItem, activePage: string): boolean {
+  if (item.id === activePage) return true;
+  if (item.subItems && item.subItems.length > 0) {
+    return item.subItems.some((sub) => isItemActive(sub, activePage));
+  }
+  return false;
+}
 
 const leaveSettingsNavigation: readonly NavItem[] = [
   {
@@ -101,6 +109,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     Icon: ShieldCheck,
   },
   {
+    id: "leave-approve-reject",
+    label: "Leave Approve/Reject",
+    href: "/leave-approve-reject",
+    Icon: CheckCircle2,
+  },
+  {
     id: "holiday-calendar",
     label: "Holiday Calendar",
     href: "/holiday-calendar",
@@ -111,6 +125,12 @@ const leaveSettingsNavigation: readonly NavItem[] = [
     label: "Leave Year-End Process",
     href: "/leave-year-end",
     Icon: RefreshCw,
+  },
+  {
+    id: "leave-mail-format",
+    label: "Leave mail format",
+    href: "/leave-mail-format",
+    Icon: Mail,
   },
 ];
 
@@ -189,15 +209,15 @@ const leaveReportNavigation: readonly NavItem[] = [
 function SubGroupItem({
   item,
   activePage,
+  level = 1,
 }: {
   item: NavItem;
   activePage: string;
+  level?: number;
 }) {
-  const isSubActive =
-    item.id === activePage ||
-    (item.subItems?.some((sub) => sub.id === activePage) ?? false);
+  const isSubActive = isItemActive(item, activePage);
 
-  const [subOpen, setSubOpen] = useState(true);
+  const [subOpen, setSubOpen] = useState(isSubActive);
   const [prevIsSubActive, setPrevIsSubActive] = useState(isSubActive);
 
   if (isSubActive !== prevIsSubActive) {
@@ -210,53 +230,97 @@ function SubGroupItem({
   const ItemIcon = item.Icon;
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setSubOpen((prev) => !prev)}
-        aria-expanded={subOpen}
-        className={`flex w-full min-h-[34px] items-center justify-between rounded-md px-2 text-[12.5px] transition-colors ${isSubActive
-          ? "bg-slate-100/70 font-semibold text-slate-900"
-          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-          }`}
+    <div className="w-full">
+      <div
+        className={`flex w-full items-center justify-between rounded-md transition-colors ${
+          level === 1 ? "min-h-[34px] px-2 text-[12.5px]" : "min-h-[30px] px-1.5 text-[12px]"
+        } ${
+          isSubActive
+            ? "bg-slate-100/70 font-semibold text-slate-900"
+            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+        }`}
       >
-        <span className="flex items-center gap-2">
-          <ItemIcon
-            size={14}
-            className={isSubActive ? "text-emerald-700" : "text-slate-400"}
-          />
+        <Link
+          href={item.href || "#"}
+          onClick={(e) => {
+            if (!item.href || item.href === "#") {
+              e.preventDefault();
+              setSubOpen((prev) => !prev);
+            } else {
+              setSubOpen(true);
+            }
+          }}
+          className="flex min-w-0 flex-1 items-center gap-2 no-underline text-inherit"
+        >
+          {ItemIcon && (
+            <ItemIcon
+              size={level === 1 ? 14 : 13}
+              className={isSubActive ? "text-emerald-700 shrink-0" : "text-slate-400 shrink-0"}
+            />
+          )}
           <span className="truncate">{item.label}</span>
-        </span>
+        </Link>
 
-        <ChevronRight
-          size={12}
-          className={`text-slate-400 transition-transform duration-200 ${subOpen ? "rotate-90" : "rotate-0"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSubOpen((prev) => !prev);
+          }}
+          aria-expanded={subOpen}
+          aria-label={`Toggle ${item.label}`}
+          className="p-1 -mr-0.5 text-slate-400 hover:text-slate-600"
+        >
+          <ChevronRight
+            size={12}
+            className={`transition-transform duration-200 ${
+              subOpen ? "rotate-90" : "rotate-0"
             }`}
-        />
-      </button>
+          />
+        </button>
+      </div>
 
       {subOpen && item.subItems && (
-        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2">
+        <div
+          className={`mt-0.5 space-y-0.5 border-l border-slate-200 ${
+            level === 1 ? "ml-2.5 pl-1.5" : "ml-2 pl-1.5"
+          }`}
+        >
           {item.subItems.map((sub) => {
+            if (sub.subItems && sub.subItems.length > 0) {
+              return (
+                <SubGroupItem
+                  key={sub.id}
+                  item={sub}
+                  activePage={activePage}
+                  level={level + 1}
+                />
+              );
+            }
+
             const isCurrent = sub.id === activePage;
             const SubIcon = sub.Icon ?? ItemIcon;
 
             return (
               <Link
                 key={sub.id}
-                href={sub.href}
+                href={sub.href || "#"}
                 aria-current={isCurrent ? "page" : undefined}
-                className={`flex min-h-[30px] items-center gap-2 rounded-md px-2 text-[12px] no-underline transition-colors ${isCurrent
-                  ? "bg-emerald-50 font-semibold text-emerald-800"
-                  : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
-                  }`}
+                className={`flex min-h-[28px] items-center gap-1.5 rounded-md px-1.5 text-[11.5px] no-underline transition-colors ${
+                  isCurrent
+                    ? "bg-emerald-50 font-semibold text-emerald-800"
+                    : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
+                }`}
               >
-                <SubIcon
-                  size={13}
-                  className={
-                    isCurrent ? "text-emerald-700" : "text-slate-400"
-                  }
-                />
+                {SubIcon && (
+                  <SubIcon
+                    size={12}
+                    className={
+                      isCurrent ? "text-emerald-700 shrink-0" : "text-slate-400 shrink-0"
+                    }
+                  />
+                )}
                 <span className="truncate">{sub.label}</span>
               </Link>
             );
@@ -280,11 +344,7 @@ function SidebarGroup({
   activePage: string;
   defaultOpen?: boolean;
 }) {
-  const isChildActive = items.some(
-    (item) =>
-      item.id === activePage ||
-      (item.subItems?.some((sub) => sub.id === activePage) ?? false)
-  );
+  const isChildActive = items.some((item) => isItemActive(item, activePage));
 
   const [openState, setOpenState] = useState(() => ({
     activePage,
@@ -341,19 +401,21 @@ function SidebarGroup({
             return (
               <Link
                 key={item.id}
-                href={item.href}
+                href={item.href || "#"}
                 aria-current={isActive ? "page" : undefined}
                 className={`flex min-h-[34px] items-center gap-2 rounded-md px-2 text-[12.5px] no-underline transition-colors ${isActive
                   ? "bg-emerald-50 font-semibold text-emerald-800"
                   : "text-slate-600 hover:bg-emerald-50/60 hover:text-slate-900"
                   }`}
               >
-                <ItemIcon
-                  size={14}
-                  className={
-                    isActive ? "text-emerald-700" : "text-slate-400"
-                  }
-                />
+                {ItemIcon && (
+                  <ItemIcon
+                    size={14}
+                    className={
+                      isActive ? "text-emerald-700" : "text-slate-400"
+                    }
+                  />
+                )}
                 <span className="truncate">{item.label}</span>
               </Link>
             );

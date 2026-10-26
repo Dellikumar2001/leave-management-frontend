@@ -392,9 +392,45 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "URL is required." }, { status: 400 });
       }
 
-      const linkResponse = await fetch(targetUrl);
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+          return NextResponse.json(
+            { error: "Invalid URL protocol. Only HTTP and HTTPS links are supported." },
+            { status: 400 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid URL format. Please provide a valid calendar URL." },
+          { status: 400 }
+        );
+      }
+
+      let linkResponse: Response;
+      try {
+        linkResponse = await fetch(parsedUrl.toString(), {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+        });
+      } catch (fetchErr) {
+        const msg = fetchErr instanceof Error ? fetchErr.message : "Network error";
+        return NextResponse.json(
+          { error: `Unable to connect to the provided URL (${msg}). Please verify the link.` },
+          { status: 400 }
+        );
+      }
+
       if (!linkResponse.ok) {
-        throw new Error(`Failed to fetch link: ${linkResponse.statusText}`);
+        return NextResponse.json(
+          {
+            error: `Failed to fetch URL: Server responded with status ${linkResponse.status} (${linkResponse.statusText || "Not Found"}).`,
+          },
+          { status: 400 }
+        );
       }
 
       const mimeType = linkResponse.headers.get("content-type") || "";

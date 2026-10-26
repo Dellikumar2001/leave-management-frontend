@@ -11,6 +11,7 @@ import {
   RefreshCw,
   User,
 } from "lucide-react";
+import DateInput, { formatDisplayDate } from "../../components/DateInput";
 import LeaveSidebar from "../../components/LeaveSidebar";
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -78,8 +79,8 @@ function buildExportRows(
           employee.employeeId,
           employee.name,
           "—",
-          startDate || "—",
-          endDate || "—",
+          formatDisplayDate(startDate) || "—",
+          formatDisplayDate(endDate) || "—",
           0,
           "—",
           employee.status || "Approved",
@@ -93,8 +94,8 @@ function buildExportRows(
     employee.employeeId,
     employee.name,
     `${app.leaveTypeName} (${app.leaveTypeCode})`,
-    startDate || app.startDate || "—",
-    endDate || app.endDate || "—",
+    formatDisplayDate(startDate || app.startDate) || "—",
+    formatDisplayDate(endDate || app.endDate) || "—",
     app.daysCount || 1,
     app.reason || "—",
     app.status || "Approved",
@@ -247,7 +248,7 @@ export default function EmployeeStatusReportPage() {
     const currentDate = new Date().toISOString().split("T")[0];
     const lines = [
       `"Individual Status Report"`,
-      `"Date: ${currentDate}"`,
+      `"Date: ${formatDisplayDate(currentDate)}"`,
       "",
       headers.map((h) => `"${h}"`).join(","),
       ...rows.map((row) =>
@@ -301,7 +302,7 @@ export default function EmployeeStatusReportPage() {
       // ── Row 2: Sub-info row (Date only)
       worksheet.mergeCells("A2:I2");
       const infoCell = worksheet.getCell("A2");
-      infoCell.value = `Date: ${currentDate}`;
+      infoCell.value = `Date: ${formatDisplayDate(currentDate)}`;
       infoCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF475569" } };
       infoCell.fill = {
         type: "pattern",
@@ -434,7 +435,7 @@ export default function EmployeeStatusReportPage() {
       // Date (Below Title)
       doc.setFontSize(10);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Date: ${currentDate}`, 40, 58);
+      doc.text(`Date: ${formatDisplayDate(currentDate)}`, 40, 58);
 
       const tableOptions = {
         head: [headers],
@@ -535,23 +536,21 @@ export default function EmployeeStatusReportPage() {
               <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 xl:col-span-4">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">Date Range</span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <input
+                  <DateInput
                     id="filter-start-date"
-                    type="date"
                     value={startDate}
-                    onChange={(e) => handleStartDate(e.target.value)}
+                    onChange={(val) => handleStartDate(val)}
                     aria-label="Start date"
-                    className="h-10 min-w-0 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700 cursor-pointer outline-none transition-colors focus:border-blue-400"
+                    placeholder="dd / mm / yyyy"
                   />
                   <ArrowRight size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
-                  <input
+                  <DateInput
                     id="filter-end-date"
-                    type="date"
                     value={endDate}
-                    onChange={(e) => handleEndDate(e.target.value)}
-                    aria-label="End date"
                     min={startDate || undefined}
-                    className="h-10 min-w-0 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700 cursor-pointer outline-none transition-colors focus:border-blue-400"
+                    onChange={(val) => handleEndDate(val)}
+                    aria-label="End date"
+                    placeholder="dd / mm / yyyy"
                   />
                 </div>
               </div>
@@ -688,10 +687,10 @@ export default function EmployeeStatusReportPage() {
                             —
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-slate-600 align-middle text-left">
-                            {startDate || "—"}
+                            {formatDisplayDate(startDate) || "—"}
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-slate-600 align-middle text-left">
-                            {endDate || "—"}
+                            {formatDisplayDate(endDate) || "—"}
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-slate-700 font-medium text-center align-middle">
                             0
@@ -728,10 +727,10 @@ export default function EmployeeStatusReportPage() {
                             {app.leaveTypeName} ({app.leaveTypeCode})
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-slate-600 align-middle text-left">
-                            {startDate || app.startDate || "—"}
+                            {formatDisplayDate(startDate || app.startDate) || "—"}
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-slate-600 align-middle text-left">
-                            {endDate || app.endDate || "—"}
+                            {formatDisplayDate(endDate || app.endDate) || "—"}
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-slate-700 font-medium text-center align-middle">
                             {app.daysCount || 1}

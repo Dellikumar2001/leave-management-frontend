@@ -51,10 +51,9 @@ type RowActionsProps = {
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  isDeleteDisabled?: boolean;
 };
 
-function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowActionsProps) {
+function RowActions({ onView, onEdit, onDelete }: RowActionsProps) {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
@@ -115,18 +114,15 @@ function RowActions({ onView, onEdit, onDelete, isDeleteDisabled = false }: RowA
           >
             <button
               type="button"
-              disabled={isDeleteDisabled}
               onClick={() => {
-                if (isDeleteDisabled) return;
                 setOpen(false);
                 onDelete();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${isDeleteDisabled ? "cursor-not-allowed text-slate-400" : "text-red-600 hover:bg-red-50"
-                }`}
-              title={isDeleteDisabled ? "This leave group is already in use and cannot be deleted." : "Delete"}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              title="Delete"
             >
               <Trash2 size={14} />
-              <span>{isDeleteDisabled ? "Delete disabled" : "Delete"}</span>
+              <span>Delete</span>
             </button>
           </div>
         </>
@@ -425,6 +421,16 @@ export default function StudentLeaveRequestsPage() {
     effectiveFrom: "",
     status: "ACTIVE",
   });
+
+  useEffect(() => {
+    if (isModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isModalOpen]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -750,7 +756,6 @@ export default function StudentLeaveRequestsPage() {
                             onView={() => handleViewGroup(group)}
                             onEdit={() => handleEditGroup(group)}
                             onDelete={() => handleDeleteGroup(group.id)}
-                            isDeleteDisabled={group.status === "INACTIVE" || Boolean(group.isUsed)}
                           />
                         </td>
                       </tr>
@@ -784,8 +789,8 @@ export default function StudentLeaveRequestsPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px]">
-          <div className="w-full max-w-[640px] rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-[1px] overscroll-contain">
+          <div className="my-auto max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] overscroll-contain">
             <form
               onSubmit={(event) => {
                 event.preventDefault();

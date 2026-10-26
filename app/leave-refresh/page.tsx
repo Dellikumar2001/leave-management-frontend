@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, ChevronDown } from "lucide-react";
+import * as XLSX from "xlsx";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -302,7 +303,7 @@ export default function LeaveRefreshPage() {
     }
   };
 
-  // ── Export handler
+  // ── Export handler (Excel .xlsx format)
   const handleExport = () => {
     const rows = [
       [
@@ -318,19 +319,43 @@ export default function LeaveRefreshPage() {
         emp.name,
         emp.stream,
         emp.department,
-        ...leaveTypes.map((lt) => getEligibilityValue(emp, lt)),
-        ...leaveTypes.map(
-          (lt) => emp.leaveRecords.find((r) => r.leaveTypeId === lt.id)?.leaveBalance ?? "N/A",
-        ),
+        ...leaveTypes.map((lt) => {
+          const val = getEligibilityValue(emp, lt);
+          const num = Number(val);
+          return isNaN(num) ? val : num;
+        }),
+        ...leaveTypes.map((lt) => {
+          const record = emp.leaveRecords.find((r) => r.leaveTypeId === lt.id);
+          return record?.leaveBalance ?? "N/A";
+        }),
       ]),
     ];
-    const csv = rows
-      .map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(","))
-      .join("\r\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+
+    // Auto-fit column widths
+    const colWidths = rows[0]?.map((_, colIndex) => {
+      let maxLen = 12;
+      for (const row of rows) {
+        const cell = row[colIndex];
+        const len = cell !== undefined && cell !== null ? String(cell).length : 0;
+        if (len > maxLen) maxLen = len;
+      }
+      return { wch: Math.max(maxLen + 3, 14) };
+    });
+    worksheet["!cols"] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Leave Refresh");
+
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "leave-refresh.csv";
+    link.download = "leave-refresh.xlsx";
     link.click();
     URL.revokeObjectURL(url);
   };

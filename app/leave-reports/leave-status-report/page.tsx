@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
+import DateInput, { formatDisplayDate } from "../../components/DateInput";
 import LeaveSidebar from "../../components/LeaveSidebar";
 
 /* ─── Types ──────────────────────────────────────────────────── */
@@ -78,8 +79,8 @@ function buildExportRows(
   const rows = visibleEmployees.map((emp) => [
     emp.employeeId,
     emp.name,
-    startDate || "—",
-    endDate || "—",
+    formatDisplayDate(startDate) || "—",
+    formatDisplayDate(endDate) || "—",
     emp.status || "Approved",
     getEmployeeRemark(emp),
   ]);
@@ -385,7 +386,7 @@ export default function LeaveStatusReportPage() {
     const currentDate = new Date().toISOString().split("T")[0];
     const lines = [
       `"Leave Status Report"`,
-      `"Date: ${currentDate}"`,
+      `"Date: ${formatDisplayDate(currentDate)}"`,
       "",
       headers.map((h) => `"${h}"`).join(","),
       ...rows.map((row) =>
@@ -429,7 +430,7 @@ export default function LeaveStatusReportPage() {
 
     worksheet.mergeCells("A2:F2");
     const infoCell = worksheet.getCell("A2");
-    infoCell.value = `Date: ${currentDate}`;
+    infoCell.value = `Date: ${formatDisplayDate(currentDate)}`;
     infoCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF475569" } };
     infoCell.fill = {
       type: "pattern",
@@ -536,7 +537,7 @@ export default function LeaveStatusReportPage() {
 
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    doc.text(`Date: ${currentDate}`, 40, 58);
+    doc.text(`Date: ${formatDisplayDate(currentDate)}`, 40, 58);
 
     if (typeof autoTable === "function") {
       autoTable(doc, {
@@ -638,35 +639,25 @@ export default function LeaveStatusReportPage() {
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">Date Range</span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <input
+                  <DateInput
                     id="filter-start-date"
-                    type="date"
                     value={startDate}
-                    onChange={(e) => handleStartDate(e.target.value)}
+                    onChange={(val) => handleStartDate(val)}
                     disabled={!isDateAccessible}
                     aria-label="Start date"
                     title={isDateAccessible ? "Start date" : "Select stream, department, and employee first to enable date selection"}
-                    className={`h-10 min-w-0 w-full rounded-md border px-2 text-sm outline-none transition-colors ${
-                      isDateAccessible
-                        ? "border-slate-300 bg-white text-slate-700 cursor-pointer focus:border-blue-400"
-                        : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none opacity-60"
-                    }`}
+                    placeholder="dd / mm / yyyy"
                   />
                   <ArrowRight size={15} className={`shrink-0 ${isDateAccessible ? "text-slate-400" : "text-slate-300"}`} aria-hidden="true" />
-                  <input
+                  <DateInput
                     id="filter-end-date"
-                    type="date"
                     value={endDate}
-                    onChange={(e) => handleEndDate(e.target.value)}
+                    min={startDate || undefined}
+                    onChange={(val) => handleEndDate(val)}
                     disabled={!isDateAccessible}
                     aria-label="End date"
                     title={isDateAccessible ? "End date" : "Select stream, department, and employee first to enable date selection"}
-                    min={startDate || undefined}
-                    className={`h-10 min-w-0 w-full rounded-md border px-2 text-sm outline-none transition-colors ${
-                      isDateAccessible
-                        ? "border-slate-300 bg-white text-slate-700 cursor-pointer focus:border-blue-400"
-                        : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none opacity-60"
-                    }`}
+                    placeholder="dd / mm / yyyy"
                   />
                 </div>
               </div>
@@ -778,8 +769,8 @@ export default function LeaveStatusReportPage() {
                         <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-800">{emp.name}</td>
                         <td className="whitespace-nowrap px-5 py-4 text-slate-700">{emp.stream}</td>
                         <td className="whitespace-nowrap px-5 py-4 text-slate-700">{emp.department}</td>
-                        <td className="whitespace-nowrap px-5 py-4 text-slate-600">{startDate || "—"}</td>
-                        <td className="whitespace-nowrap px-5 py-4 text-slate-600">{endDate || "—"}</td>
+                        <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatDisplayDate(startDate) || "—"}</td>
+                        <td className="whitespace-nowrap px-5 py-4 text-slate-600">{formatDisplayDate(endDate) || "—"}</td>
                         <td className="whitespace-nowrap px-5 py-4">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${

@@ -17,7 +17,8 @@ const isStale =
   !("leaveEligibility" in globalForPrisma.prisma) ||
   !("leaveYearEndProcess" in globalForPrisma.prisma) ||
   !("leaveYearEndRecord" in globalForPrisma.prisma) ||
-  !("employeeCycleBalance" in globalForPrisma.prisma);
+  !("employeeCycleBalance" in globalForPrisma.prisma)||
+   !("employeeLeaveApproval" in globalForPrisma.prisma);
 
 export const prisma =
   !isStale && globalForPrisma.prisma

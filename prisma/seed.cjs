@@ -54,6 +54,8 @@ const employeeGenders = {
   "EMP-008": "Male",
 };
 
+const religions = ["Hindu", "Christian", "Muslim", "Sikh", "Jain", "Buddhist"];
+
 async function main() {
   console.log("Seeding Leave Categories...");
   for (const cat of categories) {
@@ -91,10 +93,15 @@ async function main() {
   console.log("Seeding Employees and Eligibility...");
   for (const employee of employees) {
     const gender = employeeGenders[employee.employeeId] || "Male";
+    const existingEmp = await prisma.employee.findUnique({
+      where: { employeeId: employee.employeeId },
+      select: { religion: true },
+    });
+    const religion = existingEmp?.religion || religions[Math.floor(Math.random() * religions.length)];
     await prisma.employee.upsert({
       where: { employeeId: employee.employeeId },
-      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status, gender },
-      create: { ...employee, gender },
+      update: { name: employee.name, stream: employee.stream, department: employee.department, status: employee.status, gender, religion },
+      create: { ...employee, gender, religion },
     });
 
     for (const lt of allLeaveTypes) {
@@ -121,6 +128,34 @@ async function main() {
           gender,
         },
       });
+    }
+  }
+
+  console.log("Seeding approvers for approval test requests...");
+  const approvalTestApprovers = [
+    { employeeId: "EMP-001", firstLevelApprover: "CS HOD", secondLevelApprover: "Vice Principal", finalLevelApprover: "Principal", backupOfficer: "Dean" },
+    { employeeId: "EMP-002", firstLevelApprover: "Commerce HOD", secondLevelApprover: "Vice Principal", finalLevelApprover: "Principal", backupOfficer: "Dean" },
+    { employeeId: "EMP-003", firstLevelApprover: "English HOD", secondLevelApprover: "Vice Principal", finalLevelApprover: "Principal", backupOfficer: "Dean" },
+    { employeeId: "EMP-004", firstLevelApprover: "Mathematics HOD", secondLevelApprover: "Vice Principal", finalLevelApprover: "Principal", backupOfficer: "Dean" },
+  ];
+  for (const approvers of approvalTestApprovers) {
+    const existing = await prisma.employeeApprover.findUnique({
+      where: { employeeId: approvers.employeeId },
+    });
+    if (existing) {
+      const missingApprovers = Object.fromEntries(
+        Object.entries(approvers)
+          .filter(([field]) => field !== "employeeId")
+          .filter(([field]) => !existing[field]?.trim())
+      );
+      if (Object.keys(missingApprovers).length > 0) {
+        await prisma.employeeApprover.update({
+          where: { employeeId: approvers.employeeId },
+          data: missingApprovers,
+        });
+      }
+    } else {
+      await prisma.employeeApprover.create({ data: approvers });
     }
   }
 
@@ -197,6 +232,57 @@ async function main() {
         },
       });
     }
+  }
+
+  console.log("Seeding approval queue test requests...");
+  const approvalTestRequests = [
+    { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-11-02"), endDate: new Date("2026-11-03"), daysCount: 2, currentApprovalLevel: 1, reason: "[TEST] Level 1 accept or reject" },
+    { employeeId: "EMP-002", typeCode: "CL", startDate: new Date("2026-11-04"), endDate: new Date("2026-11-05"), daysCount: 2, currentApprovalLevel: 1, reason: "[TEST] Level 1 decision" },
+    { employeeId: "EMP-003", typeCode: "ML", startDate: new Date("2026-11-09"), endDate: new Date("2026-11-10"), daysCount: 2, currentApprovalLevel: 2, reason: "[TEST] Level 2 accept or reject" },
+    { employeeId: "EMP-004", typeCode: "EL", startDate: new Date("2026-11-16"), endDate: new Date("2026-11-20"), daysCount: 5, currentApprovalLevel: 3, reason: "[TEST] Level 3 accept or reject" },
+  ];
+
+  for (const app of approvalTestRequests) {
+    const leaveTypeId = leaveTypeMap[app.typeCode];
+    if (!leaveTypeId) continue;
+
+    const existing = await prisma.employeeLeaveApplication.findFirst({
+      where: {
+        employeeId: app.employeeId,
+        leaveTypeId,
+        startDate: app.startDate,
+      },
+    });
+    if (existing) continue;
+
+    const approvers = await prisma.employeeApprover.findUnique({
+      where: { employeeId: app.employeeId },
+    });
+    if (!approvers?.firstLevelApprover || !approvers.secondLevelApprover || !approvers.finalLevelApprover) {
+      throw new Error(`Approval test approvers are incomplete for ${app.employeeId}.`);
+    }
+
+    const approvals = [];
+    if (app.currentApprovalLevel >= 2) {
+      approvals.push({ level: 1, approver: approvers.firstLevelApprover, action: "APPROVED" });
+    }
+    if (app.currentApprovalLevel >= 3) {
+      approvals.push({ level: 2, approver: approvers.secondLevelApprover, action: "APPROVED" });
+    }
+
+    await prisma.employeeLeaveApplication.create({
+      data: {
+        employeeId: app.employeeId,
+        leaveTypeId,
+        startDate: app.startDate,
+        endDate: app.endDate,
+        daysCount: app.daysCount,
+        reason: app.reason,
+        status: "Pending",
+        currentApprovalLevel: app.currentApprovalLevel,
+        approvals: { create: approvals },
+      },
+    });
   }
 
   console.log("Database seeded successfully!");

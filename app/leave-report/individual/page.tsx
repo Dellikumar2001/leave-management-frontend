@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, FileText, LoaderCircle } from "lucide-react";
+import DateInput from "../../components/DateInput";
 import LeaveSidebar from "../../components/LeaveSidebar";
 import EmployeeReportDocument, { type EmployeeReportData } from "../EmployeeReportDocument";
 type EmployeeOption = {
@@ -371,35 +372,27 @@ export default function IndividualLeaveReportPage() {
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Date Range</span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <input
+                  <DateInput
                     id="filter-start-date"
-                    type="date"
                     value={startDate}
-                    onChange={(e) => handleStartDate(e.target.value)}
+                    onChange={(val) => handleStartDate(val)}
                     disabled={isDateOptionDisabled}
                     aria-label="Start date"
                     title={!isDateOptionDisabled ? "Start date" : "Select stream, department, and employee first to enable date selection"}
-                    className={`h-11 min-w-0 w-full rounded-lg border px-3 text-sm outline-none transition-colors ${
-                      !isDateOptionDisabled
-                        ? "border-slate-300 bg-white text-slate-700 cursor-pointer focus:border-emerald-600"
-                        : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none opacity-60"
-                    }`}
+                    placeholder="dd / mm / yyyy"
+                    className="h-11"
                   />
                   <ArrowRight size={15} className={`shrink-0 ${!isDateOptionDisabled ? "text-slate-400" : "text-slate-300"}`} aria-hidden="true" />
-                  <input
+                  <DateInput
                     id="filter-end-date"
-                    type="date"
                     value={endDate}
-                    onChange={(e) => handleEndDate(e.target.value)}
+                    min={startDate || undefined}
+                    onChange={(val) => handleEndDate(val)}
                     disabled={isDateOptionDisabled}
                     aria-label="End date"
                     title={!isDateOptionDisabled ? "End date" : "Select stream, department, and employee first to enable date selection"}
-                    min={startDate || undefined}
-                    className={`h-11 min-w-0 w-full rounded-lg border px-3 text-sm outline-none transition-colors ${
-                      !isDateOptionDisabled
-                        ? "border-slate-300 bg-white text-slate-700 cursor-pointer focus:border-emerald-600"
-                        : "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none opacity-60"
-                    }`}
+                    placeholder="dd / mm / yyyy"
+                    className="h-11"
                   />
                 </div>
               </div>

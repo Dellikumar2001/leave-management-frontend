@@ -100,6 +100,7 @@ model Employee {
   status                    String                     @default("Approved")
   gender                    String
   designation               String?
+  religion                  String?
   mobileNumber              String?                    @map("mobile_number")
   workEmail                 String?                    @map("work_email")
   leaveRecords              EmployeeLeaveEligibility[]
@@ -148,7 +149,9 @@ model EmployeeLeaveEligibility {
   daysAllowed  Int       @default(0) @map("days_allowed")
   leaveBalance Int       @default(0) @map("leave_balance")
   creditedDays Int       @default(0) @map("credited_days")
-  joiningDate  DateTime  @default(dbgenerated("(DATE '2026-01-01' + FLOOR(RANDOM() * 364)::INTEGER)")) @map("joining_date") @db.Date
+  bf           Int       @default(0) @map("bf")
+  earned       Int       @default(0) @map("earned")
+  joiningDate   DateTime  @default(dbgenerated("('2026-01-01'::date + (floor((random() * (364)::double precision)))::integer)")) @map("joining_date") @db.Date
   gender       String    @default("") @map("gender")
   employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
@@ -407,25 +410,46 @@ model EmployeeLeaveApplication {
   endDate     DateTime  @map("end_date") @db.Date
   daysCount   Int       @default(1) @map("days_count")
   reason      String
-  status      String    @default("Approved")
+  status      String    @default("Pending")
+  currentApprovalLevel Int @default(1) @map("current_approval_level")
   appliedAt   DateTime  @default(now()) @map("applied_at")
   reviewedBy  String?   @map("reviewed_by")
   reviewedAt  DateTime? @map("reviewed_at")
   remarks     String?
   employee    Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  approvals   EmployeeLeaveApproval[]
 
   @@index([employeeId, startDate, endDate])
+  @@index([status, currentApprovalLevel])
   @@map("employee_leave_applications")
+}
+
+model EmployeeLeaveApproval {
+  id            Int       @id @default(autoincrement())
+  applicationId Int       @map("application_id")
+  level         Int
+  approver      String
+  action        String
+  isBackup      Boolean   @default(false) @map("is_backup")
+  remarks       String?
+  actionAt      DateTime  @default(now()) @map("action_at")
+  application   EmployeeLeaveApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, level])
+  @@map("employee_leave_approvals")
 }
 
 model EmployeeApprover {
   id                 Int       @id @default(autoincrement())
   employeeId         String    @unique @map("employee_id")
-  firstLevelApprover String    @map("first_level_approver")
-  finalLevelApprover String    @map("final_level_approver")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  firstLevelApprover      String?   @map("first_level_approver")
+  secondLevelApprover     String?   @map("second_level_approver")
+  finalLevelApprover      String?   @map("final_level_approver")
+  backupOfficer           String?   @map("backup_officer")
+  finalLevelBackupOfficer String?   @map("final_level_backup_officer")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at")
   employee           Employee? @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
 
   @@index([employeeId])

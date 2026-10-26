@@ -14,6 +14,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import DateInput, { formatDisplayDate } from "../components/DateInput";
 
 /* ─── Types ───────────────────────────────────────────────── */
 
@@ -84,7 +85,7 @@ async function createReportPdf(rows: ReportRow[], reportDate: string, reportTitl
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10);
   pdf.setTextColor(71, 85, 105);
-  pdf.text(`Date: ${reportDate}`, margin, 17);
+  pdf.text(`Date: ${formatDisplayDate(reportDate)}`, margin, 17);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(18);
   pdf.setTextColor(31, 41, 55);
@@ -145,7 +146,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function createCsvBlob(rows: ReportRow[], reportDate: string, reportTitle: string) {
   const csvRows = [
-    ["Date", reportDate],
+    ["Date", formatDisplayDate(reportDate)],
     [reportTitle.toUpperCase()],
     reportColumns.map((column) => column.label),
     ...rows.map((row) => reportColumns.map((column) => row[column.key])),
@@ -469,8 +470,8 @@ export default function StatutoryReport() {
         name: employee.name,
         stream: employee.stream,
         department: employee.department,
-        dateFrom: startDate,
-        dateTo: endDate,
+        dateFrom: formatDisplayDate(startDate),
+        dateTo: formatDisplayDate(endDate),
         remarks: "—",
       }))
     );
@@ -503,7 +504,7 @@ export default function StatutoryReport() {
       { header: "DATE TO", key: "dateTo", width: 16 },
       { header: "REMARKS", key: "remarks", width: 18 },
     ];
-    worksheet.addRow(["Date:", startDate || currentDateStr]);
+    worksheet.addRow(["Date:", formatDisplayDate(startDate || currentDateStr)]);
     worksheet.addRow([reportTitle.toUpperCase()]);
     worksheet.addRow(reportColumns.map((column) => column.label));
     previewRows.forEach((row) => worksheet.addRow(row));
@@ -665,29 +666,27 @@ export default function StatutoryReport() {
               Date Range <span className="text-emerald-600">*</span>
             </span>
             <div className="flex min-w-0 items-center gap-2">
-              <input
+              <DateInput
                 id="filter-start-date"
-                type="date"
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
+                onChange={(val) => {
+                  setStartDate(val);
                   setPreviewRows(null);
                 }}
                 aria-label="Start date"
-                className="h-10 min-w-0 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
+                placeholder="dd / mm / yyyy"
               />
               <ArrowRight size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
-              <input
+              <DateInput
                 id="filter-end-date"
-                type="date"
                 value={endDate}
                 min={startDate || undefined}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
+                onChange={(val) => {
+                  setEndDate(val);
                   setPreviewRows(null);
                 }}
                 aria-label="End date"
-                className="h-10 min-w-0 w-full cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400"
+                placeholder="dd / mm / yyyy"
               />
             </div>
           </div>
