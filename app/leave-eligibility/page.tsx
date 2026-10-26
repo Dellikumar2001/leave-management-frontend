@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState, useMemo, Fragment } from "react";
 import { ChevronDown, Download, Search, ChevronsUpDown, Pencil, Save, X } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
+import { leaveEligibilityValue } from "../../lib/year-end-leave-report";
 
 type LeaveType = {
   code: string;
+  category: string | null;
   daysAllowed: number;
   id: number;
+  leaveGroup: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
 };
@@ -603,6 +606,11 @@ export default function LeaveEligibilityPage() {
         employee.leaveCalculationDate || "01-01-2026",
         employee.stream,
         employee.department,
+        ...leaveTypes.map((leaveType) => leaveEligibilityValue(
+          leaveType,
+          employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id),
+        )),
+        ...leaveTypes.map((leaveType) => employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"),
         ...activeLeaveTypes.flatMap((lt) => {
           const rec = getLeaveRecord(employee, lt.id);
           const eligible = rec?.daysAllowed ?? lt.daysAllowed;

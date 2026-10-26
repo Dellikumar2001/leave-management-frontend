@@ -71,6 +71,7 @@ model LeaveType {
   groupItems          LeaveGroupItem[]
   leaveCredits        LeaveCredit[]
   leaveApplications   EmployeeLeaveApplication[]
+  usageRecords        EmployeeLeaveUsage[]
   cycleBalances       EmployeeCycleBalance[]
 
   @@map("leave_types")
@@ -104,6 +105,7 @@ model Employee {
   mobileNumber              String?                    @map("mobile_number")
   workEmail                 String?                    @map("work_email")
   leaveRecords              EmployeeLeaveEligibility[]
+  leaveUsage                EmployeeLeaveUsage[]
   maternityLeave            MaternityLeave?
   paternityLeaves           PaternityLeave[]
   leaveBalances             EmployeeLeaveBalance[]
@@ -149,9 +151,9 @@ model EmployeeLeaveEligibility {
   daysAllowed  Int       @default(0) @map("days_allowed")
   leaveBalance Int       @default(0) @map("leave_balance")
   creditedDays Int       @default(0) @map("credited_days")
+  joiningDate  DateTime  @default(dbgenerated("('2026-01-01'::date + (floor((random() * (364)::double precision)))::integer)")) @map("joining_date") @db.Date
   bf           Int       @default(0) @map("bf")
   earned       Int       @default(0) @map("earned")
-  joiningDate   DateTime  @default(dbgenerated("('2026-01-01'::date + (floor((random() * (364)::double precision)))::integer)")) @map("joining_date") @db.Date
   gender       String    @default("") @map("gender")
   employee     Employee  @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
   leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
@@ -425,6 +427,25 @@ model EmployeeLeaveApplication {
   @@map("employee_leave_applications")
 }
 
+model EmployeeLeaveUsage {
+  id         Int             @id @default(autoincrement())
+  employeeId String          @map("employee_id")
+  leaveTypeId Int            @map("leave_type_id")
+  startDate  DateTime        @map("start_date") @db.Date
+  endDate    DateTime        @map("end_date") @db.Date
+  daysCount  Int             @default(1) @map("days_count")
+  type       LeaveRequestType
+  status     String          @default("APPROVED")
+  reason     String
+  appliedAt  DateTime        @default(now()) @map("applied_at")
+  reviewedBy String?         @map("reviewed_by")
+  reviewedAt DateTime?       @map("reviewed_at")
+  employee   Employee        @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+  leaveType  LeaveType       @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, leaveTypeId, startDate])
+  @@index([employeeId, startDate, endDate])
+  @@map("employee_leave_usage")
 model EmployeeLeaveApproval {
   id            Int       @id @default(autoincrement())
   applicationId Int       @map("application_id")
