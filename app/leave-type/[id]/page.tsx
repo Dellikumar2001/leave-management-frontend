@@ -16,6 +16,7 @@ type LeaveType = {
   description: string;
   status: "ACTIVE" | "INACTIVE";
   isUsed?: boolean;
+  carryForward?: boolean;
 };
 
 type LeaveGroupOption = {
@@ -318,6 +319,19 @@ export default function LeaveTypeDetailsPage() {
             <select required={!isViewMode} value={form.status} disabled={isViewMode} onChange={(e) => handleChange("status", e.target.value as LeaveType["status"])} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500">
               <option value="ACTIVE">ACTIVE</option>
               <option value="INACTIVE">INACTIVE</option>
+            </select>
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">CARRY FORWARD</span>
+            <select
+              value={form.carryForward ? "YES" : "NO"}
+              disabled={isViewMode}
+              onChange={(e) => handleChange("carryForward", e.target.value === "YES")}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 disabled:cursor-not-allowed disabled:text-slate-500"
+            >
+              <option value="NO">NO</option>
+              <option value="YES">YES</option>
             </select>
           </label>
         </div>

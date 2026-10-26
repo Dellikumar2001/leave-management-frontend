@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [employees, leaveTypes, approvedApplications] = await Promise.all([
+    const [employees, leaveTypes, approvedApplications, yearEndRecords] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
         include: {
@@ -21,11 +21,23 @@ export async function GET() {
               joiningDate: true,
             },
           },
+          employeeLeaveApplications: {
+            where: {
+              status: "Approved",
+            },
+            select: {
+              leaveTypeId: true,
+              daysCount: true,
+            },
+          },
         },
       }),
       prisma.leaveType.findMany({
         orderBy: { id: "asc" },
         select: { id: true, code: true, name: true, status: true, daysAllowed: true },
+      }),
+      prisma.leaveYearEndRecord.findMany({
+        select: { employeeId: true, leaveTypeId: true }
       }),
       prisma.employeeLeaveApplication.findMany({
         where: {
@@ -39,6 +51,7 @@ export async function GET() {
       }),
     ]);
 
+    const processedSet = new Set(yearEndRecords.map((r) => `${r.employeeId}-${r.leaveTypeId}`));
     const leaveTypesById = new Map(leaveTypes.map((leaveType) => [leaveType.id, leaveType]));
     const leaveYear = new Date().getUTCFullYear();
 
@@ -103,7 +116,7 @@ export async function GET() {
     return Response.json({ employees: employeesWithBalances, leaveTypes });
   } catch (error) {
     console.error("Failed to load leave eligibility:", error);
-    return Response.json({ error: "Unable to load leave eligibility from the database." }, { status: 503 });
+    return Response.json({ error: "Unable to load leave entitlement from the database." }, { status: 503 });
   }
 }
 

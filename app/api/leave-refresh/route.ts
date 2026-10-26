@@ -9,7 +9,7 @@ export const runtime = "nodejs";
  */
 export async function GET() {
   try {
-    const [employees, leaveTypes] = await Promise.all([
+    const [employees, leaveTypes, yearEndRecords] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
         include: {
@@ -29,8 +29,12 @@ export async function GET() {
         orderBy: { id: "asc" },
         select: { id: true, code: true, name: true, status: true, daysAllowed: true },
       }),
+      prisma.leaveYearEndRecord.findMany({
+        select: { employeeId: true, leaveTypeId: true },
+      }),
     ]);
 
+    const processedSet = new Set(yearEndRecords.map((r) => `${r.employeeId}-${r.leaveTypeId}`));
     const leaveTypesById = new Map(leaveTypes.map((lt) => [lt.id, lt]));
     const leaveYear = new Date().getUTCFullYear();
     const employeesWithBalances = employees.map((employee) => ({
@@ -38,11 +42,24 @@ export async function GET() {
       leaveRecords: employee.leaveRecords.map(({ joiningDate, ...record }) => {
         const lt = leaveTypesById.get(record.leaveTypeId);
         const isEligible = record.isEligible && lt?.status === "ACTIVE";
+        const key = `${employee.employeeId}-${record.leaveTypeId}`;
+        const isProcessed = processedSet.has(key);
+
+        let leaveBalance = 0;
+        if (isEligible && lt) {
+          if (isProcessed) {
+            // Directly reflect the confirmed Leave Year-End process rollover balance
+            leaveBalance = record.leaveBalance;
+          } else {
+            leaveBalance =
+              calculateLeaveBalance(record.daysAllowed || lt.daysAllowed, joiningDate, leaveYear) +
+              record.creditedDays;
+          }
+        }
+
         return {
           ...record,
-          leaveBalance: isEligible && lt
-            ? calculateLeaveBalance(lt.daysAllowed, joiningDate, leaveYear) + record.creditedDays
-            : 0,
+          leaveBalance,
         };
       }),
     }));
@@ -64,7 +81,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as unknown;
+    const body = (await request.json()) as unknown;
     if (
       !body ||
       typeof body !== "object" ||
@@ -79,27 +96,57 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "All employee IDs must be strings." }, { status: 400 });
     }
 
-    const leaveTypes = await prisma.leaveType.findMany({
-      orderBy: { id: "asc" },
-      select: { id: true, code: true, name: true, status: true, daysAllowed: true },
+    const [leaveTypes, eligibilityRecords, yearEndRecords] = await Promise.all([
+      prisma.leaveType.findMany({
+        orderBy: { id: "asc" },
+        select: { id: true, code: true, name: true, status: true, daysAllowed: true },
+      }),
+      prisma.employeeLeaveEligibility.findMany({
+        where: { employeeId: { in: employeeIds } },
+      }),
+      prisma.leaveYearEndRecord.findMany({
+        where: {
+          employeeId: { in: employeeIds },
+        },
+        orderBy: { id: "desc" },
+      }),
+    ]);
+
+    const latestYearEndMap = new Map<string, number>();
+    yearEndRecords.forEach((yr) => {
+      const key = `${yr.employeeId}-${yr.leaveTypeId}`;
+      if (!latestYearEndMap.has(key)) {
+        latestYearEndMap.set(key, yr.proposedOpeningBalance);
+      }
     });
 
     const leaveTypesById = new Map(leaveTypes.map((lt) => [lt.id, lt]));
     const leaveYear = new Date().getUTCFullYear();
 
-    const eligibilityRecords = await prisma.employeeLeaveEligibility.findMany({
-      where: { employeeId: { in: employeeIds } },
-    });
-
     const updates = eligibilityRecords.map((record) => {
       const lt = leaveTypesById.get(record.leaveTypeId);
       const isEligible = record.isEligible && lt?.status === "ACTIVE";
-      const newBalance = isEligible && lt
-        ? calculateLeaveBalance(lt.daysAllowed, record.joiningDate, leaveYear) + record.creditedDays
-        : 0;
+      const key = `${record.employeeId}-${record.leaveTypeId}`;
+
+      let newBalance = 0;
+      if (isEligible && lt) {
+        if (latestYearEndMap.has(key)) {
+          newBalance = latestYearEndMap.get(key)!;
+        } else {
+          const allowance = record.daysAllowed || lt.daysAllowed;
+          newBalance =
+            calculateLeaveBalance(allowance, record.joiningDate, leaveYear) +
+            record.creditedDays;
+        }
+      }
 
       return prisma.employeeLeaveEligibility.update({
-        where: { employeeId_leaveTypeId: { employeeId: record.employeeId, leaveTypeId: record.leaveTypeId } },
+        where: {
+          employeeId_leaveTypeId: {
+            employeeId: record.employeeId,
+            leaveTypeId: record.leaveTypeId,
+          },
+        },
         data: { leaveBalance: newBalance },
       });
     });
