@@ -39,7 +39,7 @@ type LeaveEligibilityData = {
   leaveTypes: LeaveType[];
 };
 
-const TARGET_LEAVES = ["CL", "EL", "ML", "RH"] as const;
+const TARGET_LEAVES = ["CL", "ML", "EL", "RH"] as const;
 
 const LEAVE_STYLE_CONFIG: Record<
   string,
@@ -64,16 +64,6 @@ const LEAVE_STYLE_CONFIG: Record<
     cellBg: "bg-sky-50/40",
     border: "border-sky-200",
   },
-  EL: {
-    code: "EL",
-    label: "Earned Leave",
-    headerBg: "bg-[#ffe082]", // Warm yellow matching reference image "Annual"
-    headerText: "text-amber-950 font-bold",
-    subHeaderBg: "bg-[#fff3cc]",
-    subHeaderText: "text-amber-900 font-semibold",
-    cellBg: "bg-amber-50/40",
-    border: "border-amber-200",
-  },
   ML: {
     code: "ML",
     label: "Medical Leave",
@@ -83,6 +73,16 @@ const LEAVE_STYLE_CONFIG: Record<
     subHeaderText: "text-emerald-900 font-semibold",
     cellBg: "bg-emerald-50/40",
     border: "border-emerald-200",
+  },
+  EL: {
+    code: "EL",
+    label: "Earned Leave",
+    headerBg: "bg-[#ffe082]", // Warm yellow matching reference image "Annual"
+    headerText: "text-amber-950 font-bold",
+    subHeaderBg: "bg-[#fff3cc]",
+    subHeaderText: "text-amber-900 font-semibold",
+    cellBg: "bg-amber-50/40",
+    border: "border-amber-200",
   },
   RH: {
     code: "RH",
@@ -102,8 +102,51 @@ function formatNumber(n: number | string | undefined | null): string {
   return num < 10 && num >= 0 ? `0${num.toFixed(2)}` : num.toFixed(2);
 }
 
-function getLeaveRecord(employee: Employee, leaveTypeId: number): EmployeeLeaveRecord | undefined {
-  return employee.leaveRecords.find((item) => item.leaveTypeId === leaveTypeId);
+function getLeaveRecord(
+  employee: Employee,
+  leaveTypeId: number,
+  leaveType?: LeaveType,
+  allLeaveTypes?: LeaveType[]
+): EmployeeLeaveRecord | undefined {
+  const direct = employee.leaveRecords.find((item) => item.leaveTypeId === leaveTypeId);
+  if (direct) return direct;
+  if (!leaveType || !allLeaveTypes) return undefined;
+  const cfg = getLeaveConfig(leaveType);
+  return employee.leaveRecords.find((item) => {
+    const t = allLeaveTypes.find((x) => x.id === item.leaveTypeId);
+    if (!t) return false;
+    const itemCfg = getLeaveConfig(t);
+    return itemCfg.displayCode === cfg.displayCode;
+  });
+}
+
+function getLeaveConfig(lt: { code: string; name: string }) {
+  const codeUpper = (lt.code || "").toUpperCase();
+  const nameUpper = (lt.name || "").toUpperCase();
+  if (codeUpper === "CL" || codeUpper.startsWith("CL_") || nameUpper.includes("CASUAL")) {
+    return { ...LEAVE_STYLE_CONFIG.CL, displayCode: "CL", displayLabel: "Casual Leave" };
+  }
+  if ((codeUpper === "ML" || codeUpper.startsWith("ML_") || nameUpper.includes("MEDICAL")) && !nameUpper.includes("MATERNITY")) {
+    return { ...LEAVE_STYLE_CONFIG.ML, displayCode: "ML", displayLabel: "Medical Leave" };
+  }
+  if (codeUpper === "EL" || codeUpper.startsWith("EL_") || nameUpper.includes("EARNED")) {
+    return { ...LEAVE_STYLE_CONFIG.EL, displayCode: "EL", displayLabel: "Earned Leave" };
+  }
+  if (codeUpper === "RH" || codeUpper.startsWith("RH_") || nameUpper.includes("RESTRICTED")) {
+    return { ...LEAVE_STYLE_CONFIG.RH, displayCode: "RH", displayLabel: "Restricted Holiday" };
+  }
+  return {
+    code: lt.code,
+    displayCode: lt.code,
+    label: lt.name,
+    displayLabel: lt.name,
+    headerBg: "bg-slate-200",
+    headerText: "text-slate-900",
+    subHeaderBg: "bg-slate-100",
+    subHeaderText: "text-slate-800",
+    cellBg: "bg-slate-50/40",
+    border: "border-slate-200",
+  };
 }
 
 async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
@@ -147,10 +190,10 @@ function MultiSelectDropdown({
   const displayLabel = disabled
     ? `Select ${label}`
     : selectedValues.length === 0
-    ? `All ${label}`
-    : selectedValues.length === 1
-    ? selectedValues[0]
-    : `${selectedValues.length} ${label} selected`;
+      ? `All ${label}`
+      : selectedValues.length === 1
+        ? selectedValues[0]
+        : `${selectedValues.length} ${label} selected`;
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -158,20 +201,18 @@ function MultiSelectDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-xs font-medium uppercase transition-colors ${
-          disabled
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-xs font-medium uppercase transition-colors ${disabled
             ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
             : isOpen
-            ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
-            : "border-slate-300 text-slate-600 hover:border-slate-400"
-        }`}
+              ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
+              : "border-slate-300 text-slate-600 hover:border-slate-400"
+          }`}
       >
         <span className="truncate">{displayLabel}</span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${isOpen ? "rotate-180" : ""
+            }`}
         />
       </button>
 
@@ -295,13 +336,12 @@ function EditableCell({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={`w-14 h-7 text-center font-mono font-medium text-[11px] rounded border outline-none transition ${
-          isModified
+        className={`w-14 h-7 text-center font-mono font-medium text-[11px] rounded border outline-none transition ${isModified
             ? "border-amber-500 bg-amber-50/70 text-amber-950 ring-1 ring-amber-400 font-semibold"
             : isRedFocus
-            ? "border-slate-300 hover:border-slate-400 focus:border-red-600 focus:ring-1 focus:ring-red-600 focus:text-red-950 bg-white text-slate-800"
-            : "border-slate-300 hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-slate-800"
-        } ${className || ""}`}
+              ? "border-slate-300 hover:border-slate-400 focus:border-red-600 focus:ring-1 focus:ring-red-600 focus:text-red-950 bg-white text-slate-800"
+              : "border-slate-300 hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-slate-800"
+          } ${className || ""}`}
       />
     </div>
   );
@@ -325,11 +365,43 @@ export default function LeaveEligibilityPage() {
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
 
-  // Filter leave types to only the 4 requested: "CL", "EL", "ML", "RH"
+  // Filter leave types to: Casual Leave (CL), Medical Leave (ML), Earned Leave (EL), Restricted Holiday (RH)
   const activeLeaveTypes = useMemo(() => {
-    return TARGET_LEAVES.map((code) =>
-      leaveTypes.find((lt) => lt.code.toUpperCase() === code)
-    ).filter((lt): lt is LeaveType => Boolean(lt));
+    // 1. Casual Leave (CL) - mapped to Annual Leave credit
+    const cl =
+      leaveTypes.find((lt) => lt.code.toUpperCase() === "CL") ||
+      leaveTypes.find(
+        (lt) =>
+          lt.code.toUpperCase().startsWith("CL_") ||
+          lt.name.toUpperCase().includes("CASUAL")
+      );
+
+    // 2. Medical Leave (ML) - mapped to Medical Leave credit
+    const ml =
+      leaveTypes.find(
+        (lt) =>
+          (lt.code.toUpperCase() === "ML" ||
+           lt.code.toUpperCase().startsWith("ML_") ||
+           lt.name.toUpperCase() === "MEDICAL LEAVE" ||
+           lt.name.toUpperCase().includes("MEDICAL")) &&
+          !lt.name.toUpperCase().includes("MATERNITY")
+      );
+
+    // 3. Earned Leave (EL)
+    const el =
+      leaveTypes.find((lt) => lt.code.toUpperCase() === "EL") ||
+      leaveTypes.find((lt) => lt.code.toUpperCase().startsWith("EL_")) ||
+      leaveTypes.find((lt) => lt.name.toUpperCase().includes("EARNED"));
+
+    // 4. Restricted Holiday (RH)
+    const rh =
+      leaveTypes.find((lt) => lt.code.toUpperCase() === "RH") ||
+      leaveTypes.find((lt) => lt.code.toUpperCase().startsWith("RH_")) ||
+      leaveTypes.find((lt) => lt.name.toUpperCase().includes("RESTRICTED"));
+
+    const list = [cl, ml, el, rh].filter((lt): lt is LeaveType => Boolean(lt));
+    if (list.length > 0) return list;
+    return leaveTypes.filter((lt) => lt.status === "ACTIVE").slice(0, 4);
   }, [leaveTypes]);
 
   // Step 1: All available streams
@@ -340,20 +412,20 @@ export default function LeaveEligibilityPage() {
   const departments = isDepartmentDisabled
     ? []
     : [
-        ...new Set(
-          employees
-            .filter((employee) => streamFilters.includes(employee.stream))
-            .map((employee) => employee.department)
-        ),
-      ].filter(Boolean).sort();
+      ...new Set(
+        employees
+          .filter((employee) => streamFilters.includes(employee.stream))
+          .map((employee) => employee.department)
+      ),
+    ].filter(Boolean).sort();
 
   // Step 3: Employees disabled until Department is chosen
   const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
   const availableEmployees = isEmployeeDisabled
     ? []
     : employees.filter(
-        (employee) => streamFilters.includes(employee.stream) && departmentFilters.includes(employee.department)
-      );
+      (employee) => streamFilters.includes(employee.stream) && departmentFilters.includes(employee.department)
+    );
 
   const employeeNames = [...new Set(availableEmployees.map((employee) => employee.name))].filter(Boolean).sort();
 
@@ -486,31 +558,31 @@ export default function LeaveEligibilityPage() {
         const exists = emp.leaveRecords.some((r) => r.leaveTypeId === leaveTypeId);
         const updatedRecords = exists
           ? emp.leaveRecords.map((rec) => {
-              if (rec.leaveTypeId !== leaveTypeId) return rec;
-              const updated = { ...rec, [field]: newVal };
-              // Recompute total if any component changes
-              const eligible = updated.daysAllowed || 0;
-              const bf = updated.bf || 0;
-              const credit = updated.creditedDays || 0;
-              const earn = updated.earned || 0;
-              const taken = updated.taken || 0;
-              updated.total = Math.max(0, eligible + bf + credit + earn - taken);
-              return updated;
-            })
+            if (rec.leaveTypeId !== leaveTypeId) return rec;
+            const updated = { ...rec, [field]: newVal };
+            // Recompute total if any component changes
+            const eligible = updated.daysAllowed || 0;
+            const bf = updated.bf || 0;
+            const credit = updated.creditedDays || 0;
+            const earn = updated.earned || 0;
+            const taken = updated.taken || 0;
+            updated.total = Math.max(0, eligible + bf + credit + earn - taken);
+            return updated;
+          })
           : [
-              ...emp.leaveRecords,
-              {
-                leaveTypeId,
-                isEligible: true,
-                daysAllowed: field === "daysAllowed" ? newVal : 0,
-                bf: field === "bf" ? newVal : 0,
-                creditedDays: field === "creditedDays" ? newVal : 0,
-                earned: field === "earned" ? newVal : 0,
-                taken: 0,
-                total: newVal,
-                leaveBalance: field === "leaveBalance" ? newVal : 0,
-              },
-            ];
+            ...emp.leaveRecords,
+            {
+              leaveTypeId,
+              isEligible: true,
+              daysAllowed: field === "daysAllowed" ? newVal : 0,
+              bf: field === "bf" ? newVal : 0,
+              creditedDays: field === "creditedDays" ? newVal : 0,
+              earned: field === "earned" ? newVal : 0,
+              taken: 0,
+              total: newVal,
+              leaveBalance: field === "leaveBalance" ? newVal : 0,
+            },
+          ];
         return { ...emp, leaveRecords: updatedRecords };
       })
     );
@@ -559,8 +631,7 @@ export default function LeaveEligibilityPage() {
       setOriginalEmployees(JSON.parse(JSON.stringify(employees)));
       setIsEditMode(false);
       setStatusNotice(
-        `Saved successfully! ${modifiedRecords.length} record${
-          modifiedRecords.length === 1 ? "" : "s"
+        `Saved successfully! ${modifiedRecords.length} record${modifiedRecords.length === 1 ? "" : "s"
         } updated.`
       );
       window.setTimeout(() => setStatusNotice(""), 4000);
@@ -598,7 +669,7 @@ export default function LeaveEligibilityPage() {
         employee.stream,
         employee.department,
         ...activeLeaveTypes.flatMap((lt) => {
-          const rec = getLeaveRecord(employee, lt.id);
+          const rec = getLeaveRecord(employee, lt.id, lt, leaveTypes);
           const eligible = rec?.daysAllowed ?? lt.daysAllowed;
           const bf = rec?.bf ?? 0;
           const credit = rec?.creditedDays ?? 0;
@@ -608,7 +679,7 @@ export default function LeaveEligibilityPage() {
           return [eligible, bf, credit, earn, taken, total];
         }),
         ...activeLeaveTypes.map((lt) => {
-          const rec = getLeaveRecord(employee, lt.id);
+          const rec = getLeaveRecord(employee, lt.id, lt, leaveTypes);
           return rec?.leaveBalance ?? 0;
         }),
       ]),
@@ -730,9 +801,8 @@ export default function LeaveEligibilityPage() {
           {/* Feedback banners */}
           {(error || statusNotice) && (
             <div
-              className={`mt-4 rounded-lg px-4 py-3 text-xs font-medium ${
-                error ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              }`}
+              className={`mt-4 rounded-lg px-4 py-3 text-xs font-medium ${error ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                }`}
             >
               {error || statusNotice}
             </div>
@@ -775,13 +845,10 @@ export default function LeaveEligibilityPage() {
                       </div>
                     </th>
 
-                    {/* 4 Leave Groups with different light colors */}
+                    {/* 4 Leave Groups with different light colors: CL, ML, EL, RH */}
                     {activeLeaveTypes.map((lt) => {
-                      const cfg = LEAVE_STYLE_CONFIG[lt.code] || {
-                        headerBg: "bg-slate-200",
-                        headerText: "text-slate-900",
-                        label: lt.name,
-                      };
+                      const cfg = getLeaveConfig(lt);
+
                       return (
                         <th
                           key={`leave-group-header-${lt.id}`}
@@ -789,8 +856,8 @@ export default function LeaveEligibilityPage() {
                           className={`border-r border-slate-300 px-3 py-2 text-center text-xs tracking-wider uppercase ${cfg.headerBg} ${cfg.headerText}`}
                         >
                           <div className="flex items-center justify-center gap-2">
-                            <span className="font-bold">{lt.code}</span>
-                            <span className="text-[11px] font-normal normal-case opacity-80">({cfg.label})</span>
+                            <span className="font-bold">{cfg.displayCode}</span>
+                            <span className="text-[11px] font-normal normal-case opacity-80">({cfg.displayLabel})</span>
                           </div>
                         </th>
                       );
@@ -809,11 +876,7 @@ export default function LeaveEligibilityPage() {
                   <tr className="border-b border-slate-300">
                     {/* Sub-columns for each of the 4 leave types: Eligible, BF, Credit, Earn, Taken, Total */}
                     {activeLeaveTypes.map((lt) => {
-                      const cfg = LEAVE_STYLE_CONFIG[lt.code] || {
-                        subHeaderBg: "bg-slate-100",
-                        subHeaderText: "text-slate-800",
-                        border: "border-slate-200",
-                      };
+                      const cfg = getLeaveConfig(lt);
                       return (
                         <Fragment key={`subhdr-wrap-${lt.id}`}>
                           <th className={`px-2 py-2 text-center text-[11px] border-r ${cfg.border} ${cfg.subHeaderBg} ${cfg.subHeaderText}`}>
@@ -838,18 +901,15 @@ export default function LeaveEligibilityPage() {
                       );
                     })}
 
-                    {/* Sub-columns for LEAVE BALANCE IN DAYS (CL, EL, ML, RH) */}
+                    {/* Sub-columns for LEAVE BALANCE IN DAYS */}
                     {activeLeaveTypes.map((lt) => {
-                      const cfg = LEAVE_STYLE_CONFIG[lt.code] || {
-                        subHeaderBg: "bg-slate-100",
-                        subHeaderText: "text-slate-800",
-                      };
+                      const cfg = getLeaveConfig(lt);
                       return (
                         <th
                           key={`subhdr-bal-${lt.id}`}
                           className={`px-3 py-2 text-center text-[11px] font-bold border-r border-slate-200 ${cfg.subHeaderBg} ${cfg.subHeaderText}`}
                         >
-                          {lt.code}
+                          {cfg.displayCode}
                         </th>
                       );
                     })}
@@ -877,11 +937,8 @@ export default function LeaveEligibilityPage() {
 
                         {/* 4 Leave Types with 6 columns each: Eligible, BF, Credit, Earn, Taken, Total */}
                         {activeLeaveTypes.map((lt) => {
-                          const cfg = LEAVE_STYLE_CONFIG[lt.code] || {
-                            cellBg: "bg-white",
-                            border: "border-slate-200",
-                          };
-                          const rec = getLeaveRecord(employee, lt.id);
+                          const cfg = getLeaveConfig(lt);
+                          const rec = getLeaveRecord(employee, lt.id, lt, leaveTypes);
                           const eligible = rec?.daysAllowed ?? lt.daysAllowed ?? 0;
                           const bf = rec?.bf ?? 0;
                           const credit = rec?.creditedDays ?? 0;
@@ -953,10 +1010,10 @@ export default function LeaveEligibilityPage() {
                           );
                         })}
 
-                        {/* LEAVE BALANCE IN DAYS Section: CL, EL, ML, RH */}
+                        {/* LEAVE BALANCE IN DAYS Section: CL, ML, EL, RH */}
                         {activeLeaveTypes.map((lt) => {
-                          const cfg = LEAVE_STYLE_CONFIG[lt.code];
-                          const rec = getLeaveRecord(employee, lt.id);
+                          const cfg = getLeaveConfig(lt);
+                          const rec = getLeaveRecord(employee, lt.id, lt, leaveTypes);
                           const balanceVal = rec?.leaveBalance ?? 0;
 
                           return (
@@ -1056,11 +1113,10 @@ export default function LeaveEligibilityPage() {
                   type="button"
                   onClick={handleEditToggle}
                   disabled={isSaving}
-                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-6 text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm cursor-pointer ${
-                    isEditMode
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-6 text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm cursor-pointer ${isEditMode
                       ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                       : "bg-[#2980b9] text-white hover:bg-[#206694]"
-                  }`}
+                    }`}
                 >
                   {isEditMode ? (
                     <>
@@ -1080,11 +1136,10 @@ export default function LeaveEligibilityPage() {
                   type="button"
                   onClick={handleSaveAll}
                   disabled={!isEditMode || isSaving || modifiedRecords.length === 0}
-                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-6 text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm ${
-                    !isEditMode || modifiedRecords.length === 0
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-6 text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm ${!isEditMode || modifiedRecords.length === 0
                       ? "cursor-not-allowed bg-slate-200 text-slate-400"
                       : "cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800"
-                  }`}
+                    }`}
                 >
                   {isSaving ? (
                     <>
