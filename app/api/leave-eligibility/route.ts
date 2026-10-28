@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,23 +22,11 @@ export async function GET() {
               joiningDate: true,
             },
           },
-          employeeLeaveApplications: {
-            where: {
-              status: "Approved",
-            },
-            select: {
-              leaveTypeId: true,
-              daysCount: true,
-            },
-          },
         },
       }),
       prisma.leaveType.findMany({
         orderBy: { id: "asc" },
         select: { id: true, code: true, name: true, status: true, daysAllowed: true },
-      }),
-      prisma.leaveYearEndRecord.findMany({
-        select: { employeeId: true, leaveTypeId: true }
       }),
       prisma.employeeLeaveApplication.findMany({
         where: {
@@ -48,6 +37,9 @@ export async function GET() {
           leaveTypeId: true,
           daysCount: true,
         },
+      }),
+      prisma.leaveYearEndRecord.findMany({
+        select: { employeeId: true, leaveTypeId: true },
       }),
     ]);
 
