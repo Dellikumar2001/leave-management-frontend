@@ -446,6 +446,8 @@ model EmployeeLeaveUsage {
   @@unique([employeeId, leaveTypeId, startDate])
   @@index([employeeId, startDate, endDate])
   @@map("employee_leave_usage")
+}
+
 model EmployeeLeaveApproval {
   id            Int       @id @default(autoincrement())
   applicationId Int       @map("application_id")
