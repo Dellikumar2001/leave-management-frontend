@@ -205,7 +205,6 @@ export default function ApproverReportPage() {
   const [allRecords, setAllRecords] = useState<EmployeeApproverRecord[]>([]);
   const [allStreams, setAllStreams] = useState<string[]>([]);
   const [allDepartments, setAllDepartments] = useState<string[]>([]);
-  const [allEmployeeOptions, setAllEmployeeOptions] = useState<string[]>([]);
 
   // Generated report state
   const [reportRecords, setReportRecords] = useState<EmployeeApproverRecord[]>([]);
@@ -229,7 +228,6 @@ export default function ApproverReportPage() {
           setAllRecords(result.records ?? []);
           setAllStreams(result.filters?.allStreams ?? []);
           setAllDepartments(result.filters?.allDepartments ?? []);
-          setAllEmployeeOptions(result.filters?.allEmployeeNames ?? []);
         }
       } catch (err) {
         console.error("Failed to load approver report options:", err);

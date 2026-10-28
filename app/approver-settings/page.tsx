@@ -690,7 +690,6 @@ export default function ApproverSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [hasAssigned, setHasAssigned] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Cascading Multi-Select Filters
@@ -725,29 +724,24 @@ export default function ApproverSettingsPage() {
 
   // Fetch initial data
   useEffect(() => {
-    let active = true;
     const loadData = async () => {
       try {
         const response = await fetch("/api/approver-settings", { cache: "no-store" });
+        setError("");
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.error || "Failed to load approver settings.");
         }
-        if (active) {
-          setEmployees(data.employees || []);
-          setApproverOptions(data.approverOptions || []);
-        }
+        setEmployees(data.employees || []);
+        setApproverOptions(data.approverOptions || []);
       } catch (err: unknown) {
-        if (active) setError(err instanceof Error ? err.message : "Failed to load employees.");
+        setError(err instanceof Error ? err.message : "Failed to load employees.");
       } finally {
-        if (active) setIsLoading(false);
+        setIsLoading(false);
       }
     };
 
     void loadData();
-    return () => {
-      active = false;
-    };
   }, []);
 
   // All available streams
@@ -846,7 +840,6 @@ export default function ApproverSettingsPage() {
     clearApproverFields();
     setSortField(null);
     setSortDirection(null);
-    setHasAssigned(false);
     setSuccessMessage("");
     setError("");
   };
@@ -1075,6 +1068,11 @@ export default function ApproverSettingsPage() {
         value: name,
       }));
   }, [approverOptions]);
+
+  // Only enable approvers if at least one employee is selected
+  const isEmployeeSelected = effectiveSelectedEmployeeIds.length > 0;
+
+
 
   // Is Assign Button Enabled?
   const isAssignButtonEnabled =

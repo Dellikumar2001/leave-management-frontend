@@ -95,6 +95,7 @@ function RowActions({ onView, onEdit, onDelete }: RowActionsProps) {
         <Pencil size={16} />
       </button>
       <button
+        ref={actionsButtonRef}
         type="button"
         onClick={toggleMenu}
         className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"

@@ -42,16 +42,21 @@ function earnedPeriodDays(
   );
 }
 
-function leaveTypeMatches(requestType: string, leaveType: { code: string; name: string; leaveGroup: string }) {
+function leaveTypeMatches(
+  requestType: string,
+  leaveType: { code: string; name: string; leaveGroup: string; category?: string | null },
+) {
   const normalizedType = requestType.toUpperCase().replaceAll("_", " ");
   const knownLabels: Record<string, string[]> = {
     GENERAL: ["GENERAL", "CASUAL"],
     MEDICAL: ["MEDICAL", "SICK"],
+    ANNUAL: ["ANNUAL", "EARNED", "EL"],
     "ON DUTY": ["ON DUTY", "DUTY"],
     HOSTEL: ["HOSTEL"],
-    OTHER: ["OTHER", "SPECIAL"],
+    OTHER: ["OTHER", "SPECIAL", "RESTRICTED", "RH"],
   };
-  const leaveLabels = [leaveType.code, leaveType.name, leaveType.leaveGroup].map((value) => value.toUpperCase());
+  const leaveLabels = [leaveType.code, leaveType.name, leaveType.category ?? ""]
+    .map((value) => value.toUpperCase());
   return (knownLabels[normalizedType] ?? [normalizedType]).some((label) =>
     leaveLabels.some((leaveLabel) => leaveLabel.includes(label) || label.includes(leaveLabel)),
   );
@@ -130,7 +135,6 @@ export async function GET(request: Request) {
         user: { select: { email: true, firstName: true, lastName: true, name: true } },
       },
     });
-    const studentIds = students.map(({ id }) => id);
     const [requests, credits, holidays] = await Promise.all([
       studentIds.length
         ? prisma.studentLeaveRequest.findMany({
@@ -145,6 +149,17 @@ export async function GET(request: Request) {
           orderBy: [{ startDate: "desc" }, { id: "desc" }],
         })
         : Promise.resolve([]),
+      prisma.employeeLeaveUsage.findMany({
+        where: {
+          employeeId,
+          startDate: { lte: periodEnd },
+          endDate: { gte: periodStart },
+        },
+        include: {
+          leaveType: { select: { code: true, name: true, leaveGroup: true } },
+        },
+        orderBy: [{ startDate: "desc" }, { id: "desc" }],
+      }),
       prisma.leaveCredit.findMany({
         where: {
           employeeId,
@@ -177,9 +192,7 @@ export async function GET(request: Request) {
       isTaken(record.status.toString().toUpperCase(), record.endDate, today),
     ).map((record) => {
       const status = record.status.toString().toUpperCase();
-      const reviewer = record.reviewer;
-      const approver = reviewer?.name?.trim() ||
-        [reviewer?.firstName, reviewer?.lastName].filter(Boolean).join(" ") || null;
+      const approver = record.reviewedBy?.trim() || null;
       return {
         id: record.id,
         startDate: record.startDate,

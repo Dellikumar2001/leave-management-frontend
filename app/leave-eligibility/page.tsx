@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState, useMemo, Fragment } from "react";
 import { ChevronDown, Download, Search, ChevronsUpDown, Pencil, Save, X } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
+import { leaveEligibilityValue } from "../../lib/year-end-leave-report";
 
 type LeaveType = {
   code: string;
+  category: string | null;
   daysAllowed: number;
   id: number;
+  leaveGroup: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
 };
@@ -39,7 +42,13 @@ type LeaveEligibilityData = {
   leaveTypes: LeaveType[];
 };
 
-const TARGET_LEAVES = ["CL", "ML", "EL", "RH"] as const;
+function getEligibilityValue(employee: Employee, leaveType: LeaveType) {
+  const record = employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id);
+  if (leaveType.status !== "ACTIVE" || record?.isEligible === false) return "Inactive";
+  return `${record?.daysAllowed ?? leaveType.daysAllowed}`;
+}
+
+const TARGET_LEAVES = ["CL", "EL", "ML", "RH"] as const;
 
 const LEAVE_STYLE_CONFIG: Record<
   string,
@@ -152,7 +161,7 @@ function getLeaveConfig(lt: { code: string; name: string }) {
 async function fetchLeaveEligibility(): Promise<LeaveEligibilityData> {
   const response = await fetch("/api/leave-eligibility", { cache: "no-store" });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error ?? "Unable to load leave eligibility.");
+  if (!response.ok) throw new Error(result.error ?? "Unable to load leave entitlement.");
   return result as LeaveEligibilityData;
 }
 
@@ -668,6 +677,11 @@ export default function LeaveEligibilityPage() {
         employee.leaveCalculationDate || "01-01-2026",
         employee.stream,
         employee.department,
+        ...leaveTypes.map((leaveType) => leaveEligibilityValue(
+          leaveType,
+          employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id),
+        )),
+        ...leaveTypes.map((leaveType) => employee.leaveRecords.find((item) => item.leaveTypeId === leaveType.id)?.leaveBalance ?? "N/A"),
         ...activeLeaveTypes.flatMap((lt) => {
           const rec = getLeaveRecord(employee, lt.id, lt, leaveTypes);
           const eligible = rec?.daysAllowed ?? lt.daysAllowed;
@@ -690,7 +704,7 @@ export default function LeaveEligibilityPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "leave-eligibility.csv";
+    link.download = "leave-entitlement.csv";
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -708,7 +722,7 @@ export default function LeaveEligibilityPage() {
       })
       .catch((loadError: unknown) => {
         if (isMounted) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load leave eligibility.");
+          setError(loadError instanceof Error ? loadError.message : "Unable to load leave entitlement.");
         }
       })
       .finally(() => {
@@ -726,10 +740,7 @@ export default function LeaveEligibilityPage() {
       <div className="p-4 min-[801px]:ml-[175px]">
         <div className="mx-auto max-w-[1700px]">
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-2xl font-bold uppercase text-slate-800">Leave Eligibility</h1>
-            <p className="mt-1 text-xs text-slate-500 normal-case">
-              Manage leave eligibility metrics (<strong>Eligible, BF, Credit, Earn, Taken, Total</strong>) and <strong>Leave Balance in Days</strong> for <strong>CL, EL, ML, and RH</strong>. All values can be edited live by admins.
-            </p>
+            <h1 className="text-3xl font-bold text-slate-800">Leave Entitlement</h1>
           </header>
 
           {/* Filter Bar with Search matching reference UI */}

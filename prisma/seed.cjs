@@ -20,6 +20,7 @@ const starterLeaveTypes = [
   { code: "CL", name: "Casual Leave", leaveGroup: "General Staff", daysAllowed: 12, description: "Annual casual leave allowance", status: "ACTIVE" },
   { code: "ML", name: "Medical Leave", leaveGroup: "General Staff", daysAllowed: 15, description: "Sick and medical leave", status: "ACTIVE" },
   { code: "EL", name: "Earned Leave", leaveGroup: "General Staff", daysAllowed: 30, description: "Earned annual leave", status: "ACTIVE" },
+  { code: "RH", name: "Restricted Holiday", leaveGroup: "General Staff", daysAllowed: 2, description: "Restricted holiday leave", status: "ACTIVE" },
   { code: "PL", name: "Paternity Leave", leaveGroup: "General Staff", daysAllowed: 15, description: "Statutory leave for male employees upon childbirth", status: "ACTIVE" },
   { code: "MLV", name: "Maternity Leave", leaveGroup: "General Staff", daysAllowed: 180, description: "Statutory maternity leave for eligible female staff", status: "ACTIVE" },
 ];
@@ -54,6 +55,7 @@ const employeeGenders = {
   "EMP-008": "Male",
 };
 
+const demoJoiningDate = new Date("2020-01-01T00:00:00.000Z");
 const religions = ["Hindu", "Christian", "Muslim", "Sikh", "Jain", "Buddhist"];
 
 async function main() {
@@ -118,6 +120,7 @@ async function main() {
     gender,
           isEligible,
           daysAllowed: isEligible ? lt.daysAllowed : 0,
+          joiningDate: demoJoiningDate,
         },
         create: {
           employeeId: employee.employeeId,
@@ -125,6 +128,7 @@ async function main() {
           isEligible,
     daysAllowed: isEligible ? lt.daysAllowed : 0,
     leaveBalance: isEligible ? lt.daysAllowed : 0,
+          joiningDate: demoJoiningDate,
           gender,
         },
       });
@@ -234,6 +238,51 @@ async function main() {
     }
   }
 
+  console.log("Seeding employee leave usage for 2025-2026 and 2026-2027...");
+  const yearlyUsage = {
+    "EMP-001": { 2025: { CL: 2, ML: 3, EL: 4, RH: 1 }, 2026: { CL: 2, ML: 1, EL: 0, RH: 1 } },
+    "EMP-002": { 2025: { CL: 1, ML: 2, EL: 0, RH: 1 }, 2026: { CL: 1, ML: 2, EL: 0, RH: 0 } },
+    "EMP-003": { 2025: { CL: 3, ML: 1, EL: 2, RH: 1 }, 2026: { CL: 1, ML: 0, EL: 1, RH: 0 } },
+    "EMP-004": { 2025: { CL: 2, ML: 2, EL: 1, RH: 0 }, 2026: { CL: 2, ML: 1, EL: 0, RH: 1 } },
+    "EMP-005": { 2025: { CL: 1, ML: 1, EL: 3, RH: 1 }, 2026: { CL: 1, ML: 2, EL: 2, RH: 0 } },
+    "EMP-006": { 2025: { CL: 2, ML: 0, EL: 2, RH: 1 }, 2026: { CL: 1, ML: 1, EL: 0, RH: 1 } },
+    "EMP-007": { 2025: { CL: 3, ML: 2, EL: 1, RH: 0 }, 2026: { CL: 2, ML: 1, EL: 1, RH: 0 } },
+    "EMP-008": { 2025: { CL: 1, ML: 1, EL: 2, RH: 1 }, 2026: { CL: 1, ML: 0, EL: 2, RH: 1 } },
+  };
+  const usageTypes = { CL: "GENERAL", ML: "MEDICAL", EL: "ANNUAL", RH: "OTHER" };
+  for (const [employeeId, years] of Object.entries(yearlyUsage)) {
+    for (const [year, typeDays] of Object.entries(years)) {
+      for (const [typeCode, daysCount] of Object.entries(typeDays)) {
+        if (!daysCount) continue;
+        const leaveTypeId = leaveTypeMap[typeCode];
+        const startDate = new Date(Date.UTC(Number(year), 7, 2 + Number(typeCode === "CL" ? 0 : typeCode === "ML" ? 7 : typeCode === "EL" ? 14 : 21)));
+        const endDate = new Date(startDate);
+        endDate.setUTCDate(endDate.getUTCDate() + daysCount - 1);
+        await prisma.employeeLeaveUsage.upsert({
+          where: {
+            employeeId_leaveTypeId_startDate: { employeeId, leaveTypeId, startDate },
+          },
+          update: {
+            endDate,
+            daysCount,
+            type: usageTypes[typeCode],
+            status: "APPROVED",
+          },
+          create: {
+            employeeId,
+            leaveTypeId,
+            type: usageTypes[typeCode],
+            startDate,
+            endDate,
+            daysCount,
+            status: "APPROVED",
+            reason: "Seeded academic-year leave usage",
+            reviewedBy: "Demo Approver",
+            reviewedAt: endDate,
+          },
+        });
+      }
+    }
   console.log("Seeding approval queue test requests...");
   const approvalTestRequests = [
     { employeeId: "EMP-001", typeCode: "CL", startDate: new Date("2026-11-02"), endDate: new Date("2026-11-03"), daysCount: 2, currentApprovalLevel: 1, reason: "[TEST] Level 1 accept or reject" },

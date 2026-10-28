@@ -2,10 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { calculateLeaveBalance } from "@/lib/leave-eligibility";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const yearParam = new URL(request.url).searchParams.get("year");
+  const leaveYear = yearParam === null ? new Date().getUTCFullYear() : Number(yearParam);
+  if (!Number.isInteger(leaveYear) || leaveYear < 1900 || leaveYear > 9999) {
+    return Response.json({ error: "Choose a valid leave year." }, { status: 400 });
+  }
+
   try {
-    const [employees, leaveTypes, approvedApplications] = await Promise.all([
+    const [employees, leaveTypes, yearEndRecords, approvedApplications] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
         include: {
@@ -21,11 +28,31 @@ export async function GET() {
               joiningDate: true,
             },
           },
+          employeeLeaveApplications: {
+            where: {
+              status: "Approved",
+            },
+            select: {
+              leaveTypeId: true,
+              daysCount: true,
+            },
+          },
         },
       }),
       prisma.leaveType.findMany({
         orderBy: { id: "asc" },
-        select: { id: true, code: true, name: true, status: true, daysAllowed: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+          daysAllowed: true,
+          category: true,
+          leaveGroup: true,
+        },
+      }),
+      prisma.leaveYearEndRecord.findMany({
+        select: { employeeId: true, leaveTypeId: true }
       }),
       prisma.employeeLeaveApplication.findMany({
         where: {
@@ -39,71 +66,75 @@ export async function GET() {
       }),
     ]);
 
+    const processedSet = new Set(yearEndRecords.map((r) => `${r.employeeId}-${r.leaveTypeId}`));
     const leaveTypesById = new Map(leaveTypes.map((leaveType) => [leaveType.id, leaveType]));
-    const leaveYear = new Date().getUTCFullYear();
+const leaveYear = new Date().getUTCFullYear();
 
-    const employeesWithBalances = employees.map((employee) => {
-      // Find default calculation date from joiningDate
-      const firstJoiningDate = employee.leaveRecords[0]?.joiningDate;
-      const leaveCalculationDate = firstJoiningDate
-        ? new Date(firstJoiningDate).toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          }).replace(/\//g, "-")
-        : "01-01-2026";
+// Helper to format Date / ISO string into DD-MM-YYYY deterministically (UTC)
+const formatToDDMMYYYY = (dateInput?: string | Date | null): string => {
+  if (!dateInput) return `01-01-${leaveYear}`;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return `01-01-${leaveYear}`;
+
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const year = d.getUTCFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+// Index approved applications by composite key (employeeId:leaveTypeId) for O(1) lookups
+const approvedDaysMap = new Map<string, number>();
+for (const app of approvedApplications ?? []) {
+  const key = `${app.employeeId}:${app.leaveTypeId}`;
+  approvedDaysMap.set(key, (approvedDaysMap.get(key) ?? 0) + (app.daysCount ?? 0));
+}
+
+const employeesWithBalances = employees.map((employee) => {
+  const firstJoiningDate = employee.leaveRecords?.[0]?.joiningDate;
+  const leaveCalculationDate = formatToDDMMYYYY(firstJoiningDate);
+
+  return {
+    ...employee,
+    leaveCalculationDate,
+    leaveRecords: (employee.leaveRecords ?? []).map(({ joiningDate, ...record }) => {
+      const leaveType = leaveTypesById.get(record.leaveTypeId);
+      const isEligible = Boolean(record.isEligible && leaveType?.status === "ACTIVE");
+
+      const eligible = record.daysAllowed > 0 ? record.daysAllowed : (leaveType?.daysAllowed ?? 0);
+      const bf = record.bf ?? 0;
+      const credit = record.creditedDays ?? 0;
+      const earn = record.earned ?? 0;
+
+      const taken = approvedDaysMap.get(`${employee.employeeId}:${record.leaveTypeId}`) ?? 0;
+      const total = Math.max(0, eligible + bf + credit + earn - taken);
+
+      // Preserve existing valid balance; fallback to calculated balance with credits
+      const leaveBalance =
+        typeof record.leaveBalance === "number" && record.leaveBalance >= 0
+          ? record.leaveBalance
+          : isEligible && leaveType
+          ? calculateLeaveBalance(eligible, joiningDate, leaveYear) + credit
+          : 0;
 
       return {
-        ...employee,
-        leaveCalculationDate,
-        leaveRecords: employee.leaveRecords.map(({ joiningDate, ...record }) => {
-          const leaveType = leaveTypesById.get(record.leaveTypeId);
-          const isEligible = record.isEligible && leaveType?.status === "ACTIVE";
-
-          const eligible = record.daysAllowed > 0 ? record.daysAllowed : (leaveType?.daysAllowed ?? 0);
-          const bf = record.bf ?? 0;
-          const credit = record.creditedDays ?? 0;
-          const earn = record.earned ?? 0;
-
-          // Sum taken from approved applications
-          const taken = approvedApplications
-            .filter(
-              (app) =>
-                app.employeeId === employee.employeeId &&
-                app.leaveTypeId === record.leaveTypeId
-            )
-            .reduce((sum, app) => sum + app.daysCount, 0);
-
-          const total = Math.max(0, eligible + bf + credit + earn - taken);
-
-          return {
-            ...record,
-            daysAllowed: eligible,
-            bf,
-            creditedDays: credit,
-            earned: earn,
-            taken,
-            total,
-            leaveBalance:
-              typeof record.leaveBalance === "number" && record.leaveBalance >= 0
-                ? record.leaveBalance
-                : isEligible && leaveType
-                ? calculateLeaveBalance(eligible, joiningDate, leaveYear) + credit
-                : 0,
-            formattedDate: new Date(joiningDate).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            }).replace(/\//g, "-"),
-          };
-        }),
+        ...record,
+        daysAllowed: eligible,
+        bf,
+        creditedDays: credit,
+        earned: earn,
+        taken,
+        total,
+        leaveBalance,
+        formattedDate: formatToDDMMYYYY(joiningDate),
       };
-    });
+    }),
+  };
+});
 
     return Response.json({ employees: employeesWithBalances, leaveTypes });
   } catch (error) {
     console.error("Failed to load leave eligibility:", error);
-    return Response.json({ error: "Unable to load leave eligibility from the database." }, { status: 503 });
+    return Response.json({ error: "Unable to load leave entitlement from the database." }, { status: 503 });
   }
 }
 
