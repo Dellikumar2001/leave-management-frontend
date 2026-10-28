@@ -18,7 +18,7 @@ import DateInput, { formatDisplayDate } from "../components/DateInput";
 
 /* ─── Types ───────────────────────────────────────────────── */
 
-export type LeaveRecord = {
+export type LeaveRecord = { 
   leaveTypeId: number;
   isEligible: boolean;
   daysAllowed: number;

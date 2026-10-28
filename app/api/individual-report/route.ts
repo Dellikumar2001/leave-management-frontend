@@ -86,8 +86,8 @@ export async function GET(request: Request) {
   const academicYearEnd = parseDate(params.get("academicYearEnd"));
 
   if (!employeeId || !periodStart || !periodEnd || periodEnd < periodStart ||
-      !academicYearStart || !academicYearEnd || academicYearEnd < academicYearStart ||
-      periodStart < academicYearStart || periodEnd > academicYearEnd) {
+    !academicYearStart || !academicYearEnd || academicYearEnd < academicYearStart ||
+    periodStart < academicYearStart || periodEnd > academicYearEnd) {
     return Response.json({ error: "Select an employee and a valid reporting period." }, { status: 400 });
   }
 
@@ -136,6 +136,19 @@ export async function GET(request: Request) {
       },
     });
     const [requests, credits, holidays] = await Promise.all([
+      studentIds.length
+        ? prisma.studentLeaveRequest.findMany({
+          where: {
+            studentId: { in: studentIds },
+            startDate: { lte: periodEnd },
+            endDate: { gte: periodStart },
+          },
+          include: {
+            reviewer: { select: { name: true, firstName: true, lastName: true } },
+          },
+          orderBy: [{ startDate: "desc" }, { id: "desc" }],
+        })
+        : Promise.resolve([]),
       prisma.employeeLeaveUsage.findMany({
         where: {
           employeeId,

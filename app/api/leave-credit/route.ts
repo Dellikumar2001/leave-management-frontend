@@ -12,7 +12,7 @@ function parseCredit(value: unknown): { category: "ANNUAL" | "MEDICAL"; days: nu
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const input = value as { category?: unknown; days?: unknown };
   if (!isCategory(input.category) || !Number.isSafeInteger(input.days) ||
-      (input.days as number) < 1 || (input.days as number) > 2_147_483_647) return null;
+    (input.days as number) < 1 || (input.days as number) > 2_147_483_647) return null;
   return { category: input.category, days: input.days as number };
 }
 
@@ -41,18 +41,40 @@ async function changeCreditedDays(
   if (leaveTypeId === null) return;
   const eligibility = await transaction.employeeLeaveEligibility.findUnique({
     where: { employeeId_leaveTypeId: { employeeId, leaveTypeId } },
-    select: { creditedDays: true, isEligible: true, leaveBalance: true },
+    select: { daysAllowed: true, creditedDays: true, isEligible: true, leaveBalance: true },
   });
-  if (!eligibility || !eligibility.isEligible) return;
-  const creditedDays = eligibility.creditedDays + delta;
-  if (creditedDays < 0) throw new Error("The credit cannot be reversed because the employee's available balance has been used.");
-  await transaction.employeeLeaveEligibility.update({
-    where: { employeeId_leaveTypeId: { employeeId, leaveTypeId } },
-    data: {
-      creditedDays,
-      leaveBalance: { increment: delta },
-    },
-  });
+
+  if (eligibility) {
+    const newCreditedDays = Math.max(0, eligibility.creditedDays + delta);
+    if (newCreditedDays < 0) {
+      throw new Error("The credit cannot be reversed because the employee's available balance has been used.");
+    }
+    await transaction.employeeLeaveEligibility.update({
+      where: { employeeId_leaveTypeId: { employeeId, leaveTypeId } },
+      data: {
+        isEligible: true,
+        creditedDays: newCreditedDays,
+        leaveBalance: { increment: delta },
+      },
+    });
+  } else {
+    if (delta < 0) throw new Error("The credit cannot be reversed because the employee's available balance has been used.");
+    const leaveTypeRecord = await transaction.leaveType.findUnique({
+      where: { id: leaveTypeId },
+      select: { daysAllowed: true },
+    });
+    const baseDays = leaveTypeRecord?.daysAllowed ?? 12;
+    await transaction.employeeLeaveEligibility.create({
+      data: {
+        employeeId,
+        leaveTypeId,
+        isEligible: true,
+        daysAllowed: baseDays,
+        creditedDays: delta,
+        leaveBalance: delta,
+      },
+    });
+  }
 }
 
 export async function GET(request: Request) {
@@ -95,7 +117,7 @@ export async function POST(request: Request) {
   const input = body as { employeeIds?: unknown; credit?: unknown };
   const credit = parseCredit(input.credit);
   if (!Array.isArray(input.employeeIds) || !input.employeeIds.length ||
-      !input.employeeIds.every((id) => typeof id === "string" && id.trim()) || !credit) {
+    !input.employeeIds.every((id) => typeof id === "string" && id.trim()) || !credit) {
     return Response.json({ error: "Select employees and enter a positive number of credit days." }, { status: 400 });
   }
   const employeeIds = [...new Set(input.employeeIds.map((id) => (id as string).trim()))];
@@ -114,7 +136,50 @@ export async function POST(request: Request) {
       }
 
       for (const employeeId of employeeIds) {
-        await changeCreditedDays(transaction, employeeId, balanceLeaveType?.id ?? null, credit.category, credit.days);
+        let targetLeaveTypeId = balanceLeaveType?.id ?? null;
+        if (credit.category === "ANNUAL") {
+          const empCls = await transaction.employeeLeaveEligibility.findMany({
+            where: {
+              employeeId,
+              leaveType: {
+                status: "ACTIVE",
+                OR: [
+                  { code: { equals: "CL", mode: "insensitive" } },
+                  { code: { startsWith: "CL_", mode: "insensitive" } },
+                  { name: { contains: "CASUAL", mode: "insensitive" } },
+                ],
+              },
+            },
+            include: { leaveType: true },
+          });
+          const matched =
+            empCls.find((r) => r.leaveType.code.toUpperCase() === "CL") ||
+            empCls[0];
+          if (matched) targetLeaveTypeId = matched.leaveTypeId;
+        } else if (credit.category === "MEDICAL") {
+          const empMls = await transaction.employeeLeaveEligibility.findMany({
+            where: {
+              employeeId,
+              leaveType: {
+                status: "ACTIVE",
+                NOT: [{ name: { contains: "MATERNITY", mode: "insensitive" } }],
+                OR: [
+                  { code: { equals: "ML", mode: "insensitive" } },
+                  { code: { startsWith: "ML_", mode: "insensitive" } },
+                  { name: { contains: "MEDICAL", mode: "insensitive" } },
+                ],
+              },
+            },
+            include: { leaveType: true },
+          });
+          const matched =
+            empMls.find((r) => r.leaveType.code.toUpperCase() === "ML") ||
+            empMls.find((r) => r.leaveType.name.toUpperCase().includes("MEDICAL")) ||
+            empMls[0];
+          if (matched) targetLeaveTypeId = matched.leaveTypeId;
+        }
+
+        await changeCreditedDays(transaction, employeeId, targetLeaveTypeId, credit.category, credit.days);
         await transaction.leaveCredit.create({
           data: {
             employeeId,
@@ -122,7 +187,7 @@ export async function POST(request: Request) {
             days: credit.days,
             startDate: new Date(new Date().toISOString().slice(0, 10)),
             endDate: new Date(new Date().toISOString().slice(0, 10)),
-            leaveTypeId: balanceLeaveType?.id ?? null,
+            leaveTypeId: targetLeaveTypeId,
           },
         });
       }
@@ -164,7 +229,7 @@ export async function PATCH(request: Request) {
   }
   const input = body as { id?: unknown; days?: unknown };
   if (!Number.isSafeInteger(input.id) || (input.id as number) < 1 ||
-      !Number.isSafeInteger(input.days) || (input.days as number) < 1 || (input.days as number) > 2_147_483_647) {
+    !Number.isSafeInteger(input.days) || (input.days as number) < 1 || (input.days as number) > 2_147_483_647) {
     return Response.json({ error: "Provide a valid credit ID and positive day count." }, { status: 400 });
   }
 

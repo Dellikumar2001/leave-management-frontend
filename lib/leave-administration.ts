@@ -79,6 +79,31 @@ export async function findBalanceLeaveType(
     },
     orderBy: { id: "asc" },
   });
+
+  // Credit Annual Leave maps into Casual Leave type (CL)
+  if (category === "ANNUAL") {
+    const casualType = leaveTypes.find(
+      (lt) =>
+        lt.code.toUpperCase() === "CL" ||
+        lt.code.toUpperCase().startsWith("CL_") ||
+        lt.name.toUpperCase().includes("CASUAL")
+    );
+    if (casualType) return casualType;
+  }
+
+  // Credit Medical Leave maps into Medical Leave type (ML)
+  if (category === "MEDICAL") {
+    const medicalType = leaveTypes.find(
+      (lt) =>
+        (lt.code.toUpperCase() === "ML" ||
+         lt.name.toUpperCase() === "MEDICAL LEAVE" ||
+         lt.name.toUpperCase().includes("MEDICAL") ||
+         lt.code.toUpperCase().includes("MED")) &&
+        !lt.name.toUpperCase().includes("MATERNITY")
+    );
+    if (medicalType) return medicalType;
+  }
+
   return leaveTypes.find((leaveType) => isLeaveTypeForCategory(leaveType, category)) ?? null;
 }
 

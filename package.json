@@ -13,6 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "db:seed:data": "node prisma/SeedData.cjs",
+    "seed:data": "node prisma/SeedData.cjs",
     "db:refresh": "node --env-file=.env scripts/refresh-db.cjs",
     "db:reset": "prisma migrate reset"
   },
