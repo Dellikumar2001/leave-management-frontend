@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Baby, ChevronDown, Paperclip, Trash2, X } from "lucide-react";
+import { Baby, ChevronDown, Info, Paperclip, Trash2, X } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type Employee = {
@@ -180,6 +180,15 @@ function ToggleSwitch({
 export default function PaternityLeavePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [error, setError] = useState("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) setShowInfoModal(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
@@ -371,7 +380,18 @@ export default function PaternityLeavePage() {
             <div className="flex items-center gap-3">
               <Baby aria-hidden="true" size={28} className="text-emerald-700" />
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-800">Paternity Leave</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-800">Paternity Leave</h1>
+                  <button
+                    type="button"
+                    onClick={() => setShowInfoModal(true)}
+                    title="About Paternity Leave"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 shadow-sm transition hover:bg-blue-100 hover:text-blue-800"
+                    aria-label="About Paternity Leave"
+                  >
+                    <Info size={14} />
+                  </button>
+                </div>
                 <p className="text-xs font-medium text-slate-500">Eligible for male employees only</p>
               </div>
             </div>
@@ -706,6 +726,86 @@ export default function PaternityLeavePage() {
               </button>
             </div>
           </section>
+        </div>
+      )}
+
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Baby className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">About Paternity Leave</h3>
+                  <p className="text-xs text-slate-500">Statutory leave benefit for male staff</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="mt-4 space-y-4">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900">What is Paternity Leave?</h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-blue-950">
+                  A paid leave entitlement granted to male employees following the birth or legal adoption of a child to support their partner and bond with the newborn.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                    How it works
+                  </h5>
+                  <ul className="space-y-1.5 text-slate-600 list-disc list-inside">
+                    <li>Filtered exclusively to eligible male employees.</li>
+                    <li>Allocates configured entitlement (e.g. 5 to 15 days).</li>
+                    <li>Validates hospital discharge or birth certificate proofs.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    How to use it
+                  </h5>
+                  <ol className="space-y-1.5 text-slate-600 list-decimal list-inside">
+                    <li>Select Stream, Department, and Employee Name in sequence.</li>
+                    <li>Enter the total number of approved leave days.</li>
+                    <li>Verify required attachments (hospital / birth certificate).</li>
+                    <li>Click <strong>Submit</strong> to record the paternity allocation.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -18,6 +18,7 @@ import {
   Sparkles,
   Trash2,
   X,
+  Info,
 } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 import DateInput from "../components/DateInput";
@@ -146,8 +147,20 @@ export default function HolidayCalendarPage() {
 
   const [isLoadingHolidays, setIsLoadingHolidays] = useState(true);
   const [holidayError, setHolidayError] = useState("");
+  const [showCalendarInfo, setShowCalendarInfo] = useState(false);
+  const [showHolidayFormHelp, setShowHolidayFormHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showCalendarInfo) {
+        setShowCalendarInfo(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showCalendarInfo]);
 
   function validateAndSetFile(file: File | null) {
     if (!file) {
@@ -308,6 +321,7 @@ export default function HolidayCalendarPage() {
 
   function closeHolidayForm() {
     setShowForm(false);
+    setShowHolidayFormHelp(false);
     setEditingHolidayId(null);
     setName("");
     setHolidayType("national");
@@ -514,9 +528,20 @@ export default function HolidayCalendarPage() {
                 <span>/</span>
                 <span className="font-semibold text-slate-800">Holiday Calendar</span>
               </div>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
-                Holiday Calendar
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
+                  Holiday Calendar
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setShowCalendarInfo(true)}
+                  className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                  title="What is Holiday Calendar and why is it used?"
+                  aria-label="What is Holiday Calendar and why is it used?"
+                >
+                  <Info size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Top Toolbar: Month, Year, Import, Reset, Add Holiday */}
@@ -1077,9 +1102,20 @@ export default function HolidayCalendarPage() {
           >
             <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h2 id="holiday-form-title" className="text-lg font-bold text-slate-800">
-                  {editingHolidayId ? "Edit Holiday" : "New Holiday"}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 id="holiday-form-title" className="text-lg font-bold text-slate-800">
+                    {editingHolidayId ? "Edit Holiday" : "New Holiday"}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowHolidayFormHelp((prev) => !prev)}
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 hover:text-blue-700 cursor-pointer"
+                    title="Required holiday details & guidelines"
+                    aria-label="Required holiday details & guidelines"
+                  >
+                    <Info size={12} />
+                  </button>
+                </div>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {editingHolidayId ? "Update official holiday record." : "Add a recognized date-specific holiday."}
                 </p>
@@ -1087,12 +1123,41 @@ export default function HolidayCalendarPage() {
               <button
                 type="button"
                 aria-label="Close form"
-                onClick={closeHolidayForm}
+                onClick={() => {
+                  closeHolidayForm();
+                  setShowHolidayFormHelp(false);
+                }}
                 className="grid size-8 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               >
                 <X size={17} />
               </button>
             </div>
+
+            {showHolidayFormHelp && (
+              <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-slate-700 animate-in fade-in">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-blue-950 flex items-center gap-1.5 text-xs">
+                      <Info size={13} className="text-blue-600" /> Holiday Configuration Guidelines:
+                    </p>
+                    <ul className="space-y-0.5 text-[11px] text-slate-600 list-disc list-inside">
+                      <li><strong>Holiday Name:</strong> Official title (e.g. <em>Pongal, Independence Day</em>).</li>
+                      <li><strong>Date:</strong> The day on which the institution remains closed.</li>
+                      <li><strong>Type:</strong> <em>National</em> (statutory), <em>Festival</em> (cultural), or <em>Special</em> (declared).</li>
+                      <li><strong>Repeat Every Year:</strong> Automatically recurs on future annual calendars.</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowHolidayFormHelp(false)}
+                    className="rounded p-1 text-slate-400 hover:bg-blue-100 hover:text-slate-700"
+                    aria-label="Close help"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={addHoliday} className="space-y-4">
               <div>
@@ -1363,6 +1428,99 @@ export default function HolidayCalendarPage() {
               </p>
             )}
           </section>
+        </div>
+      )}
+
+      {/* Information Modal: Why and For What Holiday Calendar is used */}
+      {showCalendarInfo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCalendarInfo(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                  <Info size={16} />
+                </div>
+                <div>
+                  <h2 id="calendar-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    About Holiday Calendar
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Official holidays, institutional closures, and non-working days</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCalendarInfo(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-blue-50/60 border border-blue-100 p-3">
+                <span className="font-semibold text-blue-950">What is it?</span>
+                <p className="mt-0.5 text-blue-900/90 text-[11px] leading-relaxed">
+                  The <strong>Holiday Calendar</strong> is the official annual gazette defining statutory national holidays, regional festivals, and institutional non-working days recognized across the academic year.
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Date Blocking:</strong> Declared dates are registered across the portal as official closed non-working days.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Leave Exemption:</strong> Holidays inside a leave request are automatically not deducted from balances.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">1.</span>
+                      <span>Click <strong>+ Add Holiday</strong> (or click a date on the calendar grid).</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">2.</span>
+                      <span>Enter Holiday Name, pick Holiday Type (National/Festival), and save.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCalendarInfo(false)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
