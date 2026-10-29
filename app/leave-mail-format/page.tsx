@@ -14,6 +14,8 @@ import {
   Copy,
   Eye,
   Check,
+  Info,
+  X,
 } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -171,6 +173,17 @@ function LeaveMailFormatContent() {
   const [copiedTag, setCopiedTag] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) {
+        setShowInfoModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   // Sync state when URL search params change
   useEffect(() => {
@@ -248,10 +261,21 @@ function LeaveMailFormatContent() {
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                  <Mail className="size-6 text-emerald-700" />
-                  Leave Mail Format
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <Mail className="size-6 text-emerald-700" />
+                    Leave Mail Format
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={() => setShowInfoModal(true)}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                    title="What is Leave Mail Format and why is it used?"
+                    aria-label="What is Leave Mail Format and why is it used?"
+                  >
+                    <Info size={16} />
+                  </button>
+                </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Configure automated email formats triggered during leave applications and approvals.
                 </p>
@@ -627,6 +651,99 @@ function LeaveMailFormatContent() {
             </div>
           </div>
         </div>
+
+        {/* Information Modal: Why and For What Leave Mail Format is used */}
+        {showInfoModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowInfoModal(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mail-info-title"
+              className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                    <Mail size={16} />
+                  </div>
+                  <div>
+                    <h2 id="mail-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                      About Leave Mail Format
+                    </h2>
+                    <p className="text-[11px] text-slate-500">Automated email triggers, dynamic placeholders, and notification policy</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInfoModal(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                  aria-label="Close dialog"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Content Body */}
+              <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+                {/* 1. What it is */}
+                <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+                  <span className="font-semibold text-emerald-950">What is it?</span>
+                  <p className="mt-0.5 text-emerald-900/90 text-[11px] leading-relaxed">
+                    <strong>Leave Mail Format</strong> is the institutional email templating engine that defines automated communications sent to employees and approvers whenever a leave application is submitted, approved, rejected, or cancelled.
+                  </p>
+                </div>
+
+                {/* 2. How it works & How to use it */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                    <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                    <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>Event Triggers:</strong> Automatic emails fire when leaves are applied, approved, or rejected.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>Dynamic Tags:</strong> System inserts real details like employee name, dates, and approver remarks.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                    <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                    <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">1.</span>
+                        <span>Select <strong>Employee</strong> or <strong>Approver</strong>, then pick an event subtab (e.g. <em>Leave Applied</em>).</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">2.</span>
+                        <span>Edit the subject and body, click placeholders to copy, toggle <strong>Preview</strong>, and <strong>Save</strong>.</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowInfoModal(false)}
+                  className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Got It
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

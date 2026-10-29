@@ -7,8 +7,10 @@ import {
   FileCheck,
   FileSpreadsheet,
   FileText,
+  Info,
   RefreshCw,
   Search,
+  X,
 } from "lucide-react";
 import LeaveSidebar from "../../components/LeaveSidebar";
 
@@ -20,6 +22,7 @@ type EmployeeApproverRecord = {
   employeeName: string;
   stream: string;
   department: string;
+  employeeType?: string;
   streamAndDepartment: string;
   firstLevelApprover: string;
   secondLevelApprover?: string;
@@ -32,6 +35,7 @@ type ReportApiResponse = {
     allStreams: string[];
     allDepartments: string[];
     allEmployeeNames: string[];
+    allEmployeeTypes?: string[];
     allFirstLevelApprovers?: string[];
     allSecondLevelApprovers?: string[];
   };
@@ -205,16 +209,27 @@ export default function ApproverReportPage() {
   const [allRecords, setAllRecords] = useState<EmployeeApproverRecord[]>([]);
   const [allStreams, setAllStreams] = useState<string[]>([]);
   const [allDepartments, setAllDepartments] = useState<string[]>([]);
+  const [allEmployeeTypes, setAllEmployeeTypes] = useState<string[]>(["Teaching", "Non-Teaching"]);
 
   // Generated report state
   const [reportRecords, setReportRecords] = useState<EmployeeApproverRecord[]>([]);
   const [hasGenerated, setHasGenerated] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
-  // Ordered filter states: 1. Stream, 2. Department, 3. Employee Names
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) setShowInfoModal(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
+
+  // Ordered filter states: 1. Stream, 2. Department, 3. Employee Type, 4. Employee Names
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeFilters, setEmployeeFilters] = useState<string[]>([]);
 
   // Initial load from API
@@ -228,6 +243,9 @@ export default function ApproverReportPage() {
           setAllRecords(result.records ?? []);
           setAllStreams(result.filters?.allStreams ?? []);
           setAllDepartments(result.filters?.allDepartments ?? []);
+          if (result.filters?.allEmployeeTypes && result.filters.allEmployeeTypes.length > 0) {
+            setAllEmployeeTypes(result.filters.allEmployeeTypes);
+          }
         }
       } catch (err) {
         console.error("Failed to load approver report options:", err);
@@ -239,19 +257,25 @@ export default function ApproverReportPage() {
     };
   }, []);
 
+  // Cascading gating checks
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
+
   // Cascading available departments based on selected streams
   const availableDepartments = useMemo(() => {
-    if (streamFilters.length === 0) return allDepartments;
+    if (isDepartmentDisabled) return [];
     const deptsInStreams = new Set(
       allRecords
         .filter((r) => streamFilters.includes(r.stream))
         .map((r) => r.department)
     );
     return allDepartments.filter((d) => deptsInStreams.has(d));
-  }, [allDepartments, allRecords, streamFilters]);
+  }, [allDepartments, allRecords, isDepartmentDisabled, streamFilters]);
 
-  // Cascading available employees based on selected stream & department
+  // Cascading available employees based on selected stream, department & employee type
   const availableEmployees = useMemo(() => {
+    if (isEmployeeDisabled) return [];
     let list = allRecords;
     if (streamFilters.length > 0) {
       list = list.filter((r) => streamFilters.includes(r.stream));
@@ -259,23 +283,31 @@ export default function ApproverReportPage() {
     if (departmentFilters.length > 0) {
       list = list.filter((r) => departmentFilters.includes(r.department));
     }
+    if (employeeTypeFilters.length > 0) {
+      list = list.filter((r) => employeeTypeFilters.includes(r.employeeType || "Teaching"));
+    }
     return Array.from(new Set(list.map((r) => r.employeeName))).sort();
-  }, [allRecords, streamFilters, departmentFilters]);
+  }, [allRecords, isEmployeeDisabled, streamFilters, departmentFilters, employeeTypeFilters]);
 
   // Handle Stream selection change
   const handleStreamChange = (values: string[]) => {
     setStreamFilters(values);
-    if (values.length > 0) {
-      const validDepts = new Set(
-        allRecords.filter((r) => values.includes(r.stream)).map((r) => r.department)
-      );
-      setDepartmentFilters((prev) => prev.filter((d) => validDepts.has(d)));
-    }
+    setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
+    setEmployeeFilters([]);
   };
 
   // Handle Department selection change
   const handleDepartmentChange = (values: string[]) => {
     setDepartmentFilters(values);
+    setEmployeeTypeFilters([]);
+    setEmployeeFilters([]);
+  };
+
+  // Handle Employee Type selection change
+  const handleEmployeeTypeChange = (values: string[]) => {
+    setEmployeeTypeFilters(values);
+    setEmployeeFilters([]);
   };
 
   // Generate Button Handler
@@ -310,6 +342,9 @@ export default function ApproverReportPage() {
       if (departmentFilters.length > 0 && !departmentFilters.includes(rec.department)) {
         return false;
       }
+      if (employeeTypeFilters.length > 0 && !employeeTypeFilters.includes(rec.employeeType || "Teaching")) {
+        return false;
+      }
       if (employeeFilters.length > 0 && !employeeFilters.includes(rec.employeeName)) {
         return false;
       }
@@ -321,6 +356,7 @@ export default function ApproverReportPage() {
     allRecords,
     streamFilters,
     departmentFilters,
+    employeeTypeFilters,
     employeeFilters,
   ]);
 
@@ -509,20 +545,31 @@ export default function ApproverReportPage() {
                 <span>/</span>
                 <span className="font-semibold text-slate-800">Approver Report</span>
               </div>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
-                Approver Report
-              </h1>
+              <div className="mt-1 flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-slate-800">
+                  Approver Report
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setShowInfoModal(true)}
+                  title="About Approver Report"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700 shadow-sm transition hover:bg-sky-100 hover:text-sky-800"
+                  aria-label="About Approver Report"
+                >
+                  <Info size={15} />
+                </button>
+              </div>
             </div>
           </header>
 
-          {/* ── Filter Bar: Stream First, Next Department, Then Employees Name */}
+          {/* ── Filter Bar: Stream, Department, Employee Type, Employee Names */}
           <section
             aria-label="Report filters"
             className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-12">
               {/* Step 1: Stream Dropdown (Comes first) */}
-              <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Stream
                 </span>
@@ -544,11 +591,26 @@ export default function ApproverReportPage() {
                   options={availableDepartments}
                   selectedValues={departmentFilters}
                   onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
                 />
               </div>
 
-              {/* Step 3: Employee Names Dropdown (Then only employees name) */}
-              <div className="flex min-w-0 flex-col gap-1 xl:col-span-4">
+              {/* Step 3: Employee Type Dropdown */}
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
+                  Employee Type
+                </span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={allEmployeeTypes}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Names Dropdown */}
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Employee Names
                 </span>
@@ -557,6 +619,7 @@ export default function ApproverReportPage() {
                   options={availableEmployees}
                   selectedValues={employeeFilters}
                   onChange={setEmployeeFilters}
+                  disabled={isEmployeeDisabled}
                 />
               </div>
 
@@ -721,6 +784,86 @@ export default function ApproverReportPage() {
 
         </div>
       </div>
+
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+                  <Info className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">About Approver Report</h3>
+                  <p className="text-xs text-slate-500">Hierarchical approval routing & designated approver matrix</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="mt-4 space-y-4">
+              <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-sky-900">What is Approver Report?</h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-sky-950">
+                  A governance and audit report mapping all employees and departments to their assigned Level 1, Level 2, Level 3 approvers, and designated Backup Officers.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+                    How it works
+                  </h5>
+                  <ul className="space-y-1.5 text-slate-600 list-disc list-inside">
+                    <li>Audits approval chains across streams and departments.</li>
+                    <li>Identifies missing approvers or inactive backup authorities.</li>
+                    <li>Ensures leave requests route cleanly through hierarchy.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    How to use it
+                  </h5>
+                  <ol className="space-y-1.5 text-slate-600 list-decimal list-inside">
+                    <li>Filter by Stream, Department, and Employee Names.</li>
+                    <li>Click <strong>Generate Report</strong> to load assigned approver lines.</li>
+                    <li>Review Level 1 and Level 2 designated authorities.</li>
+                    <li>Export to <strong>Excel, CSV, or PDF</strong> for compliance audits.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-700 transition"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

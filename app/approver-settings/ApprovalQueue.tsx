@@ -31,6 +31,69 @@ const roles: { id: QueueRole; label: string; level: number }[] = [
   { id: "backup", label: "Backup Officer", level: 1 },
 ];
 
+const roleInfoData: Record<
+  QueueRole,
+  {
+    title: string;
+    roleDescription: string;
+    howItWorks: string[];
+    howToUse: string[];
+  }
+> = {
+  level1: {
+    title: "Level 1 Approver",
+    roleDescription:
+      "First review tier (HOD / Reporting Manager) that verifies department duty coverage and request validity.",
+    howItWorks: [
+      "New employee leave submissions land directly in this queue first.",
+      "Clicking Accept advances request to Level 2. Rejecting terminates the application.",
+    ],
+    howToUse: [
+      "Select 'Needs Approval' tab to see pending requests for your department.",
+      "Click 'View' for employee details, then click 'Accept' or 'Reject' with optional remarks.",
+    ],
+  },
+  level2: {
+    title: "Level 2 Approver",
+    roleDescription:
+      "Intermediate review tier (Dean / VP / HR) checking policy compliance and quota rules.",
+    howItWorks: [
+      "Receives requests only after Level 1 HOD has recommended and approved.",
+      "Approval forwards request to Level 3 / Principal. Rejection stops the process.",
+    ],
+    howToUse: [
+      "Switch to 'Level 2 Approver' tab to inspect requests cleared by Level 1.",
+      "Review workload balance and click 'Accept' to forward or 'Reject'.",
+    ],
+  },
+  level3: {
+    title: "Level 3 Approver",
+    roleDescription:
+      "Final sanctioning authority (Principal / Director) with supreme executive approving power.",
+    howItWorks: [
+      "Acts as final step after Level 1 and Level 2 approvals.",
+      "Final approval formally sanctions the leave and deducts days from available balance.",
+    ],
+    howToUse: [
+      "Switch to 'Level 3 Approver' tab to view verified submissions.",
+      "Click 'Accept' to grant final leave approval or 'Reject' with justification remarks.",
+    ],
+  },
+  backup: {
+    title: "Backup Officer",
+    roleDescription:
+      "Designated proxy officer who steps in when primary approvers (Level 1, 2, or 3) are on leave or absent.",
+    howItWorks: [
+      "Authorized to act on any pending approval tier when the primary officer is away.",
+      "All actions are permanently recorded as taken by the Backup Officer on behalf of the approver.",
+    ],
+    howToUse: [
+      "Click 'Backup Officer' tab to view all requests currently pending across departments.",
+      "Click 'Accept' or 'Reject' to clear urgently pending requests without workflow delays.",
+    ],
+  },
+};
+
 function formatDate(value: string) {
   return new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -60,6 +123,17 @@ export default function ApprovalQueue() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedRoleInfo, setSelectedRoleInfo] = useState<QueueRole | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedRoleInfo) {
+        setSelectedRoleInfo(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedRoleInfo]);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
@@ -186,18 +260,42 @@ export default function ApprovalQueue() {
           </div>
           <button type="button" onClick={() => void loadRequests()} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Refresh</button>
         </div>
-        <div role="tablist" aria-label="Approver level" className="mt-4 flex gap-1 overflow-x-auto">
+        <div role="tablist" aria-label="Approver level" className="mt-4 flex gap-1.5 overflow-x-auto">
           {roles.map((role) => (
-            <button
+            <div
               key={role.id}
-              type="button"
-              role="tab"
-              aria-selected={activeRole === role.id}
-              onClick={() => setActiveRole(role.id)}
-              className={`min-w-max border-b-2 px-3 py-2.5 text-left text-xs font-semibold transition-colors ${activeRole === role.id ? "border-violet-600 bg-violet-600 text-white" : "border-transparent text-slate-600 hover:bg-slate-100"}`}
+              className={`flex items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-xs font-semibold transition-colors ${
+                activeRole === role.id
+                  ? "border-violet-600 bg-violet-600 text-white"
+                  : "border-transparent bg-slate-100/70 text-slate-600 hover:bg-slate-100"
+              }`}
             >
-              {role.label}<span className={`ml-1.5 ${activeRole === role.id ? "text-violet-100" : "text-slate-400"}`}></span>
-            </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeRole === role.id}
+                onClick={() => setActiveRole(role.id)}
+                className="cursor-pointer"
+              >
+                {role.label}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedRoleInfo(role.id);
+                }}
+                className={`inline-flex size-4.5 items-center justify-center rounded-full transition cursor-pointer ${
+                  activeRole === role.id
+                    ? "bg-violet-700 text-violet-100 hover:bg-violet-800"
+                    : "bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-slate-800"
+                }`}
+                title={`Information about ${role.label}`}
+                aria-label={`Information about ${role.label}`}
+              >
+                <Info size={11} />
+              </button>
+            </div>
           ))}
         </div>
         <div role="tablist" aria-label="Approval request status" className="mt-3 flex gap-2 border-t border-slate-200 pt-3">
@@ -265,7 +363,13 @@ export default function ApprovalQueue() {
 
       {selectedRequest && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedRequest(null); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="approval-detail-title" className="w-full max-w-xl rounded-lg bg-white shadow-xl">
-          <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h3 id="approval-detail-title" className="font-bold text-slate-900">Leave request details</h3><p className="mt-0.5 text-xs text-slate-500">{selectedRequest.employeeName} · {selectedRequest.employeeId}</p></div><button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close details" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button></header>
+          <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h3 id="approval-detail-title" className="font-bold text-slate-900">Leave request details</h3>
+              <p className="mt-0.5 text-xs text-slate-500">{selectedRequest.employeeName} · {selectedRequest.employeeId}</p>
+            </div>
+            <button type="button" onClick={() => setSelectedRequest(null)} aria-label="Close details" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+          </header>
           <div className="space-y-3 px-5 py-4 text-sm text-slate-700">
             <p><strong>Department:</strong> {selectedRequest.department}</p><p><strong>Leave:</strong> {selectedRequest.leaveType}, {formatDate(selectedRequest.startDate)} to {formatDate(selectedRequest.endDate)} ({selectedRequest.daysCount} days)</p><p><strong>Reason:</strong> {selectedRequest.reason || "No reason provided"}</p><p><strong>Pending with:</strong> {pendingWith(selectedRequest)}</p>
             {selectedRequest.approvals.length > 0 && <div className="rounded bg-slate-50 p-3 text-xs"><strong>Approval history</strong>{selectedRequest.approvals.map((approval) => <p key={approval.level} className="mt-1">Level {approval.level}: {approval.action.toLowerCase()} by {approval.approver}{approval.isBackup ? " (backup officer)" : ""}{approval.remarks ? ` · ${approval.remarks}` : ""}</p>)}</div>}
@@ -275,7 +379,13 @@ export default function ApprovalQueue() {
 
       {decisionRequest && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !submitting) setDecisionRequest(null); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="approval-decision-title" className="w-full max-w-lg rounded-lg bg-white shadow-xl">
-          <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h3 id="approval-decision-title" className="font-bold text-slate-900">{decisionRequest.action === "APPROVED" ? "Accept leave request?" : "Reject leave request?"}</h3><p className="mt-0.5 text-xs text-slate-500">{decisionRequest.request.employeeName} · {decisionRequest.request.employeeId}</p></div><button type="button" onClick={() => setDecisionRequest(null)} aria-label="Close decision" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button></header>
+          <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h3 id="approval-decision-title" className="font-bold text-slate-900">{decisionRequest.action === "APPROVED" ? "Accept leave request?" : "Reject leave request?"}</h3>
+              <p className="mt-0.5 text-xs text-slate-500">{decisionRequest.request.employeeName} · {decisionRequest.request.employeeId}</p>
+            </div>
+            <button type="button" onClick={() => setDecisionRequest(null)} aria-label="Close decision" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+          </header>
           <div className="space-y-4 px-5 py-4 text-sm text-slate-700">
             <p>{decisionRequest.action === "APPROVED" ? "This will record your approval and move the request to the next approval level." : "This will reject the leave request and end its approval process."}</p>
             <p className="text-xs text-slate-500">{decisionRequest.request.leaveType}, {formatDate(decisionRequest.request.startDate)} to {formatDate(decisionRequest.request.endDate)} ({decisionRequest.request.daysCount} days)</p>
@@ -290,6 +400,95 @@ export default function ApprovalQueue() {
           </div>
         </section>
       </div>}
+
+      {/* Information Modal for clicked Approver Role */}
+      {selectedRoleInfo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedRoleInfo(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white shadow-xs">
+                  <Info size={16} />
+                </div>
+                <div>
+                  <h2 id="role-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    {roleInfoData[selectedRoleInfo].title}
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Approver role authority, responsibilities, and workflow tier</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRoleInfo(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-violet-50/60 border border-violet-100 p-3">
+                <span className="font-semibold text-violet-950">Role Overview</span>
+                <p className="mt-0.5 text-violet-900/90 text-[11px] leading-relaxed">
+                  {roleInfoData[selectedRoleInfo].roleDescription}
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    {roleInfoData[selectedRoleInfo].howItWorks.map((point, index) => (
+                      <li key={index} className="flex items-start gap-1.5">
+                        <span className="text-violet-600 font-bold">•</span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    {roleInfoData[selectedRoleInfo].howToUse.map((point, index) => (
+                      <li key={index} className="flex items-start gap-1.5">
+                        <span className="text-violet-600 font-bold">•</span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedRoleInfo(null)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

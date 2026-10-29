@@ -10,6 +10,7 @@ import {
   FileCheck,
   FileSpreadsheet,
   FileText,
+  Info,
   RefreshCw,
   Search,
   X,
@@ -32,6 +33,7 @@ export type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
   gender: string;
   leaveRecords: LeaveRecord[];
 };
@@ -349,10 +351,20 @@ export default function StatutoryReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [previewRows, setPreviewRows] = useState<ReportRow[] | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) setShowInfoModal(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   // Filter states
   const [streamFilter, setStreamFilter] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
   const [employeeSearch] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -408,18 +420,42 @@ export default function StatutoryReport() {
     ? employees.filter((employee) => employee.stream === streamFilter)
     : [];
 
+  const isDepartmentDisabled = !streamFilter;
+  const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+  const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
+
   const allStreams = [...new Set(employees.map((employee) => employee.stream))]
     .filter(Boolean)
     .sort();
 
-  const allDepartments = [...new Set(streamScopedEmployees.map((employee) => employee.department))]
-    .filter(Boolean)
-    .sort();
+  const allDepartments = isDepartmentDisabled
+    ? []
+    : [...new Set(streamScopedEmployees.map((employee) => employee.department))]
+        .filter(Boolean)
+        .sort();
 
-  const departmentScopedEmployees = genderFilteredEmployees.filter(
-    (employee) =>
-      employee.stream === streamFilter && selectedDepartments.includes(employee.department)
+  const departmentFilteredEmployees = streamScopedEmployees.filter((employee) =>
+    selectedDepartments.includes(employee.department)
   );
+
+  const employeeTypeOptions = isEmployeeTypeDisabled
+    ? []
+    : Array.from(
+        new Set([
+          "Teaching",
+          "Non-Teaching",
+          ...(departmentFilteredEmployees.map((e) => e.employeeType).filter(Boolean) as string[]),
+        ])
+      ).sort();
+
+  const departmentScopedEmployees = isEmployeeDisabled
+    ? []
+    : genderFilteredEmployees.filter(
+        (employee) =>
+          employee.stream === streamFilter &&
+          selectedDepartments.includes(employee.department) &&
+          selectedEmployeeTypes.includes(employee.employeeType || "Teaching")
+      );
 
   const allEmployeeNames = [
     ...new Set(departmentScopedEmployees.map((e) => e.name)),
@@ -429,6 +465,11 @@ export default function StatutoryReport() {
   const visibleEmployees = genderFilteredEmployees.filter((emp) => {
     if (streamFilter && emp.stream !== streamFilter) return false;
     if (selectedDepartments.length > 0 && !selectedDepartments.includes(emp.department)) return false;
+    if (
+      selectedEmployeeTypes.length > 0 &&
+      !selectedEmployeeTypes.includes(emp.employeeType || "Teaching")
+    )
+      return false;
     if (selectedEmployeeNames.length > 0 && !selectedEmployeeNames.includes(emp.name))
       return false;
     if (employeeSearch && !emp.name.toLowerCase().includes(employeeSearch.toLowerCase()))
@@ -458,6 +499,7 @@ export default function StatutoryReport() {
     setActiveTab(tab);
     setStreamFilter("");
     setSelectedDepartments([]);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
     setPreviewRows(null);
   };
@@ -539,9 +581,20 @@ export default function StatutoryReport() {
             <span>/</span>
             <span className="font-semibold text-slate-800">Statutory Report</span>
           </div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
-            Statutory Leave Report
-          </h1>
+          <div className="mt-1 flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-800">
+              Statutory Leave Report
+            </h1>
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(true)}
+              title="About Statutory Leave Report"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700 shadow-sm transition hover:bg-sky-100 hover:text-sky-800"
+              aria-label="About Statutory Leave Report"
+            >
+              <Info size={15} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -591,7 +644,7 @@ export default function StatutoryReport() {
         aria-label="Statutory Report Filters"
         className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-12">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
           {/* Stream Dropdown */}
           <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
             <label htmlFor="filter-stream" className="text-[11px] font-semibold uppercase text-slate-500">
@@ -605,6 +658,7 @@ export default function StatutoryReport() {
                 onChange={(e) => {
                   setStreamFilter(e.target.value);
                   setSelectedDepartments([]);
+                  setSelectedEmployeeTypes([]);
                   setSelectedEmployeeNames([]);
                   setPreviewRows(null);
                 }}
@@ -635,10 +689,30 @@ export default function StatutoryReport() {
               selected={selectedDepartments}
               onChange={(departments) => {
                 setSelectedDepartments(departments);
+                setSelectedEmployeeTypes([]);
                 setSelectedEmployeeNames([]);
                 setPreviewRows(null);
               }}
-              disabled={!streamFilter}
+              disabled={isDepartmentDisabled}
+            />
+          </div>
+
+          {/* Employee Type Multi-Select */}
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
+            <label htmlFor="filter-employee-types" className="text-[11px] font-semibold uppercase text-slate-500">
+              Employee Type
+            </label>
+            <MultiSelect
+              id="filter-employee-types"
+              placeholder="All Employee Types"
+              options={employeeTypeOptions}
+              selected={selectedEmployeeTypes}
+              onChange={(types) => {
+                setSelectedEmployeeTypes(types);
+                setSelectedEmployeeNames([]);
+                setPreviewRows(null);
+              }}
+              disabled={isEmployeeTypeDisabled}
             />
           </div>
 
@@ -656,12 +730,12 @@ export default function StatutoryReport() {
                 setSelectedEmployeeNames(names);
                 setPreviewRows(null);
               }}
-              disabled={selectedDepartments.length === 0}
+              disabled={isEmployeeDisabled}
             />
           </div>
 
           {/* Unified Date Range: Start Date & End Date */}
-          <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 xl:col-span-4">
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 xl:col-span-3">
             <span className="text-[11px] font-semibold uppercase text-slate-500">
               Date Range <span className="text-emerald-600">*</span>
             </span>
@@ -935,6 +1009,86 @@ export default function StatutoryReport() {
             </article>
           </div>
         </section>
+      )}
+
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+                  <Info className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">About Statutory Leave Report</h3>
+                  <p className="text-xs text-slate-500">Maternity & Paternity statutory compliance tracking</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="mt-4 space-y-4">
+              <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-sky-900">What is Statutory Leave Report?</h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-sky-950">
+                  An institutional compliance report monitoring statutory Maternity (female staff) and Paternity (male staff) leave records, approved periods, and supporting medical certificates.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+                    How it works
+                  </h5>
+                  <ul className="space-y-1.5 text-slate-600 list-disc list-inside">
+                    <li>Segregates data into Maternity and Paternity tabs.</li>
+                    <li>Tracks date spans, durations, and medical document verifications.</li>
+                    <li>Generates compliance summaries with instant export options.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    How to use it
+                  </h5>
+                  <ol className="space-y-1.5 text-slate-600 list-decimal list-inside">
+                    <li>Switch between <strong>Maternity</strong> and <strong>Paternity</strong> tabs.</li>
+                    <li>Filter by Stream, Department, or Employee Name.</li>
+                    <li>Click <strong>Generate</strong> to view the records table.</li>
+                    <li>Use <strong>Download Excel / CSV</strong> to export data.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-700 transition"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

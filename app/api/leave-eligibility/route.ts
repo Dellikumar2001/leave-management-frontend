@@ -28,15 +28,6 @@ export async function GET(request: Request) {
               joiningDate: true,
             },
           },
-          employeeLeaveApplications: {
-            where: {
-              status: "Approved",
-            },
-            select: {
-              leaveTypeId: true,
-              daysCount: true,
-            },
-          },
         },
       }),
       prisma.leaveType.findMany({
@@ -51,9 +42,6 @@ export async function GET(request: Request) {
           leaveGroup: true,
         },
       }),
-      prisma.leaveYearEndRecord.findMany({
-        select: { employeeId: true, leaveTypeId: true }
-      }),
       prisma.employeeLeaveApplication.findMany({
         where: {
           status: { equals: "Approved", mode: "insensitive" },
@@ -63,6 +51,9 @@ export async function GET(request: Request) {
           leaveTypeId: true,
           daysCount: true,
         },
+      }),
+      prisma.leaveYearEndRecord.findMany({
+        select: { employeeId: true, leaveTypeId: true },
       }),
     ]);
 

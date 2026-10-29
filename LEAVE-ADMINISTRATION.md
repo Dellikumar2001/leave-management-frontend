@@ -49,13 +49,16 @@ The employee-only sidebar mode includes **Leave Report - Employee → My Report*
 
 Blocking or crediting creates an in-app notification for each selected employee. A multi-select filter does not silently apply changes to every matching employee; choose the matching rows with the table's select-all checkbox to make them part of the action.
 
-## Reject leave requests on blocked dates
+## Reject leave requests on holidays and blocked dates
 
-The student leave-request POST route checks for blocked dates before forwarding a request. It checks every date from `startDate` through `endDate` for the employee identified by `employeeId` or the student's `studentCode`. On a match it returns HTTP 409 with exactly:
+The leave-request POST route checks for declared holidays and blocked dates before forwarding a request. It checks every date from `startDate` through `endDate`:
 
 > Leaves are blocked for this date. Kindly select any other date or contact admin
 
-The request API must retain this server-side check; client-side validation alone can be bypassed. Any separate request-submission service or deployment that does not use `app/student-leave-requests/route.ts` must call the same `findBlockedDate` check before creating a request.
+2. **Blocked Dates**: For the employee identified by `employeeId` or the student's `studentCode`, if any date is blocked in `blocked_leaves`, the request is rejected with HTTP 409 and:
+   > Can't take leave on this date, contact admin
+
+The request API must retain these server-side checks; client-side validation alone can be bypassed. Any separate request-submission service or deployment that does not use `app/student-leave-requests/route.ts` must call the same `findHolidayDate` and `findBlockedDate` checks before creating a request.
 
 ## Troubleshooting
 
