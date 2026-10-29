@@ -50,23 +50,27 @@ export async function GET(request: NextRequest) {
         where: { status: "ACTIVE" },
         orderBy: { id: "asc" },
       }),
-      prisma.leaveYearEndProcess.findMany({
-        orderBy: { processedAt: "desc" },
-        take: 5,
-        include: {
-          records: {
-            take: 20,
-          },
-        },
-      }),
-      prisma.leaveYearEndRecord.findMany({
-        where: { nextCycle: nextCycle.code },
-        select: { employeeId: true, leaveTypeId: true, status: true },
-      }),
+      (prisma.leaveYearEndProcess
+        ? prisma.leaveYearEndProcess.findMany({
+            orderBy: { processedAt: "desc" },
+            take: 5,
+            include: {
+              records: {
+                take: 20,
+              },
+            },
+          })
+        : Promise.resolve([])),
+      (prisma.leaveYearEndRecord
+        ? prisma.leaveYearEndRecord.findMany({
+            where: { nextCycle: nextCycle.code },
+            select: { employeeId: true, leaveTypeId: true, status: true },
+          })
+        : Promise.resolve([])),
     ]);
 
     const processedMap = new Set(
-      existingNextCycleRecords.map((r) => `${r.employeeId}-${r.leaveTypeId}`)
+      (existingNextCycleRecords || []).map((r) => `${r.employeeId}-${r.leaveTypeId}`)
     );
 
     // Extract unique filter options
@@ -190,7 +194,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Failed to load Year-End Process preview:", error);
     return Response.json(
-      { error: "Unable to load leave year-end process data." },
+      { error: "Unable to load leave year-end process data.", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
