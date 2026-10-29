@@ -1,7 +1,7 @@
 import type { LeaveCategory, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export const blockedLeaveMessage = "Can't take leave on this date, contact admin";
+export const blockedLeaveMessage = "Leaves are blocked for this date. Kindly select any other date or contact admin";
 
 export function parseDateOnly(value: unknown): Date | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
