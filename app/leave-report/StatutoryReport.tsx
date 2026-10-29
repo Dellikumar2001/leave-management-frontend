@@ -32,6 +32,7 @@ export type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
   gender: string;
   leaveRecords: LeaveRecord[];
 };
@@ -353,6 +354,7 @@ export default function StatutoryReport() {
   // Filter states
   const [streamFilter, setStreamFilter] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
   const [employeeSearch] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -408,18 +410,42 @@ export default function StatutoryReport() {
     ? employees.filter((employee) => employee.stream === streamFilter)
     : [];
 
+  const isDepartmentDisabled = !streamFilter;
+  const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+  const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
+
   const allStreams = [...new Set(employees.map((employee) => employee.stream))]
     .filter(Boolean)
     .sort();
 
-  const allDepartments = [...new Set(streamScopedEmployees.map((employee) => employee.department))]
-    .filter(Boolean)
-    .sort();
+  const allDepartments = isDepartmentDisabled
+    ? []
+    : [...new Set(streamScopedEmployees.map((employee) => employee.department))]
+        .filter(Boolean)
+        .sort();
 
-  const departmentScopedEmployees = genderFilteredEmployees.filter(
-    (employee) =>
-      employee.stream === streamFilter && selectedDepartments.includes(employee.department)
+  const departmentFilteredEmployees = streamScopedEmployees.filter((employee) =>
+    selectedDepartments.includes(employee.department)
   );
+
+  const employeeTypeOptions = isEmployeeTypeDisabled
+    ? []
+    : Array.from(
+        new Set([
+          "Teaching",
+          "Non-Teaching",
+          ...(departmentFilteredEmployees.map((e) => e.employeeType).filter(Boolean) as string[]),
+        ])
+      ).sort();
+
+  const departmentScopedEmployees = isEmployeeDisabled
+    ? []
+    : genderFilteredEmployees.filter(
+        (employee) =>
+          employee.stream === streamFilter &&
+          selectedDepartments.includes(employee.department) &&
+          selectedEmployeeTypes.includes(employee.employeeType || "Teaching")
+      );
 
   const allEmployeeNames = [
     ...new Set(departmentScopedEmployees.map((e) => e.name)),
@@ -429,6 +455,11 @@ export default function StatutoryReport() {
   const visibleEmployees = genderFilteredEmployees.filter((emp) => {
     if (streamFilter && emp.stream !== streamFilter) return false;
     if (selectedDepartments.length > 0 && !selectedDepartments.includes(emp.department)) return false;
+    if (
+      selectedEmployeeTypes.length > 0 &&
+      !selectedEmployeeTypes.includes(emp.employeeType || "Teaching")
+    )
+      return false;
     if (selectedEmployeeNames.length > 0 && !selectedEmployeeNames.includes(emp.name))
       return false;
     if (employeeSearch && !emp.name.toLowerCase().includes(employeeSearch.toLowerCase()))
@@ -458,6 +489,7 @@ export default function StatutoryReport() {
     setActiveTab(tab);
     setStreamFilter("");
     setSelectedDepartments([]);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
     setPreviewRows(null);
   };
@@ -591,7 +623,7 @@ export default function StatutoryReport() {
         aria-label="Statutory Report Filters"
         className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
-        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-12">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
           {/* Stream Dropdown */}
           <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
             <label htmlFor="filter-stream" className="text-[11px] font-semibold uppercase text-slate-500">
@@ -605,6 +637,7 @@ export default function StatutoryReport() {
                 onChange={(e) => {
                   setStreamFilter(e.target.value);
                   setSelectedDepartments([]);
+                  setSelectedEmployeeTypes([]);
                   setSelectedEmployeeNames([]);
                   setPreviewRows(null);
                 }}
@@ -635,10 +668,30 @@ export default function StatutoryReport() {
               selected={selectedDepartments}
               onChange={(departments) => {
                 setSelectedDepartments(departments);
+                setSelectedEmployeeTypes([]);
                 setSelectedEmployeeNames([]);
                 setPreviewRows(null);
               }}
-              disabled={!streamFilter}
+              disabled={isDepartmentDisabled}
+            />
+          </div>
+
+          {/* Employee Type Multi-Select */}
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-1 xl:col-span-2">
+            <label htmlFor="filter-employee-types" className="text-[11px] font-semibold uppercase text-slate-500">
+              Employee Type
+            </label>
+            <MultiSelect
+              id="filter-employee-types"
+              placeholder="All Employee Types"
+              options={employeeTypeOptions}
+              selected={selectedEmployeeTypes}
+              onChange={(types) => {
+                setSelectedEmployeeTypes(types);
+                setSelectedEmployeeNames([]);
+                setPreviewRows(null);
+              }}
+              disabled={isEmployeeTypeDisabled}
             />
           </div>
 
@@ -656,12 +709,12 @@ export default function StatutoryReport() {
                 setSelectedEmployeeNames(names);
                 setPreviewRows(null);
               }}
-              disabled={selectedDepartments.length === 0}
+              disabled={isEmployeeDisabled}
             />
           </div>
 
           {/* Unified Date Range: Start Date & End Date */}
-          <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 xl:col-span-4">
+          <div className="flex min-w-0 flex-col gap-1 sm:col-span-2 xl:col-span-3">
             <span className="text-[11px] font-semibold uppercase text-slate-500">
               Date Range <span className="text-emerald-600">*</span>
             </span>

@@ -9,6 +9,7 @@ type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
   gender?: string;
 };
 
@@ -183,6 +184,7 @@ export default function PaternityLeavePage() {
 
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -230,12 +232,30 @@ export default function PaternityLeavePage() {
         ),
       ].filter(Boolean).sort();
 
-  // Step 3: Employees only unlocked and computed after Department is selected
-  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  // Step 3: Employee Types only unlocked after Department is selected
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const employeeTypes = isEmployeeTypeDisabled
+    ? []
+    : [
+        ...new Set(
+          maleEmployees
+            .filter((e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department))
+            .map((e) => e.employeeType)
+        ),
+      ].filter(Boolean) as string[];
+  const employeeTypeOptions = isEmployeeTypeDisabled
+    ? []
+    : Array.from(new Set(["Teaching", "Non-Teaching", ...employeeTypes])).sort();
+
+  // Step 4: Employees only unlocked and computed after Employee Type is selected
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
   const availableEmployees = isEmployeeDisabled
     ? []
     : maleEmployees.filter(
-        (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+        (e) =>
+          streamFilters.includes(e.stream) &&
+          departmentFilters.includes(e.department) &&
+          employeeTypeFilters.includes(e.employeeType || "Teaching")
       );
 
   const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
@@ -244,13 +264,21 @@ export default function PaternityLeavePage() {
     setStreamFilters(newStreams);
     // Reset downstream selections when stream changes or is cleared
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeNameFilters([]);
     setSelectedEmployee(null);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
-    // Reset employee selection when department changes or is cleared
+    // Reset downstream selections when department changes or is cleared
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+    setSelectedEmployee(null);
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
     setEmployeeNameFilters([]);
     setSelectedEmployee(null);
   };
@@ -377,9 +405,9 @@ export default function PaternityLeavePage() {
             </div>
           </header>
 
-          {/* Sequential 3-Step Selection Row */}
+          {/* Sequential 4-Step Selection Row */}
           <div className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {/* Step 1: Streams always active */}
               <div className="w-full">
                 <MultiSelectDropdown
@@ -401,7 +429,18 @@ export default function PaternityLeavePage() {
                 />
               </div>
 
-              {/* Step 3: Employee Names disabled until Department is chosen */}
+              {/* Step 3: Employee Type */}
+              <div className="w-full">
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypeOptions}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Names disabled until Department is chosen */}
               <div className="w-full">
                 <MultiSelectDropdown
                   label="Employee Names"

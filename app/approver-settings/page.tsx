@@ -21,6 +21,7 @@ type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string | null;
   gender?: string | null;
   designation?: string | null;
   firstLevelApprover?: string | null;
@@ -695,7 +696,9 @@ export default function ApproverSettingsPage() {
   // Cascading Multi-Select Filters
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
+  const [, setHasAssigned] = useState<boolean>(false);
 
   // Checkbox row selection state
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -749,33 +752,49 @@ export default function ApproverSettingsPage() {
     return [...new Set(employees.map((e) => e.stream))].filter(Boolean).sort();
   }, [employees]);
 
-  // Departments (directly selectable! Filtered if stream is selected, otherwise all departments)
-  const departments = useMemo(() => {
-    if (streamFilters.length > 0) {
-      return [
-        ...new Set(
-          employees
-            .filter((e) => streamFilters.includes(e.stream))
-            .map((e) => e.department)
-        ),
-      ]
-        .filter(Boolean)
-        .sort();
-    }
-    return [...new Set(employees.map((e) => e.department))].filter(Boolean).sort();
-  }, [employees, streamFilters]);
+  // ── Sequential Cascading Enablement Flags
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
 
-  // Employee names (directly selectable! Filtered if stream/dept selected, otherwise all employees)
+  // Departments (disabled until stream is chosen)
+  const departments = useMemo(() => {
+    if (isDepartmentDisabled) return [];
+    return [
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream))
+          .map((e) => e.department)
+      ),
+    ]
+      .filter(Boolean)
+      .sort();
+  }, [employees, isDepartmentDisabled, streamFilters]);
+
+  // Employee Types (disabled until department is chosen)
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department))
+          .map((e) => e.employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [employees, isEmployeeTypeDisabled, streamFilters, departmentFilters]);
+
+  // Employee names (disabled until employee type is chosen)
   const employeeNames = useMemo(() => {
-    let pool = employees;
-    if (streamFilters.length > 0) {
-      pool = pool.filter((e) => streamFilters.includes(e.stream));
-    }
-    if (departmentFilters.length > 0) {
-      pool = pool.filter((e) => departmentFilters.includes(e.department));
-    }
+    if (isEmployeeDisabled) return [];
+    const pool = employees.filter(
+      (e) =>
+        streamFilters.includes(e.stream) &&
+        departmentFilters.includes(e.department) &&
+        employeeTypeFilters.includes(e.employeeType || "Teaching")
+    );
     return [...new Set(pool.map((e) => e.name))].filter(Boolean).sort();
-  }, [employees, streamFilters, departmentFilters]);
+  }, [employees, isEmployeeDisabled, streamFilters, departmentFilters, employeeTypeFilters]);
 
   const clearApproverFields = () => {
     setFirstLevelApprover("");
@@ -784,19 +803,26 @@ export default function ApproverSettingsPage() {
     setFinalLevelBackupOfficer("");
   };
 
-  // Direct independent filter handlers
+  // Direct cascading filter handlers
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
-    if (newStreams.length === 0 && departmentFilters.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
-      clearApproverFields();
-    }
+    setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+    clearApproverFields();
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
-    if (streamFilters.length === 0 && newDepts.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
-      clearApproverFields();
-    }
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+    clearApproverFields();
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
+    setEmployeeNameFilters([]);
+    clearApproverFields();
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
@@ -835,6 +861,7 @@ export default function ApproverSettingsPage() {
   const handleClearSelection = () => {
     setStreamFilters([]);
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeNameFilters([]);
     setSelectedRowIds([]);
     clearApproverFields();
@@ -849,6 +876,11 @@ export default function ApproverSettingsPage() {
     const filtered = employees.filter((emp) => {
       if (streamFilters.length > 0 && !streamFilters.includes(emp.stream)) return false;
       if (departmentFilters.length > 0 && !departmentFilters.includes(emp.department)) return false;
+      if (
+        employeeTypeFilters.length > 0 &&
+        !employeeTypeFilters.includes(emp.employeeType || "Teaching")
+      )
+        return false;
       if (employeeNameFilters.length > 0 && !employeeNameFilters.includes(emp.name)) return false;
       return true;
     });
@@ -895,12 +927,13 @@ export default function ApproverSettingsPage() {
 
       return 0;
     });
-  }, [employees, streamFilters, departmentFilters, employeeNameFilters, sortField, sortDirection]);
+  }, [employees, streamFilters, departmentFilters, employeeTypeFilters, employeeNameFilters, sortField, sortDirection]);
 
   // Active selection flag: enabled if stream, department, employee name, or table rows are selected
   const isSelectionActive =
     streamFilters.length > 0 ||
     departmentFilters.length > 0 ||
+    employeeTypeFilters.length > 0 ||
     employeeNameFilters.length > 0 ||
     selectedRowIds.length > 0;
 
@@ -1035,6 +1068,7 @@ export default function ApproverSettingsPage() {
       // Return to normal page: Reset all filters, selections and approver fields
       setStreamFilters([]);
       setDepartmentFilters([]);
+      setEmployeeTypeFilters([]);
       setEmployeeNameFilters([]);
       setSelectedRowIds([]);
       setFirstLevelApprover("");
@@ -1142,10 +1176,25 @@ export default function ApproverSettingsPage() {
                   options={departments}
                   selectedValues={departmentFilters}
                   onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
                 />
               </div>
 
-              {/* Step 3: Employee Multi-Select Dropdown with checkboxes (ONLY NAMES, NO IDs) */}
+              {/* Step 3: Employee Type Multi-Select Dropdown with checkboxes */}
+              <div className="min-w-[160px] flex-1">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Employee Type
+                </label>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Multi-Select Dropdown with checkboxes (ONLY NAMES, NO IDs) */}
               <div className="min-w-[160px] flex-1">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Employee Names
@@ -1155,6 +1204,7 @@ export default function ApproverSettingsPage() {
                   options={employeeNames}
                   selectedValues={employeeNameFilters}
                   onChange={handleEmployeeNameChange}
+                  disabled={isEmployeeDisabled}
                 />
               </div>
 

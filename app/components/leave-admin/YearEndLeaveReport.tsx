@@ -17,6 +17,7 @@ type EmployeeOption = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
 };
 type Report = {
   employee: EmployeeOption;
@@ -161,6 +162,7 @@ export default function YearEndLeaveReport() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedStreams, setSelectedStreams] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState<string[]>([]);
   const [selectedEmployeeOptions, setSelectedEmployeeOptions] = useState<string[]>([]);
   const [loadedScopes, setLoadedScopes] = useState<Set<string>>(new Set());
   const [loadingScope, setLoadingScope] = useState<string | null>(null);
@@ -168,9 +170,18 @@ export default function YearEndLeaveReport() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [error, setError] = useState("");
 
+  const employeeTypes = ["Teaching", "Non-Teaching"];
+
+  const filteredEmployees = useMemo(() => {
+    if (selectedEmployeeTypes.length === 0) return employees;
+    return employees.filter((employee) =>
+      selectedEmployeeTypes.includes(employee.employeeType || "Teaching")
+    );
+  }, [employees, selectedEmployeeTypes]);
+
   const employeeOptionByLabel = useMemo(
-    () => new Map(employees.map((employee) => [`${employee.name} (${employee.employeeId})`, employee])),
-    [employees],
+    () => new Map(filteredEmployees.map((employee) => [`${employee.name} (${employee.employeeId})`, employee])),
+    [filteredEmployees],
   );
   const employeeOptions = useMemo(() => [...employeeOptionByLabel.keys()].sort(), [employeeOptionByLabel]);
   const activeYearStart = tab === "last" ? selectedYear : currentAcademicYearStart;
@@ -204,6 +215,7 @@ export default function YearEndLeaveReport() {
   const changeStreams = (values: string[]) => {
     setSelectedStreams(values);
     setSelectedDepartments([]);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeOptions([]);
     setDepartments([]);
     setEmployees([]);
@@ -213,9 +225,16 @@ export default function YearEndLeaveReport() {
 
   const changeDepartments = (values: string[]) => {
     setSelectedDepartments(values);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeOptions([]);
     setEmployees([]);
     setLoadedScopes((loaded) => new Set([...loaded].filter((scope) => scope !== "employees")));
+    setReport(null);
+  };
+
+  const changeEmployeeTypes = (values: string[]) => {
+    setSelectedEmployeeTypes(values);
+    setSelectedEmployeeOptions([]);
     setReport(null);
   };
 
@@ -356,7 +375,7 @@ export default function YearEndLeaveReport() {
           </nav>
 
           <section aria-label="Year end report filters" className="mt-3 shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
-            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(120px,1fr)_minmax(140px,1.1fr)_minmax(190px,1.4fr)_minmax(170px,1fr)_auto]">
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(120px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(190px,1.4fr)_minmax(170px,1fr)_auto]">
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Stream</span>
                 <MultiSelectDropdown
@@ -380,6 +399,16 @@ export default function YearEndLeaveReport() {
                 />
               </div>
               <div className="min-w-0">
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={selectedEmployeeTypes}
+                  onChange={changeEmployeeTypes}
+                  disabled={isLoadingOptions || selectedDepartments.length === 0}
+                />
+              </div>
+              <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
                 <MultiSelectDropdown
                   label="Employees"
@@ -390,7 +419,7 @@ export default function YearEndLeaveReport() {
                     setReport(null);
                   }}
                   onOpen={() => void loadFilterOptions("employees")}
-                  disabled={isLoadingOptions || selectedDepartments.length === 0}
+                  disabled={isLoadingOptions || selectedEmployeeTypes.length === 0}
                 />
               </div>
               <div className="min-w-0">

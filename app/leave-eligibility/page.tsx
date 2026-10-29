@@ -33,6 +33,7 @@ type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
   leaveCalculationDate?: string;
   leaveRecords: EmployeeLeaveRecord[];
 };
@@ -211,10 +212,10 @@ function MultiSelectDropdown({
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
         className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-xs font-medium uppercase transition-colors ${disabled
-            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
-            : isOpen
-              ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
-              : "border-slate-300 text-slate-600 hover:border-slate-400"
+          ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+          : isOpen
+            ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
+            : "border-slate-300 text-slate-600 hover:border-slate-400"
           }`}
       >
         <span className="truncate">{displayLabel}</span>
@@ -346,10 +347,10 @@ function EditableCell({
           }
         }}
         className={`w-14 h-7 text-center font-mono font-medium text-[11px] rounded border outline-none transition ${isModified
-            ? "border-amber-500 bg-amber-50/70 text-amber-950 ring-1 ring-amber-400 font-semibold"
-            : isRedFocus
-              ? "border-slate-300 hover:border-slate-400 focus:border-red-600 focus:ring-1 focus:ring-red-600 focus:text-red-950 bg-white text-slate-800"
-              : "border-slate-300 hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-slate-800"
+          ? "border-amber-500 bg-amber-50/70 text-amber-950 ring-1 ring-amber-400 font-semibold"
+          : isRedFocus
+            ? "border-slate-300 hover:border-slate-400 focus:border-red-600 focus:ring-1 focus:ring-red-600 focus:text-red-950 bg-white text-slate-800"
+            : "border-slate-300 hover:border-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-slate-800"
           } ${className || ""}`}
       />
     </div>
@@ -372,6 +373,7 @@ export default function LeaveEligibilityPage() {
 
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
 
   // Filter leave types to: Casual Leave (CL), Medical Leave (ML), Earned Leave (EL), Restricted Holiday (RH)
@@ -390,9 +392,9 @@ export default function LeaveEligibilityPage() {
       leaveTypes.find(
         (lt) =>
           (lt.code.toUpperCase() === "ML" ||
-           lt.code.toUpperCase().startsWith("ML_") ||
-           lt.name.toUpperCase() === "MEDICAL LEAVE" ||
-           lt.name.toUpperCase().includes("MEDICAL")) &&
+            lt.code.toUpperCase().startsWith("ML_") ||
+            lt.name.toUpperCase() === "MEDICAL LEAVE" ||
+            lt.name.toUpperCase().includes("MEDICAL")) &&
           !lt.name.toUpperCase().includes("MATERNITY")
       );
 
@@ -428,12 +430,29 @@ export default function LeaveEligibilityPage() {
       ),
     ].filter(Boolean).sort();
 
-  // Step 3: Employees disabled until Department is chosen
-  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  // Step 3: Employee Types disabled until Department is chosen
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department))
+          .map((e) => e.employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [employees, isEmployeeTypeDisabled, streamFilters, departmentFilters]);
+
+  // Step 4: Employees disabled until Employee Type is chosen
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
   const availableEmployees = isEmployeeDisabled
     ? []
     : employees.filter(
-      (employee) => streamFilters.includes(employee.stream) && departmentFilters.includes(employee.department)
+      (employee) =>
+        streamFilters.includes(employee.stream) &&
+        departmentFilters.includes(employee.department) &&
+        employeeTypeFilters.includes(employee.employeeType || "Teaching")
     );
 
   const employeeNames = [...new Set(availableEmployees.map((employee) => employee.name))].filter(Boolean).sort();
@@ -441,11 +460,18 @@ export default function LeaveEligibilityPage() {
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeNameFilters([]);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
     setEmployeeNameFilters([]);
   };
 
@@ -473,6 +499,11 @@ export default function LeaveEligibilityPage() {
       }
       if (streamFilters.length > 0 && !streamFilters.includes(employee.stream)) return false;
       if (departmentFilters.length > 0 && !departmentFilters.includes(employee.department)) return false;
+      if (
+        employeeTypeFilters.length > 0 &&
+        !employeeTypeFilters.includes(employee.employeeType || "Teaching")
+      )
+        return false;
       if (employeeNameFilters.length > 0 && !employeeNameFilters.includes(employee.name)) return false;
       return true;
     });
@@ -748,23 +779,7 @@ export default function LeaveEligibilityPage() {
             aria-label="Employee filters"
             className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center"
           >
-            {/* Search Input matching reference UI with magnifying glass button */}
-            <div className="flex flex-1 items-center overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:border-blue-500">
-              <input
-                type="text"
-                placeholder="Enter employee name or code..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-10 w-full px-3 text-xs text-slate-700 outline-none placeholder:text-slate-400"
-              />
-              <button
-                type="button"
-                aria-label="Search"
-                className="flex h-10 w-11 shrink-0 items-center justify-center bg-[#2980b9] text-white hover:bg-[#206694]"
-              >
-                <Search size={16} />
-              </button>
-            </div>
+
 
             {/* Step 1: Stream Dropdown */}
             <div className="w-full flex-1">
@@ -787,7 +802,18 @@ export default function LeaveEligibilityPage() {
               />
             </div>
 
-            {/* Step 3: Employee Name Dropdown */}
+            {/* Step 3: Employee Type Dropdown */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Employee Types"
+                options={employeeTypes}
+                selectedValues={employeeTypeFilters}
+                onChange={handleEmployeeTypeChange}
+                disabled={isEmployeeTypeDisabled}
+              />
+            </div>
+
+            {/* Step 4: Employee Name Dropdown */}
             <div className="w-full flex-1">
               <MultiSelectDropdown
                 label="Employee Names"
@@ -1080,11 +1106,6 @@ export default function LeaveEligibilityPage() {
                 <span>
                   Showing <strong>{visibleEmployees.length}</strong> of <strong>{employees.length}</strong> employees
                 </span>
-                <span className="italic">
-                  {isEditMode
-                    ? "Editing enabled. Make your adjustments and click 'Save' below to commit changes, or 'Cancel' to revert."
-                    : "Table is in read-only mode to prevent accidental edits. Click 'Edit' below to modify values."}
-                </span>
               </div>
             )}
           </main>
@@ -1125,8 +1146,8 @@ export default function LeaveEligibilityPage() {
                   onClick={handleEditToggle}
                   disabled={isSaving}
                   className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-6 text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm cursor-pointer ${isEditMode
-                      ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                      : "bg-[#2980b9] text-white hover:bg-[#206694]"
+                    ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                    : "bg-[#2980b9] text-white hover:bg-[#206694]"
                     }`}
                 >
                   {isEditMode ? (
@@ -1148,8 +1169,8 @@ export default function LeaveEligibilityPage() {
                   onClick={handleSaveAll}
                   disabled={!isEditMode || isSaving || modifiedRecords.length === 0}
                   className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-6 text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm ${!isEditMode || modifiedRecords.length === 0
-                      ? "cursor-not-allowed bg-slate-200 text-slate-400"
-                      : "cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800"
+                    ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                    : "cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800"
                     }`}
                 >
                   {isSaving ? (
