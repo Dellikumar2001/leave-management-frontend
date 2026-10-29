@@ -6,7 +6,13 @@ import {
     deleteStudentLeaveRequest,
 } from "@/app/api/rpc/routers/student-leave-requests";
 import { prisma } from "@/lib/prisma";
-import { blockedLeaveMessage, findBlockedDate, parseDateOnly } from "@/lib/leave-administration";
+import {
+    blockedLeaveMessage,
+    findBlockedDate,
+    findHolidayDate,
+    holidayLeaveMessage,
+    parseDateOnly,
+} from "@/lib/leave-administration";
 import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -22,6 +28,11 @@ export async function POST(request: NextRequest) {
         const endDate = parseDateOnly(endValue);
 
         if (startDate && endDate && endDate >= startDate) {
+            const holiday = await findHolidayDate(startDate, endDate);
+            if (holiday) {
+                return Response.json({ success: false, error: holidayLeaveMessage }, { status: 409 });
+            }
+
             let employeeId = typeof body.employeeId === "string" ? body.employeeId : "";
             if (!employeeId && Number.isSafeInteger(body.studentId)) {
                 const student = await prisma.student.findUnique({

@@ -27,6 +27,7 @@ type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
   leaveRecords: EmployeeLeaveRecord[];
 };
 
@@ -197,6 +198,7 @@ export default function LeaveRefreshPage() {
   // ── Sequential Cascading Filter states
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
 
   // ── Step 1: All unique Streams
@@ -214,12 +216,29 @@ export default function LeaveRefreshPage() {
         ),
       ].filter(Boolean).sort();
 
-  // ── Step 3: Employees disabled until Department is chosen
-  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  // ── Step 3: Employee Types disabled until Department is chosen
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department))
+          .map((e) => e.employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [employees, isEmployeeTypeDisabled, streamFilters, departmentFilters]);
+
+  // ── Step 4: Employees disabled until Employee Type is chosen
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
   const availableEmployees = isEmployeeDisabled
     ? []
     : employees.filter(
-        (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+        (e) =>
+          streamFilters.includes(e.stream) &&
+          departmentFilters.includes(e.department) &&
+          employeeTypeFilters.includes(e.employeeType || "Teaching")
       );
 
   const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
@@ -228,11 +247,18 @@ export default function LeaveRefreshPage() {
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeNameFilters([]);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
     setEmployeeNameFilters([]);
   };
 
@@ -246,6 +272,11 @@ export default function LeaveRefreshPage() {
   const visibleEmployees = employees.filter((emp) => {
     if (streamFilters.length > 0 && !streamFilters.includes(emp.stream)) return false;
     if (departmentFilters.length > 0 && !departmentFilters.includes(emp.department)) return false;
+    if (
+      employeeTypeFilters.length > 0 &&
+      !employeeTypeFilters.includes(emp.employeeType || "Teaching")
+    )
+      return false;
     if (employeeNameFilters.length > 0 && !employeeNameFilters.includes(emp.name)) return false;
     return true;
   });
@@ -420,7 +451,18 @@ export default function LeaveRefreshPage() {
               />
             </div>
 
-            {/* Step 3: Employee Name Dropdown */}
+            {/* Step 3: Employee Type Dropdown */}
+            <div className="w-full flex-1">
+              <MultiSelectDropdown
+                label="Employee Types"
+                options={employeeTypes}
+                selectedValues={employeeTypeFilters}
+                onChange={handleEmployeeTypeChange}
+                disabled={isEmployeeTypeDisabled}
+              />
+            </div>
+
+            {/* Step 4: Employee Name Dropdown */}
             <div className="w-full flex-1">
               <MultiSelectDropdown
                 label="Employee Names"

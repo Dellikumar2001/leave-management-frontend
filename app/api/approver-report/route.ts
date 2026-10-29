@@ -84,6 +84,7 @@ export async function GET(request: Request) {
       searchParams.get("finalLevelApprover")?.trim() || searchParams.get("approver2")?.trim() || "";
     const streamParam = searchParams.get("stream")?.trim() || "";
     const departmentParam = searchParams.get("department")?.trim() || "";
+    const employeeTypeParam = searchParams.get("employeeType")?.trim() || "";
 
     // 1. Fetch all employees from the database
     const employees = await prisma.employee.findMany({
@@ -98,11 +99,14 @@ export async function GET(request: Request) {
     const finalLevelSet = new Set<string>();
     const streamSet = new Set<string>();
     const departmentSet = new Set<string>();
+    const employeeTypeSet = new Set<string>();
 
     const allRecords = employees.map((emp) => {
+      const empType = (emp as { employeeType?: string | null }).employeeType || "Teaching";
       if (emp.name) employeeNameSet.add(emp.name);
       if (emp.stream) streamSet.add(emp.stream);
       if (emp.department) departmentSet.add(emp.department);
+      if (empType) employeeTypeSet.add(empType);
 
       const dynamicSetting =
         settingsMap?.get(emp.employeeId) || settingsMap?.get(emp.department);
@@ -132,6 +136,7 @@ export async function GET(request: Request) {
         employeeName: emp.name,
         stream: emp.stream,
         department: emp.department,
+        employeeType: empType,
         streamAndDepartment: `${emp.stream}-${emp.department}`,
         firstLevelApprover: firstLevel,
         secondLevelApprover: finalLevel,
@@ -176,8 +181,18 @@ export async function GET(request: Request) {
         }
       }
 
+      // Employee Type filter
+      if (employeeTypeParam && employeeTypeParam.toLowerCase() !== "all") {
+        if (rec.employeeType.toLowerCase() !== employeeTypeParam.toLowerCase()) {
+          return false;
+        }
+      }
+
       return true;
     });
+
+    const defaultEmployeeTypes = ["Teaching", "Non-Teaching"];
+    const allEmployeeTypes = Array.from(new Set([...defaultEmployeeTypes, ...Array.from(employeeTypeSet)])).sort();
 
     return Response.json({
       records: filteredRecords,
@@ -187,6 +202,7 @@ export async function GET(request: Request) {
         allFinalLevelApprovers: Array.from(finalLevelSet).sort(),
         allStreams: Array.from(streamSet).sort(),
         allDepartments: Array.from(departmentSet).sort(),
+        allEmployeeTypes,
       },
     });
   } catch (error) {

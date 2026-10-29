@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-10-26T15:18:00.000Z" agent="Antigravity AI" version="24.7.5" type="device">
+  <diagram id="leaveflow-system-flowchart" name="LeaveFlow End-to-End Architecture &amp; Workflow">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title Banner -->
+        <mxCell id="title-banner" value="LeaveFlow — Comprehensive System Architecture &amp;amp; Workflow Flowchart&#xa;Next.js 16 App Router • React 19 • Prisma ORM • PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1e293b;strokeColor=#475569;strokeWidth=2;align=center;verticalAlign=middle;fontFamily=Helvetica;fontStyle=1;fontSize=18;fontColor=#f8fafc;" vertex="1" parent="1">
+          <mxGeometry x="60" y="30" width="2280" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SWIMLANE 1: USER ACTORS & INTERFACES      -->
+        <!-- ========================================== -->
+        <mxCell id="lane-actors" value="1. ACTORS &amp;amp; USER ROLES" style="swimlane;html=1;startSize=36;rounded=1;arcSize=6;fillColor=#0f172a;strokeColor=#38bdf8;strokeWidth=2;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#ffffff;align=center;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="130" width="340" height="1590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="actor-employee" value="&lt;b&gt;Employee / Faculty / Student&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Views leave balance&lt;br/&gt;• Submits leave request&lt;br/&gt;• Views personal leave history&lt;br/&gt;• Receives in-app notices&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0284c7;strokeColor=#38bdf8;strokeWidth=1.5;fontColor=#ffffff;align=left;spacingLeft=12;fontFamily=Helvetica;" vertex="1" parent="lane-actors">
+          <mxGeometry x="25" y="60" width="290" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="actor-approvers" value="&lt;b&gt;Approver Hierarchy (L1, L2, L3)&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Level 1 Approver (HOD / Lead)&lt;br/&gt;• Backup Officer (Level 1 Delegate)&lt;br/&gt;• Level 2 Approver (Dean / Director)&lt;br/&gt;• Final Approver &amp;amp; Final Backup&lt;br/&gt;• Action: Approve / Reject / Remarks&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b45309;strokeColor=#fbbf24;strokeWidth=1.5;fontColor=#ffffff;align=left;spacingLeft=12;fontFamily=Helvetica;" vertex="1" parent="lane-actors">
+          <mxGeometry x="25" y="470" width="290" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="actor-admin" value="&lt;b&gt;HR / Leave Administrator&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Configures master policies&lt;br/&gt;• Assigns multi-level approvers&lt;br/&gt;• Credits &amp;amp; blocks leaves&lt;br/&gt;• Runs annual leave refresh&lt;br/&gt;• Audits statutory reports&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#15803d;strokeColor=#4ade80;strokeWidth=1.5;fontColor=#ffffff;align=left;spacingLeft=12;fontFamily=Helvetica;" vertex="1" parent="lane-actors">
+          <mxGeometry x="25" y="930" width="290" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SWIMLANE 2: SETTINGS & CONFIGURATION       -->
+        <!-- ========================================== -->
+        <mxCell id="lane-settings" value="2. LEAVE SETTINGS &amp;amp; POLICIES" style="swimlane;html=1;startSize=36;rounded=1;arcSize=6;fillColor=#18181b;strokeColor=#a1a1aa;strokeWidth=2;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#ffffff;align=center;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="130" width="370" height="1590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-cat" value="&lt;b&gt;Leave Category Master&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Annual, Medical, Casual, Emergency, Special&lt;br/&gt;• Paid / Unpaid classification&lt;br/&gt;&lt;i&gt;Route: /leave-category&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27272a;strokeColor=#71717a;strokeWidth=1.5;fontColor=#f4f4f5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="50" width="320" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-types" value="&lt;b&gt;Leave Types Master&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Code, Name, Days Allowed per Year&lt;br/&gt;• Applicable: Student / Teaching / Non-Teaching&lt;br/&gt;&lt;i&gt;Route: /leave-type&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27272a;strokeColor=#71717a;strokeWidth=1.5;fontColor=#f4f4f5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="150" width="320" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-groups" value="&lt;b&gt;Leave Groups Mapping&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Packages leave types into groups&lt;br/&gt;• Links category items &amp;amp; effective dates&lt;br/&gt;&lt;i&gt;Route: /leave-requests&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27272a;strokeColor=#71717a;strokeWidth=1.5;fontColor=#f4f4f5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="250" width="320" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-eligibility" value="&lt;b&gt;Leave Eligibility Policy&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Assigns groups to Employee Types &amp;amp; Streams&lt;br/&gt;• Auto-binds eligible leave balances&lt;br/&gt;&lt;i&gt;Route: /create-eligibility &amp;amp; /leave-eligibility&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27272a;strokeColor=#71717a;strokeWidth=1.5;fontColor=#f4f4f5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="350" width="320" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-approvers" value="&lt;b&gt;Approver Hierarchy Matrix&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Stream/Dept/Employee cascading multi-select&lt;br/&gt;• Assigns L1 Approver + Backup Officer&lt;br/&gt;• Assigns Final Approver + Final Backup Officer&lt;br/&gt;&lt;i&gt;Route: /approver-settings&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#78350f;strokeColor=#f59e0b;strokeWidth=2;fontColor=#fef3c7;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="455" width="320" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-holidays" value="&lt;b&gt;Holiday Calendar&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Institutional holiday schedule&lt;br/&gt;• Recurring annual holidays &amp;amp; types&lt;br/&gt;&lt;i&gt;Route: /holiday-calendar&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27272a;strokeColor=#71717a;strokeWidth=1.5;fontColor=#f4f4f5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="570" width="320" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cfg-mail" value="&lt;b&gt;Leave Mail Notification Templates&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Dynamic mail templates for approve/reject/submit&lt;br/&gt;&lt;i&gt;Route: /leave-mail-format&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27272a;strokeColor=#71717a;strokeWidth=1.5;fontColor=#f4f4f5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-settings">
+          <mxGeometry x="25" y="665" width="320" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SWIMLANE 3: LEAVE ADMINISTRATION           -->
+        <!-- ========================================== -->
+        <mxCell id="lane-admin" value="3. LEAVE ADMINISTRATION &amp;amp; REFRESH" style="swimlane;html=1;startSize=36;rounded=1;arcSize=6;fillColor=#064e3b;strokeColor=#34d399;strokeWidth=2;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#ffffff;align=center;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="830" y="130" width="370" height="1590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="adm-credit" value="&lt;b&gt;Credit Leave Engine&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Manual or bulk leave allocation&lt;br/&gt;• Updates employee_leave_balances&lt;br/&gt;• Increments credited_days in eligibility&lt;br/&gt;• Creates leave_credits audit trail&lt;br/&gt;&lt;i&gt;Route: /creditleave (POST /api/leave-credit)&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#065f46;strokeColor=#10b981;strokeWidth=1.5;fontColor=#ecfdf5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-admin">
+          <mxGeometry x="25" y="50" width="320" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="adm-block" value="&lt;b&gt;Block Leave Enforcement&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Admin blocks date/range for exam/duty/event&lt;br/&gt;• Stores in blocked_leaves table&lt;br/&gt;• Generates employee notification&lt;br/&gt;• Blocks request submissions (409 Conflict)&lt;br/&gt;&lt;i&gt;Route: /block-leave (API: /api/block-leave)&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7f1d1d;strokeColor=#f87171;strokeWidth=1.5;fontColor=#fef2f2;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-admin">
+          <mxGeometry x="25" y="175" width="320" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="adm-refresh" value="&lt;b&gt;Leave Refresh &amp;amp; Proration Engine&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Formula: calculateLeaveBalance(days, joiningDate, year)&lt;br/&gt;• Balance = Prorated Days + Credited Days&lt;br/&gt;• Single or bulk refresh per employee&lt;br/&gt;• Persists directly via Prisma transaction&lt;br/&gt;&lt;i&gt;Route: /leave-refresh (API: /api/leave-refresh)&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#065f46;strokeColor=#34d399;strokeWidth=2;fontColor=#ecfdf5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-admin">
+          <mxGeometry x="25" y="300" width="320" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="adm-special" value="&lt;b&gt;Special Leave Modules&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Maternity Leave: 180 days allocation&lt;br/&gt;• Paternity Leave: 5 days allocation&lt;br/&gt;• Direct employee tracking &amp;amp; medical records&lt;br/&gt;&lt;i&gt;Routes: /maternity-leave &amp;amp; /paternity-leave&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#065f46;strokeColor=#10b981;strokeWidth=1.5;fontColor=#ecfdf5;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-admin">
+          <mxGeometry x="25" y="430" width="320" height="85" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SWIMLANE 4: APPLICATION & APPROVAL FLOW    -->
+        <!-- ========================================== -->
+        <mxCell id="lane-workflow" value="4. APPROVAL WORKFLOW &amp;amp; LIFECYCLE" style="swimlane;html=1;startSize=36;rounded=1;arcSize=6;fillColor=#1e3a8a;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#ffffff;align=center;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="1230" y="130" width="470" height="1590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-submit" value="&lt;b&gt;Leave Application Submitted&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;Employee enters leaveType, startDate, endDate, reason&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1d4ed8;strokeColor=#93c5fd;strokeWidth=2;fontColor=#eff6ff;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="60" y="50" width="350" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-checkblock" value="&lt;b&gt;Is date blocked in&lt;br/&gt;blocked_leaves?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#7f1d1d;strokeColor=#f87171;strokeWidth=2;fontColor=#ffffff;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="135" y="140" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-blockreject" value="&lt;b&gt;HTTP 409 Rejected&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;&quot;Can't take leave on this date, contact admin&quot;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#991b1b;strokeColor=#fca5a5;strokeWidth=2;fontColor=#ffffff;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="120" y="270" width="230" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-initqueue" value="&lt;b&gt;Insert Application (Status: Pending)&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;Set currentApprovalLevel = 1&lt;br/&gt;Resolve Level 1 Approver &amp;amp; Backup Officer&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1e40af;strokeColor=#60a5fa;strokeWidth=1.5;fontColor=#eff6ff;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="60" y="360" width="350" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-level1" value="&lt;b&gt;Level 1 Approver / Backup Decision&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;Page: /leave-approve-reject (ApprovalQueue)&lt;br/&gt;API: POST /api/employee-leave-approvals (Level: 1)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#92400e;strokeColor=#fcd34d;strokeWidth=1.5;fontColor=#fffbeb;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="60" y="460" width="350" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-dec1" value="&lt;b&gt;Level 1&lt;br/&gt;Decision?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#78350f;strokeColor=#fbbf24;strokeWidth=2;fontColor=#ffffff;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="155" y="555" width="160" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-level2" value="&lt;b&gt;Level 2 Approver Decision&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;currentApprovalLevel = 2&lt;br/&gt;Pending with 2nd Level Approver&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#92400e;strokeColor=#fcd34d;strokeWidth=1.5;fontColor=#fffbeb;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="60" y="670" width="350" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-dec2" value="&lt;b&gt;Level 2&lt;br/&gt;Decision?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#78350f;strokeColor=#fbbf24;strokeWidth=2;fontColor=#ffffff;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="155" y="765" width="160" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-level3" value="&lt;b&gt;Final Level Approver / Backup Decision&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;currentApprovalLevel = 3&lt;br/&gt;Pending with Final Approver / Final Backup&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#92400e;strokeColor=#fcd34d;strokeWidth=1.5;fontColor=#fffbeb;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="60" y="880" width="350" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-dec3" value="&lt;b&gt;Final Level&lt;br/&gt;Decision?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#78350f;strokeColor=#fbbf24;strokeWidth=2;fontColor=#ffffff;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="155" y="975" width="160" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-rejectfinal" value="&lt;b&gt;Application Status: REJECTED&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Logs rejection reason &amp;amp; approver&lt;br/&gt;• Creates employee_notification&lt;br/&gt;• No balance deducted&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#991b1b;strokeColor=#f87171;strokeWidth=2;fontColor=#fef2f2;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="270" y="1100" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wf-approvefinal" value="&lt;b&gt;Application Status: APPROVED&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Full approval audit trail logged&lt;br/&gt;• Deducts balance from eligibility&lt;br/&gt;• Sends in-app notice &amp;amp; email&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#166534;strokeColor=#4ade80;strokeWidth=2;fontColor=#f0fdf4;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+          <mxGeometry x="30" y="1100" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SWIMLANE 5: REPORTS & AUDIT SUITE          -->
+        <!-- ========================================== -->
+        <mxCell id="lane-reports" value="5. REPORTS &amp;amp; ANALYTICS" style="swimlane;html=1;startSize=36;rounded=1;arcSize=6;fillColor=#581c87;strokeColor=#c084fc;strokeWidth=2;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#ffffff;align=center;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="1730" y="130" width="300" height="1590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-myreport" value="&lt;b&gt;My Report (Employee View)&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Personal entitlement breakdown&lt;br/&gt;• Request history &amp;amp; status&lt;br/&gt;• PDF / CSV export&lt;br/&gt;&lt;i&gt;Route: /my-report&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="50" width="260" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-indiv" value="&lt;b&gt;Individual Report&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Comprehensive employee report&lt;br/&gt;• Academic semester proration&lt;br/&gt;• Absenteeism &amp;amp; utilization analytics&lt;br/&gt;&lt;i&gt;Route: /leave-report/individual&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="150" width="260" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-credit" value="&lt;b&gt;Credit Leave Report&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Full log of manual leave credits&lt;br/&gt;• Category &amp;amp; date range filters&lt;br/&gt;&lt;i&gt;Route: /leave-report/credit&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="250" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-statutory" value="&lt;b&gt;Statutory Report&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Legal &amp;amp; statutory compliance&lt;br/&gt;• Monthly/yearly leaves summary&lt;br/&gt;• Excel / PDF generation (jsPDF)&lt;br/&gt;&lt;i&gt;Route: /leave-report&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="345" width="260" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-status" value="&lt;b&gt;Leave Status Report&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Department-wide pending vs approved&lt;br/&gt;• Real-time filter by date &amp;amp; stream&lt;br/&gt;&lt;i&gt;Route: /leave-reports/leave-status-report&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="445" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-empstatus" value="&lt;b&gt;Individual Status Report&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Cross-stream employee statuses&lt;br/&gt;• Leave balances remaining&lt;br/&gt;&lt;i&gt;Route: /leave-report/employee-status&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="540" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rep-approver" value="&lt;b&gt;Approver Report&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;• Approver activity &amp;amp; turnaround audit&lt;br/&gt;• Pending vs cleared queue sizes&lt;br/&gt;&lt;i&gt;Route: /leave-report/approver-report&lt;/i&gt;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#6b21a8;strokeColor=#d8b4fe;strokeWidth=1.5;fontColor=#faf5ff;align=left;spacingLeft=10;fontFamily=Helvetica;" vertex="1" parent="lane-reports">
+          <mxGeometry x="20" y="635" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- SWIMLANE 6: DATA & DATABASE PERSISTENCE   -->
+        <!-- ========================================== -->
+        <mxCell id="lane-db" value="6. DATA PERSISTENCE (POSTGRESQL)" style="swimlane;html=1;startSize=36;rounded=1;arcSize=6;fillColor=#1e293b;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#ffffff;align=center;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="2060" y="130" width="280" height="1590" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-employees" value="&lt;b&gt;employees&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;PK employee_id, name, stream, department, designation&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="50" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-elig" value="&lt;b&gt;employee_leave_eligibilities&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;employee_id, leave_type_id, leave_balance, credited_days, joining_date&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="140" width="240" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-approvers" value="&lt;b&gt;employee_approvers&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;employee_id, first_level, second_level, final_level, backup_officers&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="235" width="240" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-apps" value="&lt;b&gt;employee_leave_applications&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;id, employee_id, leave_type_id, dates, days_count, status, level&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="330" width="240" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-approvals" value="&lt;b&gt;employee_leave_approvals&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;application_id, level, approver, action, is_backup, remarks, date&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="425" width="240" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-blocks" value="&lt;b&gt;blocked_leaves&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;employee_id, date, created_at&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="520" width="240" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-credits" value="&lt;b&gt;leave_credits&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;employee_id, category, days, start_date, end_date, leave_type_id&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="605" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-notifications" value="&lt;b&gt;employee_notifications&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;employee_id, title, content, type, is_read, created_at&lt;/span&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#334155;strokeColor=#94a3b8;fontColor=#f8fafc;fontFamily=Helvetica;" vertex="1" parent="lane-db">
+          <mxGeometry x="20" y="695" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- CONNECTING EDGES & WORKFLOW ARROWS        -->
+        <!-- ========================================== -->
+
+        <!-- Employee applies -> Submit -->
+        <mxCell id="edge-emp-submit" edge="1" parent="1" source="actor-employee" target="wf-submit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#38bdf8;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Submit -> Check Blocked Leaves -->
+        <mxCell id="edge-sub-chkblock" edge="1" parent="1" source="wf-submit" target="wf-checkblock" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#60a5fa;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Blocked? YES -> 409 Reject -->
+        <mxCell id="edge-chk-yes" value="YES (Blocked)" edge="1" parent="1" source="wf-checkblock" target="wf-blockreject" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ef4444;strokeWidth=2;fontColor=#f87171;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Blocked? NO -> Init Queue -->
+        <mxCell id="edge-chk-no" value="NO (Clear)" edge="1" parent="1" source="wf-checkblock" target="wf-initqueue" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#22c55e;strokeWidth=2;fontColor=#4ade80;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1560" y="315" />
+              <mxPoint x="1465" y="315" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Init Queue -> Level 1 Approver Decision -->
+        <mxCell id="edge-queue-l1" edge="1" parent="1" source="wf-initqueue" target="wf-level1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#60a5fa;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 1 -> Decision Rhombus -->
+        <mxCell id="edge-l1-dec" edge="1" parent="1" source="wf-level1" target="wf-dec1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#fbbf24;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 1 Decision -> Rejected -->
+        <mxCell id="edge-dec1-rej" value="REJECT" edge="1" parent="1" source="wf-dec1" target="wf-rejectfinal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ef4444;strokeWidth=2;fontColor=#f87171;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1650" y="725" />
+              <mxPoint x="1650" y="1230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Level 1 Decision -> Approve -> Level 2 -->
+        <mxCell id="edge-dec1-app" value="APPROVE (L1 done)" edge="1" parent="1" source="wf-dec1" target="wf-level2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#22c55e;strokeWidth=2;fontColor=#4ade80;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 2 -> Decision Rhombus -->
+        <mxCell id="edge-l2-dec" edge="1" parent="1" source="wf-level2" target="wf-dec2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#fbbf24;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 2 Decision -> Rejected -->
+        <mxCell id="edge-dec2-rej" value="REJECT" edge="1" parent="1" source="wf-dec2" target="wf-rejectfinal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ef4444;strokeWidth=2;fontColor=#f87171;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1630" y="930" />
+              <mxPoint x="1630" y="1230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Level 2 Decision -> Approve -> Level 3 Final -->
+        <mxCell id="edge-dec2-app" value="APPROVE (L2 done)" edge="1" parent="1" source="wf-dec2" target="wf-level3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#22c55e;strokeWidth=2;fontColor=#4ade80;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 3 -> Decision Rhombus -->
+        <mxCell id="edge-l3-dec" edge="1" parent="1" source="wf-level3" target="wf-dec3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#fbbf24;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 3 Decision -> Rejected -->
+        <mxCell id="edge-dec3-rej" value="REJECT" edge="1" parent="1" source="wf-dec3" target="wf-rejectfinal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ef4444;strokeWidth=2;fontColor=#f87171;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Level 3 Decision -> Approved Final -->
+        <mxCell id="edge-dec3-app" value="FINAL APPROVE" edge="1" parent="1" source="wf-dec3" target="wf-approvefinal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#22c55e;strokeWidth=2;fontColor=#4ade80;fontStyle=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Admin configures Settings -->
+        <mxCell id="edge-adm-cfg" edge="1" parent="1" source="actor-admin" target="cfg-approvers" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4ade80;strokeWidth=1.5;dashed=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="400" y="1100" />
+              <mxPoint x="400" y="625" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Admin manages Credit & Block -->
+        <mxCell id="edge-adm-admin" edge="1" parent="1" source="actor-admin" target="adm-credit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4ade80;strokeWidth=1.5;dashed=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="410" y="1120" />
+              <mxPoint x="410" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Approver Settings to DB -->
+        <mxCell id="edge-cfgapp-db" edge="1" parent="1" source="cfg-approvers" target="db-approvers" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#94a3b8;strokeWidth=1.5;dashed=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="630" />
+              <mxPoint x="800" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Credit to DB -->
+        <mxCell id="edge-credit-db" edge="1" parent="1" source="adm-credit" target="db-credits" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#10b981;strokeWidth=1.5;dashed=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1200" y="225" />
+              <mxPoint x="1200" y="770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Block to DB -->
+        <mxCell id="edge-block-db" edge="1" parent="1" source="adm-block" target="db-blocks" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ef4444;strokeWidth=1.5;dashed=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1210" y="350" />
+              <mxPoint x="1210" y="685" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Final Approval Deducts Balance in DB -->
+        <mxCell id="edge-app-deduct" value="Deducts Balance" edge="1" parent="1" source="wf-approvefinal" target="db-elig" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#22c55e;strokeWidth=2;dashed=1;fontColor=#4ade80;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1360" y="1320" />
+              <mxPoint x="2040" y="1320" />
+              <mxPoint x="2040" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Final Approval / Rejection Creates Notification -->
+        <mxCell id="edge-app-notify" value="Creates Notification" edge="1" parent="1" source="wf-approvefinal" target="db-notifications" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#60a5fa;strokeWidth=1.5;dashed=1;fontColor=#93c5fd;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1360" y="1350" />
+              <mxPoint x="2050" y="1350" />
+              <mxPoint x="2050" y="865" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Database feeds Reports -->
+        <mxCell id="edge-db-reports" value="Aggregates Data" edge="1" parent="1" source="db-apps" target="rep-indiv" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#c084fc;strokeWidth=1.5;dashed=1;fontColor=#d8b4fe;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2040" y="500" />
+              <mxPoint x="2040" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

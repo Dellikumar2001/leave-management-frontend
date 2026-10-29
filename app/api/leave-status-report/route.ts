@@ -12,6 +12,7 @@ export async function GET(request: Request) {
     const stream = searchParams.get("stream") ?? "";
     const department = searchParams.get("department") ?? "";
     const employeeId = searchParams.get("employeeId") ?? "";
+    const employeeType = searchParams.get("employeeType") ?? "";
     const status = searchParams.get("status") ?? "";
     const startDate = searchParams.get("startDate") ?? "";
     const endDate = searchParams.get("endDate") ?? "";
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
           ...(stream ? { stream } : {}),
           ...(department ? { department } : {}),
           ...(employeeId ? { employeeId } : {}),
+          ...(employeeType ? { employeeType } : {}),
         },
         include: {
           leaveRecords: {
@@ -83,7 +85,7 @@ export async function GET(request: Request) {
     return Response.json({
       employees: finalEmployees,
       leaveTypes,
-      filters: { stream, department, employeeId, status, startDate, endDate },
+      filters: { stream, department, employeeId, employeeType, status, startDate, endDate },
     });
   } catch (error) {
     console.error("Failed to load leave status report:", error);

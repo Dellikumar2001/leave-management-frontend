@@ -239,6 +239,7 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   // ── Sequential Cascading Filter States
   const [selectedStreams, setSelectedStreams] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
 
   // Checkbox selections inside EmployeeTable
@@ -334,14 +335,35 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     ].filter(Boolean).sort();
   }, [employees, isDepartmentDisabled, selectedStreams]);
 
-  // ── Step 3: Employees disabled until Department is chosen
-  const isEmployeeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+  // ── Step 3: Employee Types disabled until Department is chosen
+  const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        employees
+          .filter(
+            (e) =>
+              selectedStreams.includes(e.stream) &&
+              selectedDepartments.includes(e.department)
+          )
+          .map((e) => e.employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [employees, isEmployeeTypeDisabled, selectedStreams, selectedDepartments]);
+
+  // ── Step 4: Employees disabled until Employee Type is chosen
+  const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
   const availableEmployees = useMemo(() => {
     if (isEmployeeDisabled) return [];
     return employees.filter(
-      (e) => selectedStreams.includes(e.stream) && selectedDepartments.includes(e.department)
+      (e) =>
+        selectedStreams.includes(e.stream) &&
+        selectedDepartments.includes(e.department) &&
+        selectedEmployeeTypes.includes(e.employeeType || "Teaching")
     );
-  }, [employees, isEmployeeDisabled, selectedDepartments, selectedStreams]);
+  }, [employees, isEmployeeDisabled, selectedDepartments, selectedStreams, selectedEmployeeTypes]);
 
   const employeeNames = useMemo(
     () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
@@ -352,12 +374,20 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   const handleStreamChange = (newStreams: string[]) => {
     setSelectedStreams(newStreams);
     setSelectedDepartments([]);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
     setSelectedEmployeeIds([]);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setSelectedDepartments(newDepts);
+    setSelectedEmployeeTypes([]);
+    setSelectedEmployeeNames([]);
+    setSelectedEmployeeIds([]);
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setSelectedEmployeeTypes(newTypes);
     setSelectedEmployeeNames([]);
     setSelectedEmployeeIds([]);
   };
@@ -537,8 +567,8 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
             <div
               className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
                 mode === "block"
-                  ? "xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
-                  : "xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(180px,1.3fr)_minmax(150px,1fr)_auto]"
+                  ? "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
+                  : "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(150px,1fr)_auto]"
               }`}
             >
               {/* Step 1: Stream Dropdown */}
@@ -564,7 +594,19 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
                 />
               </div>
 
-              {/* Step 3: Employee Name Dropdown (Unlocked after Department chosen) */}
+              {/* Step 3: Employee Type Dropdown */}
+              <div className="min-w-0">
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={selectedEmployeeTypes}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Name Dropdown (Unlocked after Department chosen) */}
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
                 <MultiSelectDropdown
