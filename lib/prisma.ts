@@ -1,7 +1,7 @@
 import type { PrismaClient as PrismaClientType } from "@prisma/client";
 import path from "path";
 
-const CLIENT_VERSION = "2026-10-29-leave-year-end-process-v5";
+const CLIENT_VERSION = "2026-10-26-bf-earned-v3";
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClientType;

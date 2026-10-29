@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
-import { Download, FileSpreadsheet, FileText, LoaderCircle, Printer } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Info, LoaderCircle, Printer, X } from "lucide-react";
 import LeaveSidebar from "../LeaveSidebar";
 import { MultiSelectDropdown } from "./LeaveAdministrationpage";
 
@@ -152,6 +152,15 @@ export default function CreditLeaveReport() {
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
   const [reportRows, setReportRows] = useState<CreditReportRow[] | null>(null);
   const [error, setError] = useState("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) setShowInfoModal(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   const availableEmployees = useMemo(() => {
     if (!selectedStreams.length || !selectedDepartments.length || !selectedEmployeeTypes.length || !employeesLoaded) return [];
@@ -316,7 +325,18 @@ export default function CreditLeaveReport() {
         <div className="mx-auto max-w-[1400px]">
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Leave Reports</p>
-            <h1 className="text-3xl font-bold text-slate-800">Credit Leave Report</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold text-slate-800">Credit Leave Report</h1>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(true)}
+                title="About Credit Leave Report"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700 shadow-sm transition hover:bg-sky-100 hover:text-sky-800"
+                aria-label="About Credit Leave Report"
+              >
+                <Info size={15} />
+              </button>
+            </div>
             <p className="mt-1 text-sm text-slate-500">View annual or medical leave days credited to employees.</p>
           </header>
 
@@ -462,6 +482,86 @@ export default function CreditLeaveReport() {
           )}
         </div>
       </main>
+
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+                  <Info className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">About Credit Leave Report</h3>
+                  <p className="text-xs text-slate-500">Summary of manual compensatory & credited days</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="mt-4 space-y-4">
+              <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-sky-900">What is Credit Leave Report?</h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-sky-950">
+                  An auditing report providing transparency into manual leave credits awarded to employees under Annual or Medical categories.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+                    How it works
+                  </h5>
+                  <ul className="space-y-1.5 text-slate-600 list-disc list-inside">
+                    <li>Aggregates credited leave days per employee for the selected category.</li>
+                    <li>Correlates employee stream, department, designation, and contact details.</li>
+                    <li>Formats live records ready for immediate export.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    How to use it
+                  </h5>
+                  <ol className="space-y-1.5 text-slate-600 list-decimal list-inside">
+                    <li>Choose either <strong>Annual</strong> or <strong>Medical</strong> category.</li>
+                    <li>Filter by Stream, Department, and Employee Names.</li>
+                    <li>Click <strong>Generate Report</strong> to inspect records.</li>
+                    <li>Export to PDF, Excel, or CSV as required.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-700 transition"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
