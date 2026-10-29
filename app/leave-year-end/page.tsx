@@ -302,22 +302,20 @@ export default function LeaveYearEndPage() {
 
     return previewRecords.map((record) => {
       const activeRule = ruleLookup.get(record.leaveTypeId);
-      if (!activeRule) return record;
+      const isCarryForward =
+        Boolean(record.carryForward) ||
+        record.leaveTypeCode === "ML" ||
+        record.leaveTypeCode === "EL" ||
+        activeRule?.rule === "CARRY_FORWARD";
 
-      const rule = activeRule.rule;
-      const maxLimit = activeRule.maxCarryForwardDays;
-
-      let carriedForwardDays = 0;
-      if (rule === "CARRY_FORWARD") {
-        carriedForwardDays = maxLimit !== null ? Math.min(record.availableBalance, maxLimit) : record.availableBalance;
-      }
-
-      const proposedOpeningBalance = record.isEligible ? carriedForwardDays + record.entitlement : 0;
+      const rule = isCarryForward ? "CARRY_FORWARD" : (activeRule?.rule || "RESET");
+      const carriedForwardDays = isCarryForward ? record.carriedForwardDays : 0;
+      const proposedOpeningBalance = record.isEligible ? record.entitlement + carriedForwardDays : 0;
 
       return {
         ...record,
         rule,
-        maxCarryForward: maxLimit,
+        carryForward: isCarryForward,
         carriedForwardDays,
         proposedOpeningBalance,
       };

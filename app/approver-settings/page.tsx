@@ -1075,7 +1075,6 @@ export default function ApproverSettingsPage() {
       setBackupOfficer("");
       setFinalLevelApprover("");
       setFinalLevelBackupOfficer("");
-      setHasAssigned(true);
 
       // Silent background sync with database
       fetch("/api/approver-settings", { cache: "no-store" })
