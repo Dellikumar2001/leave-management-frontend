@@ -53,7 +53,7 @@ Blocking or crediting creates an in-app notification for each selected employee.
 
 The student leave-request POST route checks for blocked dates before forwarding a request. It checks every date from `startDate` through `endDate` for the employee identified by `employeeId` or the student's `studentCode`. On a match it returns HTTP 409 with exactly:
 
-> Can't take leave on this date, contact admin
+> Leaves are blocked for this date. Kindly select any other date or contact admin
 
 The request API must retain this server-side check; client-side validation alone can be bypassed. Any separate request-submission service or deployment that does not use `app/student-leave-requests/route.ts` must call the same `findBlockedDate` check before creating a request.
 
