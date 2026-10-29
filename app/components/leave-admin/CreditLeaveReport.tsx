@@ -14,6 +14,7 @@ type EmployeeOption = {
   designation: string | null;
   stream: string;
   department: string;
+  employeeType?: string | null;
   mobileNumber: string | null;
 };
 
@@ -147,15 +148,15 @@ export default function CreditLeaveReport() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedStreams, setSelectedStreams] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
   const [reportRows, setReportRows] = useState<CreditReportRow[] | null>(null);
   const [error, setError] = useState("");
 
-  const availableEmployees = useMemo(() => (
-      selectedStreams.length && selectedDepartments.length && employeesLoaded
-        ? employees
-      : []
-  ), [employees, employeesLoaded, selectedDepartments.length, selectedStreams.length]);
+  const availableEmployees = useMemo(() => {
+    if (!selectedStreams.length || !selectedDepartments.length || !selectedEmployeeTypes.length || !employeesLoaded) return [];
+    return employees.filter((e) => selectedEmployeeTypes.includes(e.employeeType || "Teaching"));
+  }, [employees, employeesLoaded, selectedDepartments.length, selectedStreams.length, selectedEmployeeTypes]);
 
   const employeeNames = useMemo(
     () => [...new Set(availableEmployees.map(({ name }) => name))].filter(Boolean).sort(),
@@ -169,7 +170,7 @@ export default function CreditLeaveReport() {
     [availableEmployees, selectedEmployeeNames],
   );
 
-  const hasSelection = selectedEmployeeIds.length > 0 || selectedStreams.length > 0 || selectedDepartments.length > 0;
+  const hasSelection = selectedEmployeeIds.length > 0 || selectedStreams.length > 0 || selectedDepartments.length > 0 || selectedEmployeeTypes.length > 0;
   const isLoadingOptions = loadingScope !== null;
 
   const loadFilterOptions = async (scope: "streams" | "departments" | "employees") => {
@@ -208,6 +209,7 @@ export default function CreditLeaveReport() {
   const changeStreams = (values: string[]) => {
     setSelectedStreams(values);
     setSelectedDepartments([]);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
     setDepartments([]);
     setEmployees([]);
@@ -218,9 +220,16 @@ export default function CreditLeaveReport() {
 
   const changeDepartments = (values: string[]) => {
     setSelectedDepartments(values);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
     setEmployees([]);
     setEmployeesLoaded(false);
+    setReportRows(null);
+  };
+
+  const changeEmployeeTypes = (values: string[]) => {
+    setSelectedEmployeeTypes(values);
+    setSelectedEmployeeNames([]);
     setReportRows(null);
   };
 
@@ -242,6 +251,7 @@ export default function CreditLeaveReport() {
           employeeIds: selectedEmployeeIds,
           streams: selectedStreams,
           departments: selectedDepartments,
+          employeeTypes: selectedEmployeeTypes,
         }),
       });
       const data = await readJson<{ rows: CreditReportRow[] }>(response);
@@ -331,7 +341,7 @@ export default function CreditLeaveReport() {
           </nav>
 
           <section aria-label="Credit leave report filters" className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(180px,1.3fr)_auto]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_auto]">
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Stream</span>
                 <MultiSelectDropdown
@@ -355,6 +365,16 @@ export default function CreditLeaveReport() {
                 />
               </div>
               <div className="min-w-0">
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={["Teaching", "Non-Teaching"]}
+                  selectedValues={selectedEmployeeTypes}
+                  onChange={changeEmployeeTypes}
+                  disabled={isLoadingOptions || selectedDepartments.length === 0}
+                />
+              </div>
+              <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
                 <MultiSelectDropdown
                   label="Employee Names"
@@ -365,7 +385,7 @@ export default function CreditLeaveReport() {
                     setReportRows(null);
                   }}
                   onOpen={() => void loadFilterOptions("employees")}
-                  disabled={isLoadingOptions || selectedDepartments.length === 0}
+                  disabled={isLoadingOptions || selectedEmployeeTypes.length === 0}
                 />
               </div>
               <button

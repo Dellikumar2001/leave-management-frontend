@@ -228,6 +228,7 @@ export default function LeaveStatusReportPage() {
   // ── Cascading Checkbox Filter States
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeFilters, setEmployeeFilters] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -274,30 +275,55 @@ export default function LeaveStatusReportPage() {
     ].filter(Boolean).sort();
   }, [allEmployees, isDepartmentDisabled, streamFilters]);
 
-  // ── Step 3: Employees disabled until Department is chosen
-  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  // ── Step 3: Employee Types disabled until Department is chosen
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        allEmployees
+          .filter(
+            (e) =>
+              streamFilters.includes(e.stream) &&
+              departmentFilters.includes(e.department)
+          )
+          .map((e) => (e as { employeeType?: string | null }).employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [allEmployees, isEmployeeTypeDisabled, departmentFilters, streamFilters]);
+
+  // ── Step 4: Employees disabled until Employee Type is chosen
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
   const availableEmployees = useMemo(() => {
     if (isEmployeeDisabled) return [];
     return allEmployees.filter(
-      (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+      (e) =>
+        streamFilters.includes(e.stream) &&
+        departmentFilters.includes(e.department) &&
+        employeeTypeFilters.includes(
+          (e as { employeeType?: string | null }).employeeType || "Teaching"
+        )
     );
-  }, [allEmployees, isEmployeeDisabled, departmentFilters, streamFilters]);
+  }, [allEmployees, isEmployeeDisabled, departmentFilters, streamFilters, employeeTypeFilters]);
 
   const employeeNames = useMemo(
     () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
     [availableEmployees]
   );
 
-  // ── Step 4: Date accessible ONLY after selecting Stream, Department, and Employee
+  // ── Step 5: Date accessible ONLY after selecting Stream, Department, Employee Type, and Employee
   const isDateAccessible =
     streamFilters.length > 0 &&
     departmentFilters.length > 0 &&
+    employeeTypeFilters.length > 0 &&
     employeeFilters.length > 0;
 
   // ── Cascading Handlers
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeFilters([]);
     setStartDate("");
     setEndDate("");
@@ -306,6 +332,15 @@ export default function LeaveStatusReportPage() {
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    setEmployeeTypeFilters([]);
+    setEmployeeFilters([]);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
     setEmployeeFilters([]);
     setStartDate("");
     setEndDate("");
@@ -349,6 +384,7 @@ export default function LeaveStatusReportPage() {
       const params = new URLSearchParams();
       if (streamFilters.length > 0) params.set("stream", streamFilters.join(","));
       if (departmentFilters.length > 0) params.set("department", departmentFilters.join(","));
+      if (employeeTypeFilters.length > 0) params.set("employeeType", employeeTypeFilters.join(","));
       if (employeeFilters.length > 0) params.set("employeeNames", employeeFilters.join(","));
       if (statusFilter) params.set("status", statusFilter);
       if (startDate) params.set("startDate", startDate);
@@ -373,11 +409,19 @@ export default function LeaveStatusReportPage() {
     return reportEmployees.filter((e) => {
       if (streamFilters.length > 0 && !streamFilters.includes(e.stream)) return false;
       if (departmentFilters.length > 0 && !departmentFilters.includes(e.department)) return false;
+      if (
+        employeeTypeFilters.length > 0 &&
+        !employeeTypeFilters.includes(
+          (e as { employeeType?: string | null }).employeeType || "Teaching"
+        )
+      ) {
+        return false;
+      }
       if (employeeFilters.length > 0 && !employeeFilters.includes(e.name)) return false;
       if (statusFilter && e.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
       return true;
     });
-  }, [reportEmployees, streamFilters, departmentFilters, employeeFilters, statusFilter]);
+  }, [reportEmployees, streamFilters, departmentFilters, employeeTypeFilters, employeeFilters, statusFilter]);
 
 
 
@@ -593,7 +637,7 @@ export default function LeaveStatusReportPage() {
             aria-label="Report filters"
             className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(15,minmax(0,1fr))]">
               {/* Step 1: Stream Dropdown (Checkbox format) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
@@ -621,7 +665,21 @@ export default function LeaveStatusReportPage() {
                 />
               </div>
 
-              {/* Step 3: Employee Names Dropdown (Checkbox format, unlocked after Department chosen) */}
+              {/* Step 3: Employee Type Dropdown */}
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
+                  Employee Type
+                </span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Names Dropdown (Checkbox format, unlocked after Employee Type chosen) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Employee Names

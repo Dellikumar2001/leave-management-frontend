@@ -20,6 +20,7 @@ type EmployeeApproverRecord = {
   employeeName: string;
   stream: string;
   department: string;
+  employeeType?: string;
   streamAndDepartment: string;
   firstLevelApprover: string;
   secondLevelApprover?: string;
@@ -32,6 +33,7 @@ type ReportApiResponse = {
     allStreams: string[];
     allDepartments: string[];
     allEmployeeNames: string[];
+    allEmployeeTypes?: string[];
     allFirstLevelApprovers?: string[];
     allSecondLevelApprovers?: string[];
   };
@@ -205,6 +207,7 @@ export default function ApproverReportPage() {
   const [allRecords, setAllRecords] = useState<EmployeeApproverRecord[]>([]);
   const [allStreams, setAllStreams] = useState<string[]>([]);
   const [allDepartments, setAllDepartments] = useState<string[]>([]);
+  const [allEmployeeTypes, setAllEmployeeTypes] = useState<string[]>(["Teaching", "Non-Teaching"]);
 
   // Generated report state
   const [reportRecords, setReportRecords] = useState<EmployeeApproverRecord[]>([]);
@@ -212,9 +215,10 @@ export default function ApproverReportPage() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
-  // Ordered filter states: 1. Stream, 2. Department, 3. Employee Names
+  // Ordered filter states: 1. Stream, 2. Department, 3. Employee Type, 4. Employee Names
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeFilters, setEmployeeFilters] = useState<string[]>([]);
 
   // Initial load from API
@@ -228,6 +232,9 @@ export default function ApproverReportPage() {
           setAllRecords(result.records ?? []);
           setAllStreams(result.filters?.allStreams ?? []);
           setAllDepartments(result.filters?.allDepartments ?? []);
+          if (result.filters?.allEmployeeTypes && result.filters.allEmployeeTypes.length > 0) {
+            setAllEmployeeTypes(result.filters.allEmployeeTypes);
+          }
         }
       } catch (err) {
         console.error("Failed to load approver report options:", err);
@@ -239,19 +246,25 @@ export default function ApproverReportPage() {
     };
   }, []);
 
+  // Cascading gating checks
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
+
   // Cascading available departments based on selected streams
   const availableDepartments = useMemo(() => {
-    if (streamFilters.length === 0) return allDepartments;
+    if (isDepartmentDisabled) return [];
     const deptsInStreams = new Set(
       allRecords
         .filter((r) => streamFilters.includes(r.stream))
         .map((r) => r.department)
     );
     return allDepartments.filter((d) => deptsInStreams.has(d));
-  }, [allDepartments, allRecords, streamFilters]);
+  }, [allDepartments, allRecords, isDepartmentDisabled, streamFilters]);
 
-  // Cascading available employees based on selected stream & department
+  // Cascading available employees based on selected stream, department & employee type
   const availableEmployees = useMemo(() => {
+    if (isEmployeeDisabled) return [];
     let list = allRecords;
     if (streamFilters.length > 0) {
       list = list.filter((r) => streamFilters.includes(r.stream));
@@ -259,23 +272,31 @@ export default function ApproverReportPage() {
     if (departmentFilters.length > 0) {
       list = list.filter((r) => departmentFilters.includes(r.department));
     }
+    if (employeeTypeFilters.length > 0) {
+      list = list.filter((r) => employeeTypeFilters.includes(r.employeeType || "Teaching"));
+    }
     return Array.from(new Set(list.map((r) => r.employeeName))).sort();
-  }, [allRecords, streamFilters, departmentFilters]);
+  }, [allRecords, isEmployeeDisabled, streamFilters, departmentFilters, employeeTypeFilters]);
 
   // Handle Stream selection change
   const handleStreamChange = (values: string[]) => {
     setStreamFilters(values);
-    if (values.length > 0) {
-      const validDepts = new Set(
-        allRecords.filter((r) => values.includes(r.stream)).map((r) => r.department)
-      );
-      setDepartmentFilters((prev) => prev.filter((d) => validDepts.has(d)));
-    }
+    setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
+    setEmployeeFilters([]);
   };
 
   // Handle Department selection change
   const handleDepartmentChange = (values: string[]) => {
     setDepartmentFilters(values);
+    setEmployeeTypeFilters([]);
+    setEmployeeFilters([]);
+  };
+
+  // Handle Employee Type selection change
+  const handleEmployeeTypeChange = (values: string[]) => {
+    setEmployeeTypeFilters(values);
+    setEmployeeFilters([]);
   };
 
   // Generate Button Handler
@@ -310,6 +331,9 @@ export default function ApproverReportPage() {
       if (departmentFilters.length > 0 && !departmentFilters.includes(rec.department)) {
         return false;
       }
+      if (employeeTypeFilters.length > 0 && !employeeTypeFilters.includes(rec.employeeType || "Teaching")) {
+        return false;
+      }
       if (employeeFilters.length > 0 && !employeeFilters.includes(rec.employeeName)) {
         return false;
       }
@@ -321,6 +345,7 @@ export default function ApproverReportPage() {
     allRecords,
     streamFilters,
     departmentFilters,
+    employeeTypeFilters,
     employeeFilters,
   ]);
 
@@ -515,14 +540,14 @@ export default function ApproverReportPage() {
             </div>
           </header>
 
-          {/* ── Filter Bar: Stream First, Next Department, Then Employees Name */}
+          {/* ── Filter Bar: Stream, Department, Employee Type, Employee Names */}
           <section
             aria-label="Report filters"
             className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-12">
               {/* Step 1: Stream Dropdown (Comes first) */}
-              <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Stream
                 </span>
@@ -544,11 +569,26 @@ export default function ApproverReportPage() {
                   options={availableDepartments}
                   selectedValues={departmentFilters}
                   onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
                 />
               </div>
 
-              {/* Step 3: Employee Names Dropdown (Then only employees name) */}
-              <div className="flex min-w-0 flex-col gap-1 xl:col-span-4">
+              {/* Step 3: Employee Type Dropdown */}
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
+                  Employee Type
+                </span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={allEmployeeTypes}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Names Dropdown */}
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-3">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Employee Names
                 </span>
@@ -557,6 +597,7 @@ export default function ApproverReportPage() {
                   options={availableEmployees}
                   selectedValues={employeeFilters}
                   onChange={setEmployeeFilters}
+                  disabled={isEmployeeDisabled}
                 />
               </div>
 

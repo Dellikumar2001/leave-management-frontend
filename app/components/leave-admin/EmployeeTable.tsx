@@ -8,6 +8,7 @@ export type EmployeeRow = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string;
   balance: number;
   blockedLeaveCount: number;
   creditCount: number;

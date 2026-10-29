@@ -44,6 +44,7 @@ export async function GET(request: Request) {
           designation: true,
           stream: true,
           department: true,
+          employeeType: true,
           mobileNumber: true,
         },
       });
@@ -72,10 +73,12 @@ export async function POST(request: Request) {
     employeeIds?: unknown;
     streams?: unknown;
     departments?: unknown;
+    employeeTypes?: unknown;
   };
   const employeeIds = input.employeeIds === undefined ? [] : input.employeeIds;
   const streams = input.streams === undefined ? [] : input.streams;
   const departments = input.departments === undefined ? [] : input.departments;
+  const employeeTypes = input.employeeTypes === undefined ? [] : input.employeeTypes;
   if (!isCategory(input.category) || !isStringArray(employeeIds) ||
       !isStringArray(streams) || !isStringArray(departments) ||
       (!employeeIds.length && !streams.length && !departments.length)) {
@@ -85,11 +88,15 @@ export async function POST(request: Request) {
   const uniqueEmployeeIds = [...new Set(employeeIds.map((id) => id.trim()))];
   const uniqueStreams = [...new Set(streams.map((stream) => stream.trim()))];
   const uniqueDepartments = [...new Set(departments.map((department) => department.trim()))];
+  const uniqueEmployeeTypes = Array.isArray(employeeTypes)
+    ? [...new Set((employeeTypes as string[]).map((t) => String(t).trim()))].filter(Boolean)
+    : [];
   const employeeWhere = uniqueEmployeeIds.length
     ? { employeeId: { in: uniqueEmployeeIds } }
     : {
       ...(uniqueStreams.length ? { stream: { in: uniqueStreams } } : {}),
       ...(uniqueDepartments.length ? { department: { in: uniqueDepartments } } : {}),
+      ...(uniqueEmployeeTypes.length ? { employeeType: { in: uniqueEmployeeTypes } } : {}),
     };
 
   try {
@@ -102,6 +109,7 @@ export async function POST(request: Request) {
         designation: true,
         stream: true,
         department: true,
+        employeeType: true,
         mobileNumber: true,
       },
     });
