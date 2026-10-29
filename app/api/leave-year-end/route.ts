@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
       leaveTypes,
       recentProcesses,
       existingNextCycleRecords,
+      approvedApplications,
     ] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
@@ -73,21 +74,31 @@ export async function GET(request: NextRequest) {
       (existingNextCycleRecords || []).map((r) => `${r.employeeId}-${r.leaveTypeId}`)
     );
 
+    // Index approved applications by composite key (employeeId:leaveTypeId) matching Entitlement table
+    const approvedDaysMap = new Map<string, number>();
+    for (const app of approvedApplications ?? []) {
+      const key = `${app.employeeId}:${app.leaveTypeId}`;
+      approvedDaysMap.set(key, (approvedDaysMap.get(key) ?? 0) + (app.daysCount ?? 0));
+    }
+
     // Extract unique filter options
     const streams = Array.from(new Set(allEmployees.map((e) => e.stream).filter(Boolean))).sort();
     const departments = Array.from(new Set(allEmployees.map((e) => e.department).filter(Boolean))).sort();
     const employeeTypes = ["Teaching", "Non-Teaching"];
     const employmentTypes = ["Permanent", "Contract", "Temporary", "Probation"];
 
-    // Default policy rules per leave type fetched directly from leave_types carryForward setting
-    const rules = leaveTypes.map((lt) => ({
-      leaveTypeId: lt.id,
-      leaveTypeCode: lt.code,
-      leaveTypeName: lt.name,
-      rule: getDefaultRuleForLeaveType(lt.code, lt.name, lt.carryForward),
-      maxCarryForwardDays: getDefaultMaxCarryForward(lt.code, lt.name, lt.carryForward),
-      defaultDays: lt.daysAllowed,
-    }));
+    // Default policy rules per leave type fetched directly from leave_types carryForward setting (ML & EL carry forward)
+    const rules = leaveTypes.map((lt) => {
+      const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL";
+      return {
+        leaveTypeId: lt.id,
+        leaveTypeCode: lt.code,
+        leaveTypeName: lt.name,
+        rule: (isCarryForward ? "CARRY_FORWARD" : getDefaultRuleForLeaveType(lt.code, lt.name, lt.carryForward)) as "CARRY_FORWARD" | "RESET",
+        maxCarryForwardDays: null,
+        defaultDays: lt.daysAllowed,
+      };
+    });
 
     // Precalculate preview records for each employee and leave type
     const previewRecords = allEmployees.flatMap((employee) => {
@@ -97,40 +108,26 @@ export async function GET(request: NextRequest) {
       return leaveTypes.map((lt) => {
         const eligibility = employee.leaveRecords.find((r) => r.leaveTypeId === lt.id);
         const isEligible = Boolean(eligibility ? eligibility.isEligible && lt.status === "ACTIVE" : lt.status === "ACTIVE");
-        const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
-        const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
+        const entitlement = isEligible ? ((eligibility?.daysAllowed && eligibility.daysAllowed > 0) ? eligibility.daysAllowed : lt.daysAllowed) : 0;
+        const bf = isEligible ? (eligibility?.bf ?? 0) : 0;
+        const credit = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
+        const earn = isEligible ? (eligibility?.earned ?? 0) : 0;
 
-        // Calculate leave used in the current cycle
-        const matchingApps = employee.employeeLeaveApplications.filter(
-          (app) => app.leaveTypeId === lt.id
-        );
-        const leaveUsed = isEligible ? matchingApps.reduce((sum, app) => {
-          const appStart = new Date(app.startDate);
-          const appEnd = new Date(app.endDate);
-          const clampedStart = appStart < cycleStart ? cycleStart : appStart;
-          const clampedEnd = appEnd > cycleEnd ? cycleEnd : appEnd;
+        // Approved days taken matching the Entitlement table
+        const taken = approvedDaysMap.get(`${employee.employeeId}:${lt.id}`) ?? 0;
 
-          const totalDays = Math.max(1, Math.round((appEnd.getTime() - appStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-          const clampedDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        // Entitlement table Total for this leave type: Math.max(0, eligible + bf + credit + earn - taken)
+        const entitlementTotal = Math.max(0, entitlement + bf + credit + earn - taken);
 
-          const days = app.daysCount ? Math.min(app.daysCount, Math.round(app.daysCount * (clampedDays / totalDays))) : clampedDays;
-          return sum + days;
-        }, 0) : 0;
+        // Rule calculation: carry forward enabled for ML & EL or whenever carryForward flag is true
+        const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL";
+        const rule = isCarryForward ? "CARRY_FORWARD" : "RESET";
 
-        // Available balance at cycle closing: (entitlement + credited) - leaveUsed
-        const availableBalance = isEligible ? Math.max(0, (entitlement + credited) - leaveUsed) : 0;
+        // Fetch Total from the Entitlement table for carry-forward leaves (ML & EL)
+        const carriedForwardDays = isEligible && isCarryForward ? entitlementTotal : 0;
 
-        // Rule calculation
-        const ruleConfig = rules.find((r) => r.leaveTypeId === lt.id);
-        const rule = ruleConfig?.rule || (lt.carryForward ? "CARRY_FORWARD" : "RESET");
-        const maxLimit = ruleConfig?.maxCarryForwardDays ?? null;
-
-        let carriedForwardDays = 0;
-        if (isEligible && rule === "CARRY_FORWARD") {
-          carriedForwardDays = maxLimit !== null ? Math.min(availableBalance, maxLimit) : availableBalance;
-        }
-
-        const proposedOpeningBalance = isEligible ? carriedForwardDays + entitlement : 0;
+        // Proposed opening = entitlement column in leave year end process + carry forward leave
+        const proposedOpeningBalance = isEligible ? entitlement + carriedForwardDays : 0;
         const isAlreadyProcessed = processedMap.has(`${employee.employeeId}-${lt.id}`);
 
         return {
@@ -143,14 +140,14 @@ export async function GET(request: NextRequest) {
           leaveTypeId: lt.id,
           leaveTypeCode: lt.code,
           leaveTypeName: lt.name,
-          carryForward: Boolean(lt.carryForward),
+          carryForward: isCarryForward,
           currentCycle: currentCycle.code,
           nextCycle: nextCycle.code,
           entitlement,
-          leaveUsed,
-          availableBalance,
+          leaveUsed: taken,
+          availableBalance: entitlementTotal,
           rule,
-          maxCarryForward: maxLimit,
+          maxCarryForward: null,
           carriedForwardDays,
           proposedOpeningBalance,
           isEligible,
@@ -238,8 +235,8 @@ export async function POST(request: NextRequest) {
     const cycleStart = new Date(`${currentCycle.startDate}T00:00:00.000Z`);
     const cycleEnd = new Date(`${currentCycle.endDate}T23:59:59.999Z`);
 
-    // Fetch target employees and leave types
-    const [employees, leaveTypes] = await Promise.all([
+    // Fetch target employees, leave types, and approved applications (matching Entitlement table)
+    const [employees, leaveTypes, approvedApplications] = await Promise.all([
       prisma.employee.findMany({
         where: { employeeId: { in: employeeIds } },
         include: {
@@ -259,21 +256,38 @@ export async function POST(request: NextRequest) {
         where: { status: "ACTIVE" },
         orderBy: { id: "asc" },
       }),
+      prisma.employeeLeaveApplication.findMany({
+        where: {
+          status: { equals: "Approved", mode: "insensitive" },
+        },
+        select: {
+          employeeId: true,
+          leaveTypeId: true,
+          daysCount: true,
+        },
+      }),
     ]);
 
-    // Prepare rule lookup
+    const approvedDaysMap = new Map<string, number>();
+    for (const app of approvedApplications ?? []) {
+      const key = `${app.employeeId}:${app.leaveTypeId}`;
+      approvedDaysMap.set(key, (approvedDaysMap.get(key) ?? 0) + (app.daysCount ?? 0));
+    }
+
+    // Prepare rule lookup: carry forward enabled for ML & EL or whenever carryForward flag is true
     const ruleMap = new Map<number, { rule: "CARRY_FORWARD" | "RESET"; maxCarryForwardDays: number | null }>();
     leaveTypes.forEach((lt) => {
+      const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL";
       const custom = customRules?.find((r) => r.leaveTypeId === lt.id);
       if (custom) {
         ruleMap.set(lt.id, {
-          rule: custom.rule,
-          maxCarryForwardDays: custom.maxCarryForwardDays,
+          rule: isCarryForward ? "CARRY_FORWARD" : custom.rule,
+          maxCarryForwardDays: null,
         });
       } else {
         ruleMap.set(lt.id, {
-          rule: getDefaultRuleForLeaveType(lt.code, lt.name, lt.carryForward),
-          maxCarryForwardDays: getDefaultMaxCarryForward(lt.code, lt.name, lt.carryForward),
+          rule: isCarryForward ? "CARRY_FORWARD" : getDefaultRuleForLeaveType(lt.code, lt.name, lt.carryForward),
+          maxCarryForwardDays: null,
         });
       }
     });
@@ -327,41 +341,32 @@ export async function POST(request: NextRequest) {
       for (const lt of leaveTypes) {
         const eligibility = employee.leaveRecords.find((r) => r.leaveTypeId === lt.id);
         const isEligible = Boolean(eligibility ? eligibility.isEligible && lt.status === "ACTIVE" : lt.status === "ACTIVE");
-        const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
-        const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
+        const entitlement = isEligible ? ((eligibility?.daysAllowed && eligibility.daysAllowed > 0) ? eligibility.daysAllowed : lt.daysAllowed) : 0;
+        const bf = isEligible ? (eligibility?.bf ?? 0) : 0;
+        const credit = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
+        const earn = isEligible ? (eligibility?.earned ?? 0) : 0;
 
-        const matchingApps = employee.employeeLeaveApplications.filter(
-          (app) => app.leaveTypeId === lt.id
-        );
-        const leaveUsed = isEligible ? matchingApps.reduce((sum, app) => {
-          const appStart = new Date(app.startDate);
-          const appEnd = new Date(app.endDate);
-          const clampedStart = appStart < cycleStart ? cycleStart : appStart;
-          const clampedEnd = appEnd > cycleEnd ? cycleEnd : appEnd;
+        // Approved days taken matching the Entitlement table
+        const taken = approvedDaysMap.get(`${employee.employeeId}:${lt.id}`) ?? 0;
 
-          const totalDays = Math.max(1, Math.round((appEnd.getTime() - appStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-          const clampedDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-          const days = app.daysCount ? Math.min(app.daysCount, Math.round(app.daysCount * (clampedDays / totalDays))) : clampedDays;
-          return sum + days;
-        }, 0) : 0;
-
-        const availableBalance = isEligible ? Math.max(0, (entitlement + credited) - leaveUsed) : 0;
+        // Entitlement table Total for this leave type: Math.max(0, eligible + bf + credit + earn - taken)
+        const entitlementTotal = Math.max(0, entitlement + bf + credit + earn - taken);
 
         const ruleConfig = ruleMap.get(lt.id);
-        const rule = ruleConfig?.rule || (lt.carryForward ? "CARRY_FORWARD" : "RESET");
-        const maxLimit = ruleConfig?.maxCarryForwardDays ?? null;
+        const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL" || ruleConfig?.rule === "CARRY_FORWARD";
+        const rule = isCarryForward ? "CARRY_FORWARD" : "RESET";
 
-        const isCarryForward = isEligible && rule === "CARRY_FORWARD";
         let carriedForwardDays = 0;
-        if (isCarryForward) {
-          carriedForwardDays = maxLimit !== null ? Math.min(availableBalance, maxLimit) : availableBalance;
+        if (isCarryForward && isEligible) {
+          // Fetch Total from the Entitlement table for carry-forward leaves (ML & EL)
+          carriedForwardDays = entitlementTotal;
           totalCarriedForward += carriedForwardDays;
         } else {
           totalReset++;
         }
 
-        const proposedOpeningBalance = isEligible ? carriedForwardDays + entitlement : 0;
+        // Proposed opening = entitlement column in leave year end process + carry forward leave
+        const proposedOpeningBalance = isEligible ? entitlement + carriedForwardDays : 0;
         totalBalancesCreated++;
 
         const status: "SUCCESS" | "SKIPPED" = isCarryForward ? "SUCCESS" : "SKIPPED";
@@ -380,10 +385,10 @@ export async function POST(request: NextRequest) {
           currentCycle: currentCycle.code,
           nextCycle: nextCycle.code,
           entitlement,
-          leaveUsed,
-          availableBalance,
+          leaveUsed: taken,
+          availableBalance: entitlementTotal,
           rule,
-          maxCarryForward: maxLimit,
+          maxCarryForward: null,
           carriedForwardDays,
           proposedOpeningBalance,
           status,
