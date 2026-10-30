@@ -15,6 +15,7 @@ export type YearEndLeaveRecord = {
   isEligible: boolean;
   leaveBalance: number;
   creditedDays?: number;
+  bf?: number;
   joiningDate?: string | Date;
   leaveType?: YearEndLeaveType;
 };
@@ -101,7 +102,7 @@ export function getYearEndLeaveValues(
           leaveType.daysAllowed,
           new Date(record.joiningDate),
           academicYearStart,
-        ) + (record.creditedDays ?? 0)
+        ) + (record.creditedDays ?? 0) + (record.bf ?? 0)
       : 0;
     const used = usageRecords
       .filter((usage) =>

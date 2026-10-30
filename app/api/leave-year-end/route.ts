@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
         const eligibility = employee.leaveRecords.find((r) => r.leaveTypeId === lt.id);
         const isEligible = Boolean(eligibility ? eligibility.isEligible && lt.status === "ACTIVE" : lt.status === "ACTIVE");
         const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
+        const bf = isEligible ? (eligibility?.bf ?? 0) : 0;
         const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
 
         // Calculate leave used in the current cycle
@@ -113,8 +114,8 @@ export async function GET(request: NextRequest) {
           return sum + days;
         }, 0) : 0;
 
-        // Available balance at cycle closing: (entitlement + credited) - leaveUsed
-        const availableBalance = isEligible ? Math.max(0, (entitlement + credited) - leaveUsed) : 0;
+        // Available balance at cycle closing: (entitlement + bf + credited) - leaveUsed
+        const availableBalance = isEligible ? Math.max(0, (entitlement + bf + credited) - leaveUsed) : 0;
 
         // Rule calculation
         const ruleConfig = rules.find((r) => r.leaveTypeId === lt.id);
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
 
     const employeesSummary = allEmployees.map((emp) => {
       const records = previewRecords.filter((r) => r.employeeId === emp.employeeId);
-      const isAlreadyProcessed = records.length > 0 && records.every((r) => r.isAlreadyProcessed);
+      const isAlreadyProcessed = records.length > 0 && records.some((r) => r.isAlreadyProcessed);
       return {
         employeeId: emp.employeeId,
         name: emp.name,
@@ -257,14 +258,33 @@ export async function POST(request: NextRequest) {
       }),
     ]);
 
+    // Helper to get base leave group/category (e.g. CL_A and CL_S both map to "CL")
+    const getBaseCode = (code: string, name: string): string => {
+      const c = (code || "").toUpperCase();
+      const n = (name || "").toUpperCase();
+      if (c === "CL" || c.startsWith("CL_") || n.includes("CASUAL")) return "CL";
+      if ((c === "ML" || c.startsWith("ML_") || c === "MDL" || n.includes("MEDICAL")) && !n.includes("MATERNITY")) return "ML";
+      if (c === "EL" || c.startsWith("EL_") || n.includes("EARNED")) return "EL";
+      if (c === "SL" || c.startsWith("SL_") || n.includes("SICK")) return "SL";
+      if (c === "RH" || c.startsWith("RH_") || n.includes("RESTRICTED")) return "RH";
+      return c;
+    };
+
     // Prepare rule lookup
     const ruleMap = new Map<number, { rule: "CARRY_FORWARD" | "RESET"; maxCarryForwardDays: number | null }>();
     leaveTypes.forEach((lt) => {
-      const custom = customRules?.find((r) => r.leaveTypeId === lt.id);
-      if (custom) {
+      const base = getBaseCode(lt.code, lt.name);
+      // Check direct rule or sibling stream rule
+      const direct = customRules?.find((r) => r.leaveTypeId === lt.id);
+      const siblingRule = direct || customRules?.find((r) => {
+        const sibling = leaveTypes.find((x) => x.id === r.leaveTypeId);
+        return sibling && getBaseCode(sibling.code, sibling.name) === base;
+      });
+
+      if (siblingRule) {
         ruleMap.set(lt.id, {
-          rule: custom.rule,
-          maxCarryForwardDays: custom.maxCarryForwardDays,
+          rule: siblingRule.rule,
+          maxCarryForwardDays: siblingRule.maxCarryForwardDays,
         });
       } else {
         ruleMap.set(lt.id, {
@@ -324,6 +344,7 @@ export async function POST(request: NextRequest) {
         const eligibility = employee.leaveRecords.find((r) => r.leaveTypeId === lt.id);
         const isEligible = Boolean(eligibility ? eligibility.isEligible && lt.status === "ACTIVE" : lt.status === "ACTIVE");
         const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
+        const bf = isEligible ? (eligibility?.bf ?? 0) : 0;
         const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
 
         const matchingApps = employee.employeeLeaveApplications.filter(
@@ -342,7 +363,7 @@ export async function POST(request: NextRequest) {
           return sum + days;
         }, 0) : 0;
 
-        const availableBalance = isEligible ? Math.max(0, (entitlement + credited) - leaveUsed) : 0;
+        const availableBalance = isEligible ? Math.max(0, (entitlement + bf + credited) - leaveUsed) : 0;
 
         const ruleConfig = ruleMap.get(lt.id);
         const rule = ruleConfig?.rule || (lt.carryForward ? "CARRY_FORWARD" : "RESET");
@@ -475,7 +496,8 @@ export async function POST(request: NextRequest) {
           },
           update: {
             leaveBalance: update.newBalance,
-            creditedDays: update.carriedForwardDays,
+            bf: update.carriedForwardDays,
+            creditedDays: 0,
             daysAllowed: update.entitlement,
           },
           create: {
@@ -484,7 +506,8 @@ export async function POST(request: NextRequest) {
             isEligible: true,
             daysAllowed: update.entitlement,
             leaveBalance: update.newBalance,
-            creditedDays: update.carriedForwardDays,
+            bf: update.carriedForwardDays,
+            creditedDays: 0,
           },
         });
       }
@@ -535,20 +558,114 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const cycle = searchParams.get("cycle") || "2026-2027";
+    const employeeId = searchParams.get("employeeId");
+    const leaveTypeIdsParam = searchParams.get("leaveTypeIds");
+    const leaveTypeIds = leaveTypeIdsParam
+      ? leaveTypeIdsParam.split(",").map((s) => Number(s.trim())).filter((n) => !isNaN(n))
+      : [];
+
+    const leaveTypeFilter = leaveTypeIds.length > 0 ? { in: leaveTypeIds } : undefined;
 
     await prisma.$transaction(async (tx) => {
-      await tx.leaveYearEndRecord.deleteMany({
-        where: { nextCycle: cycle },
+      // 1. Fetch existing year-end records BEFORE deleting so we can restore original values
+      const existingRecords = await tx.leaveYearEndRecord.findMany({
+        where: {
+          nextCycle: cycle,
+          ...(employeeId ? { employeeId } : {}),
+          ...(leaveTypeFilter ? { leaveTypeId: leaveTypeFilter } : {}),
+        },
+        select: {
+          employeeId: true,
+          leaveTypeId: true,
+          entitlement: true,
+          leaveUsed: true,
+          availableBalance: true,
+          carriedForwardDays: true,
+          proposedOpeningBalance: true,
+          rule: true,
+        },
       });
-      await tx.leaveYearEndProcess.deleteMany({
-        where: { nextCycle: cycle },
-      });
-      await tx.employeeCycleBalance.deleteMany({
-        where: { cycle },
-      });
+
+      // 2. Restore each employee's leave eligibility to pre-process values
+      // The original balance was: entitlement + bf_before + creditedDays_before - leaveUsed
+      // The year-end process set: leaveBalance = proposedOpeningBalance, bf = carriedForwardDays, creditedDays = 0
+      // To rollback: restore leaveBalance to the original availableBalance (closing balance before process),
+      // set bf = 0 (remove the carried forward), restore creditedDays = 0 (we can't recover original credited days)
+      // Most accurate: restore leaveBalance = entitlement (the original daysAllowed) since that's the base
+      // But actually the best approach: use the stored data to compute original values
+      for (const rec of existingRecords) {
+        // The original balance before the year-end process:
+        // availableBalance = (entitlement + old_bf + old_credited) - leaveUsed
+        // Since we stored entitlement, leaveUsed, and availableBalance, we can restore:
+        // - leaveBalance back to availableBalance (what they had before year-end)
+        // - bf = availableBalance - entitlement (could be the old bf portion, or 0 if negative)
+        // - daysAllowed = entitlement
+        // But a simpler and correct approach: restore the balance as it was before the process ran.
+        // Before the process, leaveBalance held the "live" balance. The process replaced it with proposedOpeningBalance.
+        // The stored availableBalance IS the closing balance of the current cycle.
+        // Restore: leaveBalance = original total (entitlement + original_bf + credited - leaveUsed was availableBalance)
+        // Since we don't have the original bf/credited separately, the safest rollback is:
+        // leaveBalance = entitlement (reset to base entitlement, removing all carry forward effects)
+        // bf = 0, creditedDays = 0
+        // This is the cleanest rollback — revert to the base entitlement for that leave type.
+
+        await tx.employeeLeaveEligibility.updateMany({
+          where: {
+            employeeId: rec.employeeId,
+            leaveTypeId: rec.leaveTypeId,
+          },
+          data: {
+            leaveBalance: rec.entitlement,
+            bf: 0,
+            creditedDays: 0,
+            daysAllowed: rec.entitlement,
+          },
+        });
+      }
+
+      // 3. Delete the year-end records
+      if (employeeId) {
+        await tx.leaveYearEndRecord.deleteMany({
+          where: {
+            nextCycle: cycle,
+            employeeId,
+            ...(leaveTypeFilter ? { leaveTypeId: leaveTypeFilter } : {}),
+          },
+        });
+        await tx.employeeCycleBalance.deleteMany({
+          where: {
+            cycle,
+            employeeId,
+            ...(leaveTypeFilter ? { leaveTypeId: leaveTypeFilter } : {}),
+          },
+        });
+      } else {
+        await tx.leaveYearEndRecord.deleteMany({
+          where: {
+            nextCycle: cycle,
+            ...(leaveTypeFilter ? { leaveTypeId: leaveTypeFilter } : {}),
+          },
+        });
+        if (!leaveTypeFilter) {
+          await tx.leaveYearEndProcess.deleteMany({
+            where: { nextCycle: cycle },
+          });
+        }
+        await tx.employeeCycleBalance.deleteMany({
+          where: {
+            cycle,
+            ...(leaveTypeFilter ? { leaveTypeId: leaveTypeFilter } : {}),
+          },
+        });
+      }
     });
 
-    return Response.json({ success: true, message: `Reverted year-end records for cycle ${cycle}` });
+    return Response.json({
+      success: true,
+      message: employeeId
+        ? `Reverted year-end records for employee ${employeeId} in cycle ${cycle}`
+        : `Reverted year-end records for cycle ${cycle}`,
+    });
   } catch (error) {
     console.error("Failed to revert year-end process:", error);
     return Response.json({ error: "Failed to revert year-end process." }, { status: 500 });

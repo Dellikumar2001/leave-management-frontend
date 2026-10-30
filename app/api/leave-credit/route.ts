@@ -1,6 +1,12 @@
 import type { LeaveCategory, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { findBalanceLeaveType } from "@/lib/leave-administration";
+import {
+  deleteLeaveCredit,
+  updateLeaveCredit,
+  LeaveCreditNotFoundError,
+  LeaveCreditConsumptionError,
+} from "@/lib/annual-leave-credit";
 
 export const runtime = "nodejs";
 
@@ -103,6 +109,8 @@ export async function GET(request: Request) {
   }
 }
 
+import { executeAnnualLeaveCredit } from "@/lib/annual-leave-credit";
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -111,109 +119,86 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return Response.json({ error: "Select employees and valid credit details." }, { status: 400 });
+    return Response.json({ error: "Select employees or filters and valid credit details." }, { status: 400 });
   }
 
-  const input = body as { employeeIds?: unknown; credit?: unknown };
-  const credit = parseCredit(input.credit);
-  if (!Array.isArray(input.employeeIds) || !input.employeeIds.length ||
-    !input.employeeIds.every((id) => typeof id === "string" && id.trim()) || !credit) {
-    return Response.json({ error: "Select employees and enter a positive number of credit days." }, { status: 400 });
+  const input = body as {
+    streams?: unknown;
+    departments?: unknown;
+    employee_ids?: unknown;
+    employeeIds?: unknown;
+    credit?: unknown;
+    category?: unknown;
+    days?: unknown;
+    year?: unknown;
+    cycle?: unknown;
+    allowDuplicate?: unknown;
+    performedBy?: unknown;
+  };
+
+  // Support both credit object and top-level fields
+  let category: "ANNUAL" | "MEDICAL" = "ANNUAL";
+  let days: number | undefined;
+
+  const parsedCredit = parseCredit(input.credit);
+  if (parsedCredit) {
+    category = parsedCredit.category;
+    days = parsedCredit.days;
+  } else {
+    if (isCategory(input.category)) {
+      category = input.category;
+    }
+    if (Number.isSafeInteger(input.days) && (input.days as number) >= 0) {
+      days = input.days as number;
+    }
   }
-  const employeeIds = [...new Set(input.employeeIds.map((id) => (id as string).trim()))];
+
+  // Extract streams, departments, employeeIds
+  const streams =
+    typeof input.streams === "string"
+      ? input.streams
+      : Array.isArray(input.streams)
+      ? (input.streams as string[])
+      : undefined;
+
+  const departments =
+    typeof input.departments === "string"
+      ? input.departments
+      : Array.isArray(input.departments)
+      ? (input.departments as string[])
+      : undefined;
+
+  const employeeIds = Array.isArray(input.employee_ids)
+    ? (input.employee_ids as string[])
+    : Array.isArray(input.employeeIds)
+    ? (input.employeeIds as string[])
+    : undefined;
 
   try {
-    const createdCount = await prisma.$transaction(async (transaction) => {
-      const foundEmployees = await transaction.employee.findMany({
-        where: { employeeId: { in: employeeIds } },
-        select: { employeeId: true },
-      });
-      if (foundEmployees.length !== employeeIds.length) throw new Error("One or more selected employees could not be found.");
-
-      const balanceLeaveType = await findBalanceLeaveType(transaction, credit.category);
-      if (!balanceLeaveType && credit.category === "MEDICAL") {
-        throw new Error("Create an active Medical leave type or group before crediting days.");
-      }
-
-      for (const employeeId of employeeIds) {
-        let targetLeaveTypeId = balanceLeaveType?.id ?? null;
-        if (credit.category === "ANNUAL") {
-          const empCls = await transaction.employeeLeaveEligibility.findMany({
-            where: {
-              employeeId,
-              leaveType: {
-                status: "ACTIVE",
-                OR: [
-                  { code: { equals: "CL", mode: "insensitive" } },
-                  { code: { startsWith: "CL_", mode: "insensitive" } },
-                  { name: { contains: "CASUAL", mode: "insensitive" } },
-                ],
-              },
-            },
-            include: { leaveType: true },
-          });
-          const matched =
-            empCls.find((r) => r.leaveType.code.toUpperCase() === "CL") ||
-            empCls[0];
-          if (matched) targetLeaveTypeId = matched.leaveTypeId;
-        } else if (credit.category === "MEDICAL") {
-          const empMls = await transaction.employeeLeaveEligibility.findMany({
-            where: {
-              employeeId,
-              leaveType: {
-                status: "ACTIVE",
-                NOT: [{ name: { contains: "MATERNITY", mode: "insensitive" } }],
-                OR: [
-                  { code: { equals: "ML", mode: "insensitive" } },
-                  { code: { startsWith: "ML_", mode: "insensitive" } },
-                  { name: { contains: "MEDICAL", mode: "insensitive" } },
-                ],
-              },
-            },
-            include: { leaveType: true },
-          });
-          const matched =
-            empMls.find((r) => r.leaveType.code.toUpperCase() === "ML") ||
-            empMls.find((r) => r.leaveType.name.toUpperCase().includes("MEDICAL")) ||
-            empMls[0];
-          if (matched) targetLeaveTypeId = matched.leaveTypeId;
-        }
-
-        await changeCreditedDays(transaction, employeeId, targetLeaveTypeId, credit.category, credit.days);
-        await transaction.leaveCredit.create({
-          data: {
-            employeeId,
-            category: credit.category,
-            days: credit.days,
-            startDate: new Date(new Date().toISOString().slice(0, 10)),
-            endDate: new Date(new Date().toISOString().slice(0, 10)),
-            leaveTypeId: targetLeaveTypeId,
-          },
-        });
-      }
-      await transaction.employeeNotification.createMany({
-        data: employeeIds.map((employeeId) => ({
-          employeeId,
-          title: `${credit.category === "ANNUAL" ? "Annual" : "Medical"} leave credited`,
-          content: `${credit.days} day${credit.days === 1 ? "" : "s"} of ${credit.category.toLowerCase()} leave have been credited to your balance.`,
-          type: "LEAVE_CREDITED",
-        })),
-      });
-      return employeeIds.length;
+    const result = await executeAnnualLeaveCredit({
+      streams,
+      departments,
+      employee_ids: employeeIds,
+      category,
+      days,
+      year: typeof input.year === "number" ? input.year : undefined,
+      cycle: typeof input.cycle === "string" ? input.cycle : undefined,
+      allowDuplicate: Boolean(input.allowDuplicate),
+      performedBy: typeof input.performedBy === "string" ? input.performedBy : "Administrator",
     });
-    return Response.json({ creditedCount: createdCount }, { status: 201 });
+
+    return Response.json(result, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("could not be found")) {
-      return Response.json({ error: error.message }, { status: 400 });
-    }
-    if (error instanceof Error && error.message.startsWith("Create an active")) {
-      return Response.json({ error: error.message }, { status: 400 });
-    }
-    if (error instanceof Error && error.message.includes("not eligible")) {
-      return Response.json({ error: error.message }, { status: 400 });
+    const message = error instanceof Error ? error.message : "Unable to credit leave.";
+    if (
+      message.includes("No active employees found") ||
+      message.includes("could not be found") ||
+      message.includes("consumed their available balance")
+    ) {
+      return Response.json({ error: message }, { status: 400 });
     }
     console.error("Failed to credit leave:", error);
-    return Response.json({ error: "Unable to credit leave. Check the database migration." }, { status: 503 });
+    return Response.json({ error: message || "Unable to credit leave. Check database state." }, { status: 503 });
   }
 }
 
@@ -234,26 +219,32 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const credit = await prisma.$transaction(async (transaction) => {
-      const existing = await transaction.leaveCredit.findUnique({ where: { id: input.id as number } });
-      if (!existing) throw new Error("The credit record no longer exists.");
-      const newDays = input.days as number;
-      await changeCreditedDays(transaction, existing.employeeId, existing.leaveTypeId, existing.category, newDays - existing.days);
-      return transaction.leaveCredit.update({
-        where: { id: existing.id },
-        data: { days: newDays },
-      });
-    });
-    return Response.json({ credit });
+    const result = await updateLeaveCredit(input.id as number, input.days as number);
+    return Response.json({ credit: result.credit, result }, { status: 200 });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("no longer exists")) {
+    if (error instanceof LeaveCreditNotFoundError) {
       return Response.json({ error: error.message }, { status: 404 });
     }
-    if (error instanceof Error && error.message.includes("cannot be reversed")) {
+    if (error instanceof LeaveCreditConsumptionError) {
       return Response.json({ error: error.message }, { status: 409 });
     }
-    console.error("Failed to update leave credit:", error);
-    return Response.json({ error: "Unable to update the leave credit." }, { status: 503 });
+    if (error instanceof Error) {
+      if (error.message.includes("no longer exists")) {
+        return Response.json({ error: error.message }, { status: 404 });
+      }
+      if (
+        error.message.includes("used") ||
+        error.message.includes("consumed") ||
+        error.message.includes("cannot be reversed") ||
+        error.message.includes("balance")
+      ) {
+        return Response.json({ error: error.message }, { status: 409 });
+      }
+      console.error("Failed to update leave credit:", error);
+      return Response.json({ error: `Unable to update leave credit: ${error.message}` }, { status: 500 });
+    }
+    console.error("Failed to update leave credit (unknown error):", error);
+    return Response.json({ error: "Unable to update the leave credit." }, { status: 500 });
   }
 }
 
@@ -273,21 +264,31 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    await prisma.$transaction(async (transaction) => {
-      const existing = await transaction.leaveCredit.findUnique({ where: { id: id as number } });
-      if (!existing) throw new Error("The credit record no longer exists.");
-      await changeCreditedDays(transaction, existing.employeeId, existing.leaveTypeId, existing.category, -existing.days);
-      await transaction.leaveCredit.delete({ where: { id: existing.id } });
-    });
-    return new Response(null, { status: 204 });
+    const result = await deleteLeaveCredit(id as number);
+    return Response.json({ success: true, result }, { status: 200 });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("no longer exists")) {
+    if (error instanceof LeaveCreditNotFoundError) {
       return Response.json({ error: error.message }, { status: 404 });
     }
-    if (error instanceof Error && error.message.includes("cannot be reversed")) {
+    if (error instanceof LeaveCreditConsumptionError) {
       return Response.json({ error: error.message }, { status: 409 });
     }
-    console.error("Failed to delete leave credit:", error);
-    return Response.json({ error: "Unable to delete the leave credit." }, { status: 503 });
+    if (error instanceof Error) {
+      if (error.message.includes("no longer exists")) {
+        return Response.json({ error: error.message }, { status: 404 });
+      }
+      if (
+        error.message.includes("used") ||
+        error.message.includes("consumed") ||
+        error.message.includes("cannot be reversed") ||
+        error.message.includes("balance")
+      ) {
+        return Response.json({ error: error.message }, { status: 409 });
+      }
+      console.error("Failed to delete leave credit:", error);
+      return Response.json({ error: `Unable to delete leave credit: ${error.message}` }, { status: 500 });
+    }
+    console.error("Failed to delete leave credit (unknown error):", error);
+    return Response.json({ error: "Unable to delete the leave credit due to an unexpected error." }, { status: 500 });
   }
 }
