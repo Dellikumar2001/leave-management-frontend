@@ -1440,12 +1440,9 @@ export default function LeaveYearEndPage() {
                                     isProcessed ? (
                                       <span
                                         title={`Processed: 0 taken / ${openingDenominator} (${leafData.eligible} eligible + ${carriedTotal} carried total)`}
-                                        className="inline-flex items-center gap-1.5 rounded bg-emerald-50 border border-emerald-300 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-950 shadow-2xs"
+                                        className="inline-flex items-center gap-1 rounded bg-emerald-50 border border-emerald-300 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-950 shadow-2xs"
                                       >
                                         <span>0 / {openingDenominator}</span>
-                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1 py-0.5 rounded">
-                                          ({leafData.eligible} + {carriedTotal})
-                                        </span>
                                       </span>
                                     ) : (
                                       <span
