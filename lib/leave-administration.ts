@@ -1,8 +1,7 @@
 import type { LeaveCategory, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export const blockedLeaveMessage = "Can't take leave on this date, contact admin";
-export const holidayLeaveMessage = "Can't apply leave on a holiday";
+export const blockedLeaveMessage = "Leaves are blocked for this date. Kindly select any other date or contact admin";
 
 export function parseDateOnly(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {

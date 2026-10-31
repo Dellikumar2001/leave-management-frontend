@@ -53,8 +53,7 @@ Blocking or crediting creates an in-app notification for each selected employee.
 
 The leave-request POST route checks for declared holidays and blocked dates before forwarding a request. It checks every date from `startDate` through `endDate`:
 
-1. **Marked Holidays**: If any date in the range matches an active declared holiday (`isHoliday: true` in the holiday calendar, including annual repeating holidays), the request is rejected with HTTP 409 and:
-   > Can't apply leave on a holiday
+> Leaves are blocked for this date. Kindly select any other date or contact admin
 
 2. **Blocked Dates**: For the employee identified by `employeeId` or the student's `studentCode`, if any date is blocked in `blocked_leaves`, the request is rejected with HTTP 409 and:
    > Can't take leave on this date, contact admin
