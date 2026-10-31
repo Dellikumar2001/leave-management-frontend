@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowDown,
+  ArrowRight,
   ArrowUp,
   ArrowUpDown,
   CalendarCheck,
   CalendarDays,
   CheckCircle2,
+  CheckSquare,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -15,6 +18,8 @@ import {
   Info,
   Loader2,
   RotateCcw,
+  Save,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Users,
@@ -63,6 +68,16 @@ type PreviewRecord = {
 };
 
 
+type LeaveTypeItem = {
+  id: number;
+  code: string;
+  name: string;
+  carryForward: boolean;
+  daysAllowed: number;
+  status: string;
+  leaveGroup?: string;
+};
+
 type ProcessResult = {
   processId: number;
   currentCycle: string;
@@ -90,18 +105,58 @@ type RecordResult = {
   reason?: string;
 };
 
+type CarryForwardLeaveColumnData = {
+  leaveTypeId: number;
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  taken: number;
+  eligible: number;
+  bf: number;
+  total: number;
+  proposedBf: number;
+  closingBalance: number;
+  isTickedForProcess: boolean;
+  isProcessedInDb: boolean;
+};
+
+type EmployeeEntitlementMap = Record<
+  string, // employeeId
+  Record<
+    number, // leaveTypeId
+    {
+      leaveTypeId: number;
+      leaveTypeCode: string;
+      leaveTypeName: string;
+      taken: number;
+      eligible: number;
+      bf: number;
+      credited?: number;
+      credit?: number;
+      balance: number;
+      total: number;
+      isCarryForward: boolean;
+    }
+  >
+>;
+
+type EmployeeYearEndRow = {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  stream: string;
+  employeeType: string;
+  employmentType: string;
+  carryForwardLeaves: Record<number, CarryForwardLeaveColumnData>;
+  carriedForwardDays: number;
+  proposedOpeningBalance: number;
+  isAlreadyProcessed: boolean;
+};
+
 type PreviewSortField =
   | "employeeId"
   | "employeeName"
   | "department"
-  | "leaveType"
-  | "entitlement"
-  | "leaveUsed"
-  | "availableBalance"
-  | "rule"
-  | "carriedForwardDays"
-  | "proposedOpeningBalance"
-  | "status";
+  | string;
 
 type SortDirection = "asc" | "desc" | null;
 
@@ -140,19 +195,18 @@ function SortHeaderButton({
     <button
       type="button"
       onClick={() => onSort(columnKey)}
-      className={`group inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors uppercase tracking-tight cursor-pointer select-none ${
-        align === "right"
+      className={`group inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors uppercase tracking-tight cursor-pointer select-none ${align === "right"
           ? "justify-end w-full"
           : align === "center"
-          ? "justify-center w-full"
-          : "justify-start text-left"
-      }`}
+            ? "justify-center w-full"
+            : "justify-start text-left"
+        }`}
       title={
         !isCurrent || !sortDirection
           ? `Sort by ${label} (Ascending)`
           : isAsc
-          ? `Sort by ${label} (Descending)`
-          : `Reset sorting`
+            ? `Sort by ${label} (Descending)`
+            : `Reset sorting`
       }
     >
       {align === "right" && arrowIcon}
@@ -177,7 +231,10 @@ export default function LeaveYearEndPage() {
   const [selectedStream, setSelectedStream] = useState<string>("ALL");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
   const [selectedEmployeeType, setSelectedEmployeeType] = useState<string>("ALL");
-  const [selectedEmploymentType, setSelectedEmploymentType] = useState<string>("ALL");
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>("ALL");
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState<string>("");
+  const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState<boolean>(false);
+  const employeeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Data
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
@@ -187,28 +244,78 @@ export default function LeaveYearEndPage() {
   // Selection for execution
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
 
+  // Leave types from database
+  const [leaveTypesList, setLeaveTypesList] = useState<LeaveTypeItem[]>([]);
+  const [selectedCarryForwardLeaveTypeIds, setSelectedCarryForwardLeaveTypeIds] = useState<number[]>([]);
+
+  // Rollback state
+  const [hasProceeded, setHasProceeded] = useState<boolean>(false);
+  const [sessionProcessedEmployeeIds, setSessionProcessedEmployeeIds] = useState<string[]>([]);
+  const [rollingBackEmployeeId, setRollingBackEmployeeId] = useState<string | null>(null);
+  const [rolledBackEmployeeIds, setRolledBackEmployeeIds] = useState<string[]>([]);
+  const [isRollingBackAll, setIsRollingBackAll] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>("");
+
   // UI state
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
-  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [confirmedAcknowledgement, setConfirmedAcknowledgement] = useState<boolean>(false);
+  const [showSummaryModal, setShowSummaryModal] = useState<boolean>(false);
+  const [isDeclarationConfirmed, setIsDeclarationConfirmed] = useState<boolean>(false);
 
-  // Processed preview mode: when false, default table hides Carried Forward and Proposed Opening;
-  // when true (after clicking Process Year-End), shows both columns.
+  // Processed preview mode
   const [isProcessedPreview, setIsProcessedPreview] = useState<boolean>(false);
 
   // Pagination state (default: 10 per page)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
-  // Completed Process Summary Modal
-  const [completedSummary, setCompletedSummary] = useState<ProcessResult | null>(null);
-  const [summaryRecords, setSummaryRecords] = useState<RecordResult[]>([]);
-  const [summaryFilter, setSummaryFilter] = useState<"ALL" | "SUCCESS" | "SKIPPED">("ALL");
+  // Entitlement page details cache by employeeId and leaveTypeId
+  const [entitlementDetails, setEntitlementDetails] = useState<EmployeeEntitlementMap>({});
+
+  const parseEntitlementDetails = (eligData: any): EmployeeEntitlementMap => {
+    const detailsMap: EmployeeEntitlementMap = {};
+    const leaveTypes: any[] = eligData?.leaveTypes || [];
+    const ltMap = new Map<number, any>(leaveTypes.map((t: any) => [t.id, t]));
+
+    for (const emp of eligData?.employees || []) {
+      const empMap: Record<number, any> = {};
+      for (const rec of emp.leaveRecords || []) {
+        const lt = ltMap.get(rec.leaveTypeId);
+        const eligible = Number(rec?.daysAllowed > 0 ? rec.daysAllowed : (lt?.daysAllowed ?? 0)) || 0;
+        const bf = Number(rec?.bf) || 0;
+        const credit = Number(rec?.creditedDays ?? rec?.credited ?? rec?.credit ?? 0);
+        const taken = Number(rec?.taken) || 0;
+        const balance = Math.max(0, (eligible + bf + credit) - taken);
+        const total = Number(rec?.total !== undefined ? rec.total : balance) || 0;
+        const isCarry = Boolean(lt?.carryForward);
+
+        empMap[rec.leaveTypeId] = {
+          leaveTypeId: rec.leaveTypeId,
+          leaveTypeCode: lt?.code || String(rec.leaveTypeId),
+          leaveTypeName: lt?.name || "Leave",
+          taken,
+          eligible,
+          bf,
+          credit,
+          credited: credit,
+          balance,
+          total,
+          isCarryForward: isCarry,
+        };
+      }
+      detailsMap[emp.employeeId] = empMap;
+    }
+    return detailsMap;
+  };
 
   // Load preview data
-  const loadData = async (currCycle = currentCycleCode, nxtCycle = nextCycleCode, showLoading = true) => {
+  const loadData = async (
+    currCycle = currentCycleCode,
+    nxtCycle = nextCycleCode,
+    showLoading = true,
+    preserveSelection = false
+  ) => {
     try {
       if (showLoading) setIsLoading(true);
       const params = new URLSearchParams({
@@ -216,11 +323,19 @@ export default function LeaveYearEndPage() {
         nextCycle: nxtCycle,
       });
 
-      const response = await fetch(`/api/leave-year-end?${params.toString()}`, { cache: "no-store" });
+      const [response, eligResponse] = await Promise.all([
+        fetch(`/api/leave-year-end?${params.toString()}`, { cache: "no-store" }),
+        fetch("/api/leave-eligibility", { cache: "no-store" }),
+      ]);
       setError("");
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Unable to load year-end preview.");
+      }
+
+      if (eligResponse.ok) {
+        const eligData = await eligResponse.json();
+        setEntitlementDetails(parseEntitlementDetails(eligData));
       }
 
       setCycles(data.cycles || []);
@@ -231,11 +346,17 @@ export default function LeaveYearEndPage() {
       setEmployees(data.employees || []);
       setPreviewRecords(data.previewRecords || []);
       setRules(data.rules || []);
+      setLeaveTypesList(data.leaveTypes || []);
+      const cfTypes = (data.leaveTypes || []).filter((lt: any) => Boolean(lt.carryForward));
+      setSelectedCarryForwardLeaveTypeIds((prev) => (prev.length > 0 ? prev : cfTypes.map((lt: any) => lt.id)));
 
-      // Auto-select all unprocessed employees by default
-      const selectableIds = (data.employees || [])
-        .map((e: EmployeeSummary) => e.employeeId);
-      setSelectedEmployeeIds(selectableIds);
+      if (!preserveSelection) {
+        // Auto-select all unprocessed employees by default
+        const selectableIds = (data.employees || [])
+          .filter((e: EmployeeSummary) => !e.isAlreadyProcessed)
+          .map((e: EmployeeSummary) => e.employeeId);
+        setSelectedEmployeeIds(selectableIds);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load data.");
     } finally {
@@ -247,10 +368,19 @@ export default function LeaveYearEndPage() {
     let mounted = true;
     async function init() {
       try {
-        const response = await fetch("/api/leave-year-end?currentCycle=2025-2026&nextCycle=2026-2027", { cache: "no-store" });
+        const [response, eligResponse] = await Promise.all([
+          fetch("/api/leave-year-end?currentCycle=2025-2026&nextCycle=2026-2027", { cache: "no-store" }),
+          fetch("/api/leave-eligibility", { cache: "no-store" }),
+        ]);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Unable to load year-end preview.");
         if (!mounted) return;
+
+        if (eligResponse.ok) {
+          const eligData = await eligResponse.json();
+          setEntitlementDetails(parseEntitlementDetails(eligData));
+        }
+
         setCycles(data.cycles || []);
         setStreamOptions(data.filters?.streams || []);
         setDepartmentOptions(data.filters?.departments || []);
@@ -259,7 +389,12 @@ export default function LeaveYearEndPage() {
         setEmployees(data.employees || []);
         setPreviewRecords(data.previewRecords || []);
         setRules(data.rules || []);
-        const selectableIds = (data.employees || []).map((e: EmployeeSummary) => e.employeeId);
+        setLeaveTypesList(data.leaveTypes || []);
+        const cfTypes = (data.leaveTypes || []).filter((lt: any) => Boolean(lt.carryForward));
+        setSelectedCarryForwardLeaveTypeIds(cfTypes.map((lt: any) => lt.id));
+        const selectableIds = (data.employees || [])
+          .filter((e: EmployeeSummary) => !e.isAlreadyProcessed)
+          .map((e: EmployeeSummary) => e.employeeId);
         setSelectedEmployeeIds(selectableIds);
       } catch (err: unknown) {
         if (mounted) setError(err instanceof Error ? err.message : "Failed to load data.");
@@ -302,15 +437,16 @@ export default function LeaveYearEndPage() {
 
     return previewRecords.map((record) => {
       const activeRule = ruleLookup.get(record.leaveTypeId);
-      const isCarryForward =
-        Boolean(record.carryForward) ||
-        record.leaveTypeCode === "ML" ||
-        record.leaveTypeCode === "EL" ||
-        activeRule?.rule === "CARRY_FORWARD";
+      const isTicked = selectedCarryForwardLeaveTypeIds.includes(record.leaveTypeId);
+      const rule = isTicked ? (activeRule?.rule || "CARRY_FORWARD") : "RESET";
+      const maxLimit = activeRule?.maxCarryForwardDays ?? null;
 
-      const rule = isCarryForward ? "CARRY_FORWARD" : (activeRule?.rule || "RESET");
-      const carriedForwardDays = isCarryForward ? record.carriedForwardDays : 0;
-      const proposedOpeningBalance = record.isEligible ? record.entitlement + carriedForwardDays : 0;
+      let carriedForwardDays = 0;
+      if (rule === "CARRY_FORWARD") {
+        carriedForwardDays = maxLimit !== null ? Math.min(record.availableBalance, maxLimit) : record.availableBalance;
+      }
+
+      const proposedOpeningBalance = record.isEligible ? carriedForwardDays + record.entitlement : 0;
 
       return {
         ...record,
@@ -320,18 +456,62 @@ export default function LeaveYearEndPage() {
         proposedOpeningBalance,
       };
     });
-  }, [previewRecords, rules]);
+  }, [previewRecords, rules, selectedCarryForwardLeaveTypeIds]);
+
+  // Close employee dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(event.target as Node)) {
+        setIsEmployeeDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Filtered employees
+  const employeeFilterOptions = useMemo(() => {
+    return employees.filter((emp) => {
+      if (selectedStream !== "ALL" && emp.stream !== selectedStream) return false;
+      if (selectedDepartment !== "ALL" && emp.department !== selectedDepartment) return false;
+      if (selectedEmployeeType !== "ALL" && emp.employeeType !== selectedEmployeeType) return false;
+
+      if (employeeSearchTerm.trim() && selectedEmployeeFilter === "ALL") {
+        const q = employeeSearchTerm.trim().toLowerCase();
+        const formatted = `${emp.employeeId} - ${emp.name}`.toLowerCase();
+        return (
+          emp.employeeId.toLowerCase().includes(q) ||
+          emp.name.toLowerCase().includes(q) ||
+          formatted.includes(q)
+        );
+      }
+      return true;
+    });
+  }, [employees, selectedStream, selectedDepartment, selectedEmployeeType, employeeSearchTerm, selectedEmployeeFilter]);
+
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
       if (selectedStream !== "ALL" && emp.stream !== selectedStream) return false;
       if (selectedDepartment !== "ALL" && emp.department !== selectedDepartment) return false;
       if (selectedEmployeeType !== "ALL" && emp.employeeType !== selectedEmployeeType) return false;
-      if (selectedEmploymentType !== "ALL" && emp.employmentType !== selectedEmploymentType) return false;
+
+      if (selectedEmployeeFilter !== "ALL") {
+        return emp.employeeId === selectedEmployeeFilter;
+      }
+      if (employeeSearchTerm.trim()) {
+        const q = employeeSearchTerm.trim().toLowerCase();
+        const formatted = `${emp.employeeId} - ${emp.name}`.toLowerCase();
+        return (
+          emp.employeeId.toLowerCase().includes(q) ||
+          emp.name.toLowerCase().includes(q) ||
+          formatted.includes(q)
+        );
+      }
       return true;
     });
-  }, [employees, selectedStream, selectedDepartment, selectedEmployeeType, selectedEmploymentType]);
+  }, [employees, selectedStream, selectedDepartment, selectedEmployeeType, selectedEmployeeFilter, employeeSearchTerm]);
 
   const filteredEmployeeIds = useMemo(() => {
     return new Set(filteredEmployees.map((e) => e.employeeId));
@@ -353,72 +533,171 @@ export default function LeaveYearEndPage() {
     }
   };
 
-  // Filtered & sorted preview records based on current filters and sorting
-  const visiblePreviewRecords = useMemo(() => {
-    const list = dynamicPreviewRecords.filter((rec) => filteredEmployeeIds.has(rec.employeeId));
+  // Helper to get base leave group/category (e.g. CL_A and CL_S both map to "CL")
+  const getBaseCode = (code: string, name: string): string => {
+    const c = (code || "").toUpperCase();
+    const n = (name || "").toUpperCase();
+    if (c === "CL" || c.startsWith("CL_") || n.includes("CASUAL")) return "CL";
+    if ((c === "ML" || c.startsWith("ML_") || c === "MDL" || n.includes("MEDICAL")) && !n.includes("MATERNITY")) return "ML";
+    if (c === "EL" || c.startsWith("EL_") || n.includes("EARNED")) return "EL";
+    if (c === "SL" || c.startsWith("SL_") || n.includes("SICK")) return "SL";
+    if (c === "RH" || c.startsWith("RH_") || n.includes("RESTRICTED")) return "RH";
+    return c;
+  };
+
+  // Leave types from database that have carryForward === true, deduplicated by base category
+  const carryForwardEligibleLeaveTypes = useMemo(() => {
+    const cfList = leaveTypesList.filter((lt) => Boolean(lt.carryForward));
+    const seen = new Set<string>();
+    const uniqueList: LeaveTypeItem[] = [];
+    for (const lt of cfList) {
+      const base = getBaseCode(lt.code, lt.name);
+      if (!seen.has(base)) {
+        seen.add(base);
+        uniqueList.push(lt);
+      }
+    }
+    return uniqueList;
+  }, [leaveTypesList]);
+
+  // Filtered & sorted employee rows based on current filters, dynamic rules, and entitlement totals
+  const visibleEmployeeRows = useMemo(() => {
+    const rows: EmployeeYearEndRow[] = filteredEmployees.map((emp) => {
+      const empRecords = dynamicPreviewRecords.filter((r) => r.employeeId === emp.employeeId);
+      const carriedForwardDays = empRecords.reduce((sum, r) => sum + r.carriedForwardDays, 0);
+      const proposedOpeningBalance = empRecords.reduce((sum, r) => sum + r.proposedOpeningBalance, 0);
+      const isAlreadyProcessed =
+        !rolledBackEmployeeIds.includes(emp.employeeId) &&
+        (emp.isAlreadyProcessed ||
+          (empRecords.length > 0 && empRecords.some((r) => r.isAlreadyProcessed)) ||
+          sessionProcessedEmployeeIds.includes(emp.employeeId));
+
+      const empEntitlement = entitlementDetails[emp.employeeId] || {};
+      const carryForwardLeaves: Record<number, CarryForwardLeaveColumnData> = {};
+
+      for (const lt of carryForwardEligibleLeaveTypes) {
+        const base = getBaseCode(lt.code, lt.name);
+        const stream = (emp.stream || "").toUpperCase();
+
+        // Match the specific leave type for this employee's stream (e.g. SFS -> CL_S, AIDED -> CL_A)
+        const matchLt = leaveTypesList.find((x) => {
+          if (getBaseCode(x.code, x.name) !== base) return false;
+          if (stream === "SFS" && (x.code.toUpperCase().endsWith("_S") || x.leaveGroup?.toUpperCase().includes("SFS"))) return true;
+          if (stream === "AIDED" && (x.code.toUpperCase().endsWith("_A") || x.leaveGroup?.toUpperCase().includes("AIDED"))) return true;
+          return false;
+        }) || lt;
+
+        const entRec = empEntitlement[matchLt.id] || empEntitlement[lt.id];
+        const prevRec = empRecords.find((r) => r.leaveTypeId === matchLt.id) || empRecords.find((r) => r.leaveTypeId === lt.id);
+
+        const taken = entRec?.taken ?? prevRec?.leaveUsed ?? 0;
+        const eligible = entRec?.eligible ?? prevRec?.entitlement ?? matchLt.daysAllowed;
+        const currentBf = entRec?.bf ?? 0;
+        const credited = entRec?.credited ?? entRec?.credit ?? (prevRec as any)?.creditedDays ?? 0;
+        const total = entRec?.total ?? Math.max(0, (eligible + currentBf + credited) - taken);
+        const closingBalance = total;
+
+        const ruleConfig = rules.find((r) => r.leaveTypeId === matchLt.id) || rules.find((r) => r.leaveTypeId === lt.id);
+        const maxLimit = prevRec?.maxCarryForward ?? ruleConfig?.maxCarryForwardDays ?? null;
+        const isTicked = selectedCarryForwardLeaveTypeIds.includes(matchLt.id) || selectedCarryForwardLeaveTypeIds.includes(lt.id);
+        const proposedBf = isTicked
+          ? (prevRec?.carriedForwardDays ?? (maxLimit !== null ? Math.min(closingBalance, maxLimit) : closingBalance))
+          : 0;
+
+        const isProcessedInDb =
+          !rolledBackEmployeeIds.includes(emp.employeeId) &&
+          (Boolean(prevRec?.isAlreadyProcessed) || sessionProcessedEmployeeIds.includes(emp.employeeId));
+
+        carryForwardLeaves[lt.id] = {
+          leaveTypeId: matchLt.id,
+          leaveTypeCode: matchLt.code,
+          leaveTypeName: matchLt.name,
+          taken,
+          eligible,
+          bf: currentBf,
+          total,
+          proposedBf,
+          closingBalance,
+          isTickedForProcess: isTicked,
+          isProcessedInDb,
+        };
+      }
+
+      return {
+        employeeId: emp.employeeId,
+        employeeName: emp.name,
+        stream: emp.stream,
+        department: emp.department,
+        employeeType: emp.employeeType,
+        employmentType: emp.employmentType,
+        carryForwardLeaves,
+        carriedForwardDays,
+        proposedOpeningBalance,
+        isAlreadyProcessed,
+      };
+    });
 
     if (!sortField || !sortDirection) {
-      return list;
+      return rows;
     }
 
-    return [...list].sort((a, b) => {
+    return [...rows].sort((a, b) => {
       let comparison = 0;
-      switch (sortField) {
-        case "employeeId":
-          comparison = a.employeeId.localeCompare(b.employeeId, undefined, { numeric: true });
-          break;
-        case "employeeName":
-          comparison = a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: "base" });
-          break;
-        case "department": {
-          const valA = `${a.stream}-${a.department}`;
-          const valB = `${b.stream}-${b.department}`;
-          comparison = valA.localeCompare(valB, undefined, { sensitivity: "base" });
-          break;
+      if (sortField.startsWith("cf_")) {
+        const ltId = parseInt(sortField.replace("cf_", ""), 10);
+        const dataA = a.carryForwardLeaves[ltId];
+        const dataB = b.carryForwardLeaves[ltId];
+        comparison = ((dataA?.taken ?? 0) - (dataB?.taken ?? 0)) || ((dataA?.eligible ?? 0) - (dataB?.eligible ?? 0));
+      } else {
+        switch (sortField) {
+          case "employeeId":
+            comparison = a.employeeId.localeCompare(b.employeeId, undefined, { numeric: true });
+            break;
+          case "employeeName":
+            comparison = a.employeeName.localeCompare(b.employeeName, undefined, { sensitivity: "base" });
+            break;
+          case "department": {
+            const valA = `${a.stream}-${a.department}`;
+            const valB = `${b.stream}-${b.department}`;
+            comparison = valA.localeCompare(valB, undefined, { sensitivity: "base" });
+            break;
+          }
+          default:
+            comparison = 0;
         }
-        case "leaveType": {
-          const valA = `${a.leaveTypeCode}-${a.leaveTypeName}`;
-          const valB = `${b.leaveTypeCode}-${b.leaveTypeName}`;
-          comparison = valA.localeCompare(valB, undefined, { sensitivity: "base" });
-          break;
-        }
-        case "entitlement":
-          comparison = a.entitlement - b.entitlement;
-          break;
-        case "leaveUsed":
-          comparison = a.leaveUsed - b.leaveUsed;
-          break;
-        case "availableBalance":
-          comparison = a.availableBalance - b.availableBalance;
-          break;
-        case "rule":
-          comparison = a.rule.localeCompare(b.rule);
-          break;
-        case "carriedForwardDays":
-          comparison = a.carriedForwardDays - b.carriedForwardDays;
-          break;
-        case "proposedOpeningBalance":
-          comparison = a.proposedOpeningBalance - b.proposedOpeningBalance;
-          break;
-        case "status":
-          comparison = Number(a.isAlreadyProcessed) - Number(b.isAlreadyProcessed);
-          break;
-        default:
-          comparison = 0;
       }
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [dynamicPreviewRecords, filteredEmployeeIds, sortField, sortDirection]);
+  }, [filteredEmployees, dynamicPreviewRecords, entitlementDetails, carryForwardEligibleLeaveTypes, selectedCarryForwardLeaveTypeIds, sortField, sortDirection, rolledBackEmployeeIds, sessionProcessedEmployeeIds, rules]);
 
   // Pagination calculations
-  const totalRecords = visiblePreviewRecords.length;
+  const totalRecords = visibleEmployeeRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
   const clampedCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
   const startIndex = (clampedCurrentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalRecords);
-  const paginatedRecords = useMemo(() => {
-    return visiblePreviewRecords.slice(startIndex, endIndex);
-  }, [visiblePreviewRecords, startIndex, endIndex]);
+  const paginatedRows = useMemo(() => {
+    return visibleEmployeeRows.slice(startIndex, endIndex);
+  }, [visibleEmployeeRows, startIndex, endIndex]);
+
+  // Leave types selected (ticked) for year-end process
+  const selectedLeaveTypesForYearEnd = useMemo(() => {
+    return carryForwardEligibleLeaveTypes.filter((lt) => {
+      const base = getBaseCode(lt.code, lt.name);
+      return (
+        selectedCarryForwardLeaveTypeIds.includes(lt.id) ||
+        selectedCarryForwardLeaveTypeIds.some((id) => {
+          const sibling = leaveTypesList.find((x) => x.id === id);
+          return sibling && getBaseCode(sibling.code, sibling.name) === base;
+        })
+      );
+    });
+  }, [carryForwardEligibleLeaveTypes, selectedCarryForwardLeaveTypeIds, leaveTypesList]);
+
+  // Employees selected for year-end process summary
+  const selectedRowsForSummary = useMemo(() => {
+    return visibleEmployeeRows.filter((r) => selectedEmployeeIds.includes(r.employeeId));
+  }, [visibleEmployeeRows, selectedEmployeeIds]);
 
   // Master Checkbox Toggle for Visible Table Rows
   const isAllVisibleSelected =
@@ -439,6 +718,103 @@ export default function LeaveYearEndPage() {
     }
   };
 
+  const handleToggleCarryForwardLeaveType = (leaveTypeId: number) => {
+    const targetLt = leaveTypesList.find((lt) => lt.id === leaveTypeId);
+    const targetBase = targetLt ? getBaseCode(targetLt.code, targetLt.name) : String(leaveTypeId);
+    const siblingIds = leaveTypesList
+      .filter((lt) => getBaseCode(lt.code, lt.name) === targetBase)
+      .map((lt) => lt.id);
+
+    setSelectedCarryForwardLeaveTypeIds((prev) => {
+      const isChecked = siblingIds.some((id) => prev.includes(id));
+      const next = isChecked
+        ? prev.filter((id) => !siblingIds.includes(id))
+        : Array.from(new Set([...prev, ...siblingIds]));
+
+      setRules((prevRules) =>
+        prevRules.map((r) => {
+          if (siblingIds.includes(r.leaveTypeId)) {
+            return {
+              ...r,
+              rule: isChecked ? "RESET" : "CARRY_FORWARD",
+            };
+          }
+          return r;
+        })
+      );
+
+      return next;
+    });
+  };
+
+  // Rollback handlers
+  const handleRollbackSingleEmployee = async (employeeId: string) => {
+    try {
+      setRollingBackEmployeeId(employeeId);
+      setError("");
+      setSuccessMessage("");
+      const params = new URLSearchParams({
+        cycle: nextCycleCode,
+        employeeId,
+      });
+      const res = await fetch(`/api/leave-year-end?${params.toString()}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to rollback employee.");
+      }
+      setSuccessMessage(`Successfully rolled back year-end records for employee ${employeeId}.`);
+      setRolledBackEmployeeIds((prev) => (prev.includes(employeeId) ? prev : [...prev, employeeId]));
+      setSessionProcessedEmployeeIds((prev) => prev.filter((id) => id !== employeeId));
+      await loadData(currentCycleCode, nextCycleCode, false, true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error during rollback.");
+    } finally {
+      setRollingBackEmployeeId(null);
+    }
+  };
+
+  const handleRollbackAll = async () => {
+    const confirmed = window.confirm(
+      `Are you sure you want to rollback year-end records for cycle ${nextCycleCode}? This will revert carried forward days and reset opening balances for all employees.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsRollingBackAll(true);
+      setError("");
+      setSuccessMessage("");
+      const params = new URLSearchParams({
+        cycle: nextCycleCode,
+      });
+      const res = await fetch(`/api/leave-year-end?${params.toString()}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to rollback year-end process.");
+      }
+      setIsProcessedPreview(false);
+      setHasProceeded(false);
+      setSessionProcessedEmployeeIds([]);
+      setRolledBackEmployeeIds([]);
+      setSuccessMessage(`Successfully rolled back year-end records for all employees in cycle ${nextCycleCode}.`);
+      await loadData(currentCycleCode, nextCycleCode, false, false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error during rollback.");
+    } finally {
+      setIsRollingBackAll(false);
+    }
+  };
+
+  const isRollbackEnabled = (row: EmployeeYearEndRow) => {
+    if (rolledBackEmployeeIds.includes(row.employeeId)) {
+      return false;
+    }
+    return row.isAlreadyProcessed || sessionProcessedEmployeeIds.includes(row.employeeId);
+  };
+
   const handleToggleEmployee = (id: string) => {
     setSelectedEmployeeIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -446,8 +822,8 @@ export default function LeaveYearEndPage() {
   };
 
   // Execution
-  const handleExecuteProcess = async () => {
-    if (!confirmedAcknowledgement) return;
+  // Save year-end process
+  const handleSaveYearEndProcess = async () => {
     setIsProcessing(true);
     setError("");
 
@@ -457,15 +833,27 @@ export default function LeaveYearEndPage() {
         throw new Error("No employees selected under current filter criteria.");
       }
 
+      // Ensure all sibling leave types across streams (e.g. CL_A & CL_S) have their rules synchronized
+      const rulesPayload = rules.map((r) => {
+        const lt = leaveTypesList.find((x) => x.id === r.leaveTypeId);
+        const base = lt ? getBaseCode(lt.code, lt.name) : "";
+        const isSiblingTicked = selectedCarryForwardLeaveTypeIds.some((id) => {
+          const sibling = leaveTypesList.find((x) => x.id === id);
+          return sibling && getBaseCode(sibling.code, sibling.name) === base;
+        });
+        const isTicked = selectedCarryForwardLeaveTypeIds.includes(r.leaveTypeId) || isSiblingTicked;
+        return {
+          leaveTypeId: r.leaveTypeId,
+          rule: isTicked ? ("CARRY_FORWARD" as const) : ("RESET" as const),
+          maxCarryForwardDays: r.maxCarryForwardDays,
+        };
+      });
+
       const payload = {
         currentCycle: currentCycleCode,
         nextCycle: nextCycleCode,
         employeeIds: targetEmployeeIds,
-        rules: rules.map((r) => ({
-          leaveTypeId: r.leaveTypeId,
-          rule: r.rule,
-          maxCarryForwardDays: r.maxCarryForwardDays,
-        })),
+        rules: rulesPayload,
         processedBy: "Administrator",
       };
 
@@ -480,18 +868,20 @@ export default function LeaveYearEndPage() {
         throw new Error(data.error || "Failed to execute year-end leave process.");
       }
 
-      const targetIdsSet = new Set(targetEmployeeIds);
-      const filteredResultRecords = (data.records || []).filter((r: RecordResult) => targetIdsSet.has(r.employeeId));
+      setShowSummaryModal(false);
+      setIsDeclarationConfirmed(false);
+      setSessionProcessedEmployeeIds((prev) => Array.from(new Set([...prev, ...targetEmployeeIds])));
+      setRolledBackEmployeeIds((prev) => prev.filter((id) => !targetEmployeeIds.includes(id)));
+      setSelectedEmployeeIds((prev) => prev.filter((id) => !targetEmployeeIds.includes(id)));
+      setHasProceeded(true);
+      setSuccessMessage(
+        `Leave year-end process saved successfully for ${targetEmployeeIds.length} staff member(s)! Records updated on Year-End Process table and Leave Entitlement table.`
+      );
 
-      setCompletedSummary(data.summary);
-      setSummaryRecords(filteredResultRecords);
-      setShowConfirmModal(false);
-      setConfirmedAcknowledgement(false);
-
-      // Refresh data
-      await loadData();
+      // Refresh data while preserving current selection
+      await loadData(currentCycleCode, nextCycleCode, false, true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error executing process.");
+      setError(err instanceof Error ? err.message : "Error saving process.");
     } finally {
       setIsProcessing(false);
     }
@@ -499,19 +889,17 @@ export default function LeaveYearEndPage() {
 
   // Metrics
   const metrics = useMemo(() => {
-    const selectedRecords = visiblePreviewRecords.filter((r) => selectedEmployeeIds.includes(r.employeeId));
-    const totalCarryForward = selectedRecords.reduce((sum, r) => sum + r.carriedForwardDays, 0);
-    const totalReset = selectedRecords.filter((r) => r.rule === "RESET").length;
-    const alreadyProcessed = selectedRecords.filter((r) => r.isAlreadyProcessed).length;
+    const selectedRows = visibleEmployeeRows.filter((r) => selectedEmployeeIds.includes(r.employeeId));
+    const totalCarryForward = selectedRows.reduce((sum, r) => sum + r.carriedForwardDays, 0);
+    const alreadyProcessed = selectedRows.filter((r) => r.isAlreadyProcessed).length;
 
     return {
       selectedCount: selectedEmployeeIds.filter((id) => filteredEmployeeIds.has(id)).length,
-      recordsCount: selectedRecords.length,
+      recordsCount: selectedRows.length,
       totalCarryForward,
-      totalReset,
       alreadyProcessed,
     };
-  }, [visiblePreviewRecords, selectedEmployeeIds, filteredEmployeeIds]);
+  }, [visibleEmployeeRows, selectedEmployeeIds, filteredEmployeeIds]);
 
   return (
     <div className="min-h-screen bg-[#e9edf3] text-slate-800">
@@ -618,11 +1006,12 @@ export default function LeaveYearEndPage() {
                   setSelectedStream("ALL");
                   setSelectedDepartment("ALL");
                   setSelectedEmployeeType("ALL");
-                  setSelectedEmploymentType("ALL");
+                  setSelectedEmployeeFilter("ALL");
+                  setEmployeeSearchTerm("");
                   setCurrentPage(1);
                   setIsProcessedPreview(false);
                 }}
-                className="text-xs font-medium text-emerald-800 hover:underline"
+                className="text-xs font-medium text-emerald-800 hover:underline cursor-pointer"
               >
                 Reset All Filters
               </button>
@@ -698,77 +1087,189 @@ export default function LeaveYearEndPage() {
                 </div>
               </div>
 
-              {/* Employment Type Dropdown */}
-              <div>
-                <label htmlFor="employmentTypeFilter" className="mb-1 block text-xs font-medium text-slate-600">Employment Type</label>
+              {/* Employee ID / Employee Name Search & Dropdown Filter */}
+              <div className="relative" ref={employeeDropdownRef}>
+                <label htmlFor="employeeFilterInput" className="mb-1 block text-xs font-medium text-slate-600">
+                  Employee ID / Name
+                </label>
                 <div className="relative">
-                  <select
-                    id="employmentTypeFilter"
-                    value={selectedEmploymentType}
-                    onChange={(e) => {
-                      setSelectedEmploymentType(e.target.value);
-                      setCurrentPage(1);
-                      setIsProcessedPreview(false);
-                    }}
-                    className="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 pr-8 text-xs font-medium text-slate-800 outline-none focus:border-emerald-600"
-                  >
-                    <option value="ALL">All Employment Types</option>
-                    {employmentTypeOptions.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="relative flex items-center">
+                    <Search
+                      size={14}
+                      className="pointer-events-none absolute left-3 text-slate-400"
+                    />
+                    <input
+                      id="employeeFilterInput"
+                      type="text"
+                      placeholder="Emp ID / Emp Name"
+                      value={employeeSearchTerm}
+                      onFocus={() => setIsEmployeeDropdownOpen(true)}
+                      onChange={(e) => {
+                        setEmployeeSearchTerm(e.target.value);
+                        setSelectedEmployeeFilter("ALL");
+                        setIsEmployeeDropdownOpen(true);
+                        setCurrentPage(1);
+                        setIsProcessedPreview(false);
+                      }}
+                      className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-8 pr-16 text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-600"
+                    />
+                    {employeeSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmployeeSearchTerm("");
+                          setSelectedEmployeeFilter("ALL");
+                          setCurrentPage(1);
+                        }}
+                        className="absolute right-7 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="Clear filter"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsEmployeeDropdownOpen((prev) => !prev)}
+                      className="absolute right-2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title="Toggle employee list"
+                    >
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform duration-150 ${isEmployeeDropdownOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Dropdown list of values formatted as 'employee id - employee name' */}
+                  {isEmployeeDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedEmployeeFilter("ALL");
+                          setEmployeeSearchTerm("");
+                          setIsEmployeeDropdownOpen(false);
+                          setCurrentPage(1);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs transition hover:bg-emerald-50 hover:text-emerald-900 ${
+                          selectedEmployeeFilter === "ALL" && !employeeSearchTerm
+                            ? "bg-emerald-50/70 font-bold text-emerald-800"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        All Employees
+                      </button>
+                      {employeeFilterOptions.length === 0 ? (
+                        <div className="px-3 py-2 text-center text-xs text-slate-400 italic">
+                          No matching employees found
+                        </div>
+                      ) : (
+                        employeeFilterOptions.map((emp) => {
+                          const isSelected = selectedEmployeeFilter === emp.employeeId;
+                          return (
+                            <button
+                              key={emp.employeeId}
+                              type="button"
+                              onClick={() => {
+                                setSelectedEmployeeFilter(emp.employeeId);
+                                setEmployeeSearchTerm(`${emp.employeeId} - ${emp.name}`);
+                                setIsEmployeeDropdownOpen(false);
+                                setCurrentPage(1);
+                              }}
+                              className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition hover:bg-emerald-50 hover:text-emerald-900 ${
+                                isSelected
+                                  ? "bg-emerald-50/70 font-bold text-emerald-800"
+                                  : "text-slate-700"
+                              }`}
+                            >
+                              <span className="font-medium">
+                                <strong className="font-mono">{emp.employeeId}</strong> - {emp.name}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {emp.stream}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Action Row */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-              {isProcessedPreview
-                ? `Preview Next-Cycle Balances (${visiblePreviewRecords.length})`
-                : `Employee Leave Balances (${visiblePreviewRecords.length})`}
-            </h2>
+          {/* Select Leave Type for Year-End Process Checkbox Section */}
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <CheckSquare size={16} className="text-emerald-700" />
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+                  Select the leave type for year end process
+                </h3>
+              </div>
+              <span className="text-[11px] font-medium text-slate-500">
+                Fetched from Leave Type table (Carry Forward Enabled)
+              </span>
+            </div>
 
-            <div className="flex items-center gap-2.5">
-              {/* Revert Button: Active and visible after Generate has been clicked */}
-              {isProcessedPreview && (
-                <button
-                  type="button"
-                  onClick={() => setIsProcessedPreview(false)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]"
-                >
-                  <RotateCcw size={16} className="text-slate-500" />
-                  Revert
-                </button>
+            <div className="mt-3">
+              {carryForwardEligibleLeaveTypes.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">
+                  No leave types currently have carry forward enabled in the database.
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  {carryForwardEligibleLeaveTypes.map((lt) => {
+                    const base = getBaseCode(lt.code, lt.name);
+                    const isChecked = selectedCarryForwardLeaveTypeIds.includes(lt.id) ||
+                      selectedCarryForwardLeaveTypeIds.some((id) => {
+                        const sibling = leaveTypesList.find((x) => x.id === id);
+                        return sibling && getBaseCode(sibling.code, sibling.name) === base;
+                      });
+                    return (
+                      <label
+                        key={lt.id}
+                        className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2 text-xs font-semibold transition ${
+                          isChecked
+                            ? "border-emerald-300 bg-emerald-50/70 text-emerald-900 shadow-xs"
+                            : "border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleCarryForwardLeaveType(lt.id)}
+                          className="size-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="font-mono">{base}</span>
+                        <span className="font-medium text-slate-700">- {lt.name}</span>
+                        <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 border border-slate-200">
+                          {lt.daysAllowed} days
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               )}
+            </div>
+          </section>
 
-              {/* Main Action: Generate -> Process Year-End */}
+          {successMessage && (
+            <div role="status" className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-emerald-700" />
+                <span>{successMessage}</span>
+              </div>
               <button
                 type="button"
-                disabled={metrics.selectedCount === 0 || isLoading || isProcessing}
-                onClick={() => {
-                  if (!isProcessedPreview) {
-                    setIsProcessedPreview(true);
-                  } else {
-                    setConfirmedAcknowledgement(false);
-                    setShowConfirmModal(true);
-                  }
-                }}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 active:scale-[0.99]"
+                onClick={() => setSuccessMessage("")}
+                className="text-emerald-700 hover:text-emerald-900 cursor-pointer"
               >
-                {!isProcessedPreview ? (
-                  <span>Generate</span>
-                ) : (
-                  <>
-                    <CalendarCheck size={18} />
-                    <span>Process Year-End</span>
-                  </>
-                )}
+                <X size={16} />
               </button>
             </div>
-          </div>
+          )}
 
           {error && (
             <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
@@ -779,54 +1280,44 @@ export default function LeaveYearEndPage() {
 
           {/* Detailed Preview Table */}
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              {/* Table Utility Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-6 py-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Users size={18} className="text-slate-500" />
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                    {isProcessedPreview
-                      ? `Next Cycle Opening Balance Preview (${currentCycleCode} → ${nextCycleCode})`
-                      : `Current Employee Leave Balances (${currentCycleCode})`}
-                  </h2>
-                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                    {visiblePreviewRecords.length} records
+            {/* Table Utility Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-6 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Users size={18} className="text-slate-500" />
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  {isProcessedPreview
+                    ? `Next Cycle Opening Balance Preview (${currentCycleCode} → ${nextCycleCode})`
+                    : `Current Employee Leave Balances (${currentCycleCode})`}
+                </h2>
+                <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                  {visibleEmployeeRows.length} employees
+                </span>
+                {selectedEmployeeIds.length > 0 && (
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    {selectedEmployeeIds.filter((id) => filteredEmployeeIds.has(id)).length} employees selected
                   </span>
-                  {selectedEmployeeIds.length > 0 && (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                      {selectedEmployeeIds.filter((id) => filteredEmployeeIds.has(id)).length} employees selected
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {selectedEmployeeIds.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEmployeeIds([])}
-                      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-200/60 hover:text-slate-800 transition-colors"
-                    >
-                      <X size={13} />
-                      <span>Clear selection</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleSelectAll}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold uppercase text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {isAllVisibleSelected ? "Deselect All" : "Select All"}
-                  </button>
-                </div>
+                )}
               </div>
 
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                  <Loader2 size={32} className="animate-spin text-emerald-700" />
-                  <p className="mt-3 text-sm">Calculating year-end leave preview from database...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold uppercase text-slate-700 transition hover:bg-slate-50"
+                >
+                  {isAllVisibleSelected ? "Deselect All" : "Select All"}
+                </button>
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                <Loader2 size={32} className="animate-spin text-emerald-700" />
+                <p className="mt-3 text-sm">Calculating year-end leave preview from database...</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse text-left text-xs align-middle">
                     <thead className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-tight text-slate-600 font-semibold">
                       <tr>
@@ -872,177 +1363,135 @@ export default function LeaveYearEndPage() {
                             align="left"
                           />
                         </th>
-                        <th scope="col" className="whitespace-nowrap px-3 py-3 text-left align-middle">
-                          <SortHeaderButton
-                            label="Leave Type"
-                            columnKey="leaveType"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="left"
-                          />
-                        </th>
-                        <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                          <SortHeaderButton
-                            label="Entitlement"
-                            columnKey="entitlement"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="right"
-                          />
-                        </th>
-                        <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                          <SortHeaderButton
-                            label={`Used (${currentCycleCode})`}
-                            columnKey="leaveUsed"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="right"
-                          />
-                        </th>
-                        <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle">
-                          <SortHeaderButton
-                            label="Available Balance"
-                            columnKey="availableBalance"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="right"
-                          />
-                        </th>
-                        {isProcessedPreview && (
-                          <>
-                            <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/60">
-                              <SortHeaderButton
-                                label="Carried Forward"
-                                columnKey="carriedForwardDays"
-                                sortField={sortField}
-                                sortDirection={sortDirection}
-                                onSort={handleSort}
-                                align="right"
-                              />
-                            </th>
-                            <th scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/60">
-                              <SortHeaderButton
-                                label={`Proposed Opening (${nextCycleCode})`}
-                                columnKey="proposedOpeningBalance"
-                                sortField={sortField}
-                                sortDirection={sortDirection}
-                                onSort={handleSort}
-                                align="right"
-                              />
-                            </th>
-                          </>
+                        {/* Dynamic Carry Forward Leave Type Columns */}
+                        {carryForwardEligibleLeaveTypes.map((lt) => (
+                          <th key={lt.id} scope="col" className="whitespace-nowrap px-3 py-3 text-right align-middle">
+                            <SortHeaderButton
+                              label={lt.name}
+                              columnKey={`cf_${lt.id}`}
+                              sortField={sortField}
+                              sortDirection={sortDirection}
+                              onSort={handleSort}
+                              align="right"
+                            />
+                          </th>
+                        ))}
+                        {carryForwardEligibleLeaveTypes.length === 0 && (
+                          <th scope="col" className="whitespace-nowrap px-3 py-3 text-center align-middle text-slate-400">
+                            Carry Forward Leave
+                          </th>
                         )}
                         <th scope="col" className="whitespace-nowrap px-3 py-3 text-center align-middle">
-                          <SortHeaderButton
-                            label="Status"
-                            columnKey="status"
-                            sortField={sortField}
-                            sortDirection={sortDirection}
-                            onSort={handleSort}
-                            align="center"
-                          />
+                          Action
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs">
-                      {paginatedRecords.map((record) => {
-                        const isSelected = selectedEmployeeIds.includes(record.employeeId);
+                      {paginatedRows.map((row) => {
+                        const isSelected = selectedEmployeeIds.includes(row.employeeId);
+                        const canRollback = isRollbackEnabled(row);
+                        const isRollingBackThis = rollingBackEmployeeId === row.employeeId;
+
                         return (
                           <tr
-                            key={`${record.employeeId}-${record.leaveTypeId}`}
-                            className={`transition-colors hover:bg-slate-50/80 ${
-                              isSelected ? "bg-emerald-50/30" : ""
-                            }`}
+                            key={row.employeeId}
+                            className={`transition-colors hover:bg-slate-50/80 ${isSelected ? "bg-emerald-50/30" : ""
+                              }`}
                           >
                             <td className="w-10 px-3 py-3 text-center align-middle">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => handleToggleEmployee(record.employeeId)}
+                                onChange={() => handleToggleEmployee(row.employeeId)}
                                 className="size-3.5 rounded border-slate-300 text-emerald-600 focus:ring-0 cursor-pointer align-middle"
                               />
                             </td>
                             <td className="whitespace-nowrap px-3 py-3 text-left align-middle font-mono text-xs font-semibold text-slate-700">
-                              {record.employeeId}
+                              {row.employeeId}
                             </td>
                             <td className="whitespace-nowrap px-3 py-3 text-left align-middle font-semibold text-slate-800">
-                              {record.employeeName}
+                              {row.employeeName}
                             </td>
                             <td className="whitespace-nowrap px-3 py-3 text-left align-middle">
                               <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                                {record.stream}-{record.department}
+                                {row.stream}-{row.department}
                               </span>
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-left align-middle">
-                              <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                                <span>{record.leaveTypeCode} - {record.leaveTypeName}</span>
-                                {record.carryForward && (
-                                  <span className="font-semibold text-emerald-700">
-                                    (Carry Forward)
-                                  </span>
-                                )}
-                              </span>
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right align-middle text-slate-700">
-                              <span className="font-mono font-semibold">{record.entitlement}</span>{" "}
-                              <span className="text-[11px] text-slate-400">days</span>
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right align-middle text-rose-600">
-                              <span className="font-mono font-semibold">{record.leaveUsed}</span>{" "}
-                              <span className="text-[11px] text-slate-400">days</span>
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right align-middle text-slate-800">
-                              <span className="font-mono font-bold">{record.availableBalance}</span>{" "}
-                              <span className="text-[11px] text-slate-400">days</span>
-                            </td>
-                            {isProcessedPreview && (
-                              <>
-                                <td className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/20">
-                                  <span
-                                    className={`font-mono font-bold ${
-                                      record.carriedForwardDays > 0 ? "text-emerald-700" : "text-slate-400"
-                                    }`}
-                                  >
-                                    {record.carriedForwardDays > 0 ? `+${record.carriedForwardDays}` : "0"}
-                                  </span>{" "}
-                                  <span className="text-[11px] text-slate-400">days</span>
+                            {/* Dynamic Carry Forward Leave Values */}
+                            {carryForwardEligibleLeaveTypes.map((lt) => {
+                              const leafData = row.carryForwardLeaves[lt.id];
+                              const isEmpRolledBack = rolledBackEmployeeIds.includes(row.employeeId);
+                              const isProcessed = !isEmpRolledBack && (row.isAlreadyProcessed || sessionProcessedEmployeeIds.includes(row.employeeId));
+
+                              const isTicked = leafData?.isTickedForProcess ?? false;
+                              let carriedTotal = 0;
+                              if (isTicked) {
+                                if (isProcessed) {
+                                  carriedTotal = (leafData?.bf ?? 0) > 0 ? (leafData?.bf ?? 0) : (leafData?.proposedBf ?? 0);
+                                } else {
+                                  carriedTotal = leafData?.total ?? 0;
+                                }
+                              }
+                              const openingDenominator = (leafData?.eligible ?? lt.daysAllowed) + carriedTotal;
+
+                              return (
+                                <td key={lt.id} className="whitespace-nowrap px-3 py-3 text-right align-middle">
+                                  {leafData ? (
+                                    isProcessed ? (
+                                      <span
+                                        title={`Processed: 0 taken / ${openingDenominator} (${leafData.eligible} eligible + ${carriedTotal} carried total)`}
+                                        className="inline-flex items-center gap-1 rounded bg-emerald-50 border border-emerald-300 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-950 shadow-2xs"
+                                      >
+                                        <span>0 / {openingDenominator}</span>
+                                      </span>
+                                    ) : (
+                                      <span
+                                        title={`Current: ${leafData.taken} taken / ${leafData.total} total`}
+                                        className="inline-flex items-center gap-1 rounded bg-slate-50 border border-slate-200 px-2.5 py-1 text-xs font-mono font-semibold text-slate-800"
+                                      >
+                                        <span>{leafData.taken} / {leafData.total}</span>
+                                      </span>
+                                    )
+                                  ) : (
+                                    <span className="text-slate-400 font-mono text-xs">-</span>
+                                  )}
                                 </td>
-                                <td className="whitespace-nowrap px-3 py-3 text-right align-middle bg-emerald-50/30">
-                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-900 border border-emerald-200">
-                                    <span className="font-mono">
-                                      {record.carriedForwardDays > 0
-                                        ? `${record.entitlement} + ${record.carriedForwardDays}`
-                                        : record.proposedOpeningBalance}
-                                    </span>{" "}
-                                    <span className="text-[10px] font-normal text-emerald-700">days</span>
-                                  </span>
-                                </td>
-                              </>
+                              );
+                            })}
+                            {carryForwardEligibleLeaveTypes.length === 0 && (
+                              <td className="whitespace-nowrap px-3 py-3 text-center text-slate-400 align-middle">
+                                -
+                              </td>
                             )}
                             <td className="whitespace-nowrap px-3 py-3 text-center align-middle">
-                              {record.isAlreadyProcessed ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-medium text-amber-800">
-                                  <span className="size-1.5 rounded-full bg-amber-500" />
-                                  Already Processed
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-medium text-emerald-800">
-                                  <span className="size-1.5 rounded-full bg-emerald-600" />
-                                  Ready
-                                </span>
-                              )}
+                              <button
+                                type="button"
+                                disabled={!canRollback || isRollingBackThis}
+                                onClick={() => handleRollbackSingleEmployee(row.employeeId)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 shadow-2xs transition hover:bg-red-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                title={
+                                  rolledBackEmployeeIds.includes(row.employeeId)
+                                    ? "Already rolled back"
+                                    : canRollback
+                                    ? `Rollback year-end process for ${row.employeeName}`
+                                    : "Rollback is available for processed employees"
+                                }
+                              >
+                                {isRollingBackThis ? (
+                                  <Loader2 size={13} className="animate-spin text-red-600" />
+                                ) : (
+                                  <RotateCcw size={13} />
+                                )}
+                                <span>Rollback</span>
+                              </button>
                             </td>
                           </tr>
                         );
                       })}
 
-                      {visiblePreviewRecords.length === 0 && (
+                      {visibleEmployeeRows.length === 0 && (
                         <tr>
-                          <td colSpan={isProcessedPreview ? 11 : 9} className="px-6 py-12 text-center text-slate-400 align-middle">
+                          <td colSpan={Math.max(5, 4 + carryForwardEligibleLeaveTypes.length + 1)} className="px-6 py-12 text-center text-slate-400 align-middle">
                             No employee records match the selected filter criteria.
                           </td>
                         </tr>
@@ -1052,7 +1501,7 @@ export default function LeaveYearEndPage() {
                 </div>
 
                 {/* Pagination Controls */}
-                {visiblePreviewRecords.length > 0 && (
+                {visibleEmployeeRows.length > 0 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/60 px-6 py-3">
                     <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
                       <span>
@@ -1106,11 +1555,10 @@ export default function LeaveYearEndPage() {
                             key={page}
                             type="button"
                             onClick={() => setCurrentPage(page)}
-                            className={`flex size-8 items-center justify-center rounded-lg text-xs font-semibold shadow-sm transition ${
-                              page === clampedCurrentPage
+                            className={`flex size-8 items-center justify-center rounded-lg text-xs font-semibold shadow-sm transition ${page === clampedCurrentPage
                                 ? "bg-emerald-700 text-white"
                                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
+                              }`}
                           >
                             {page}
                           </button>
@@ -1131,198 +1579,261 @@ export default function LeaveYearEndPage() {
                 )}
               </>
             )}
-            </section>
-        </div>
-      </main>
+          </section>
 
-      {/* ── Confirmation Modal ── */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                <ShieldCheck size={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Confirm Leave Year-End Process</h3>
-              </div>
+          {/* Action Row below the table end */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 pb-6">
+            <div className="text-xs font-medium text-slate-600">
+              {metrics.selectedCount > 0 ? (
+                <span>
+                  <strong className="font-semibold text-slate-800">{metrics.selectedCount}</strong> staff member(s) selected
+                  {isProcessedPreview && (
+                    <span className="font-semibold text-emerald-700"> • New-cycle preview ready</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-slate-400">No employees selected</span>
+              )}
             </div>
 
-            <div className="mt-4 space-y-2 rounded-xl bg-slate-50 p-4 text-xs text-slate-700">
-              <div className="flex justify-between border-b border-slate-200/60 pb-2">
-                <span className="text-slate-500">Closing Cycle:</span>
-                <span className="font-semibold text-slate-800">{currentCycleCode}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200/60 pb-2">
-                <span className="text-slate-500">Next Cycle (Opening):</span>
-                <span className="font-semibold text-emerald-800">{nextCycleCode}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200/60 pb-2">
-                <span className="text-slate-500">Selected Employees:</span>
-                <span className="font-bold text-slate-800">{metrics.selectedCount} staff members</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200/60 pb-2">
-                <span className="text-slate-500">Balances to Create:</span>
-                <span className="font-bold text-slate-800">{metrics.recordsCount} records</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total Days Carried Forward:</span>
-                <span className="font-bold text-emerald-700">+{metrics.totalCarryForward} days</span>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
-              <div className="flex items-center gap-1.5 font-bold">
-                <ShieldAlert size={15} />
-                <span>Validation and Safety Notice</span>
-              </div>
-              <p className="mt-1">
-                This action preserves all historical leave applications and creates official opening balances for cycle{" "}
-                <strong className="font-bold">{nextCycleCode}</strong>.
-              </p>
-            </div>
-
-            <div className="mt-4 flex items-start gap-2.5">
-              <input
-                id="ackCheck"
-                type="checkbox"
-                checked={confirmedAcknowledgement}
-                onChange={(e) => setConfirmedAcknowledgement(e.target.checked)}
-                className="mt-0.5 size-4 accent-emerald-700"
-              />
-              <label htmlFor="ackCheck" className="cursor-pointer text-xs font-medium text-slate-700">
-                I confirm the execution of the Year-End Leave Rollover for the selected employees from cycle{" "}
-                {currentCycleCode} to {nextCycleCode}.
-              </label>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <div className="flex items-center gap-2.5">
+              {/* Rollback Button below the table: Kept visible, enabled after Proceed is clicked */}
               <button
                 type="button"
-                onClick={() => setShowConfirmModal(false)}
-                disabled={isProcessing}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold uppercase text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                disabled={!visibleEmployeeRows.some((r) => isRollbackEnabled(r)) || isRollingBackAll}
+                onClick={handleRollbackAll}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-600 bg-red-600 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-red-700 hover:border-red-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-300 disabled:text-slate-500"
+                title={
+                  visibleEmployeeRows.some((r) => isRollbackEnabled(r))
+                    ? "Rollback year-end records for all processed employees in this cycle"
+                    : "Rollback is available for processed employees"
+                }
               >
-                Cancel
+                {isRollingBackAll ? (
+                  <Loader2 size={16} className="animate-spin text-white" />
+                ) : (
+                  <RotateCcw size={16} className="text-white" />
+                )}
+                <span>Rollback</span>
               </button>
+
+              {/* Proceed Action Button */}
               <button
                 type="button"
-                onClick={() => void handleExecuteProcess()}
-                disabled={!confirmedAcknowledgement || isProcessing}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-5 py-2 text-xs font-semibold uppercase text-white hover:bg-emerald-800 disabled:opacity-50"
+                disabled={metrics.selectedCount === 0 || isLoading || isProcessing}
+                onClick={() => {
+                  setIsDeclarationConfirmed(false);
+                  setShowSummaryModal(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 active:scale-[0.99]"
               >
-                {isProcessing && <Loader2 size={14} className="animate-spin" />}
-                {isProcessing ? "Processing..." : "Confirm & Process Year-End"}
+                <CalendarCheck size={18} />
+                <span>Proceed</span>
               </button>
             </div>
           </div>
         </div>
-      )}
+      </main>
 
-      {/* ── Summary & Output Modal (Matches User Expected Output Format) ── */}
-      {completedSummary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px]">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+      {/* ── Summary & Output Modal (Matches User Requested Format) ── */}
+      {showSummaryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 size={26} />
+                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-xs">
+                  <CalendarCheck size={22} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">Leave Year-End Process Completed</h3>
+                  <h3 className="text-lg font-bold text-slate-800">Leave Year-End Process Summary</h3>
+                  <p className="text-xs text-slate-500">
+                    Review selected staff leave rollover before saving
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setCompletedSummary(null)}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => {
+                  setIsDeclarationConfirmed(false);
+                  setShowSummaryModal(false);
+                }}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Records Breakdown */}
-            <div className="mt-4 flex flex-1 flex-col overflow-hidden">
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="font-bold uppercase tracking-wider text-slate-700">Processed Records Breakdown</span>
-                <div className="flex gap-1">
-                  {(["ALL", "SUCCESS", "SKIPPED"] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setSummaryFilter(tab)}
-                      className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase ${
-                        summaryFilter === tab ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Overview Info Cards for Employee Understanding */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 shadow-2xs">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Current Cycle
+                  </span>
+                  <p className="mt-1 font-mono text-base font-bold text-slate-800">
+                    {currentCycleCode}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 shadow-2xs">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+                    New Cycle
+                  </span>
+                  <p className="mt-1 font-mono text-base font-bold text-emerald-900">
+                    {nextCycleCode}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 shadow-2xs">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Total Number of Employees Selected
+                  </span>
+                  <p className="mt-1 text-base font-bold text-slate-800">
+                    {selectedRowsForSummary.length}{" "}
+                    <span className="text-xs font-normal text-slate-500">
+                      employee{selectedRowsForSummary.length === 1 ? "" : "s"}
+                    </span>
+                  </p>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto rounded-xl border border-slate-200">
-                <table className="min-w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Employee</th>
-                      <th className="px-3 py-2">Leave Type</th>
-                      <th className="px-3 py-2 text-right">Carried</th>
-                      <th className="px-3 py-2 text-right">Opening Balance</th>
-                      <th className="px-3 py-2 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {summaryRecords
-                      .filter((r) => summaryFilter === "ALL" || r.status === summaryFilter)
-                      .map((rec, i) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 font-medium text-slate-800">
-                            {rec.employeeName}{" "}
-                            <span className="font-mono text-[10px] text-slate-400">({rec.employeeId})</span>
+              {/* Table of Selected Employees & Calculated Balances */}
+              {selectedRowsForSummary.length === 0 ? (
+                <div className="py-12 text-center text-sm text-slate-400">
+                  No employees currently selected. Please select at least one employee from the list.
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-slate-200 shadow-xs">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Employee ID</th>
+                        <th className="px-4 py-3 text-left">Employee Name</th>
+                        <th className="px-4 py-3 text-left">Stream / Department</th>
+                        {selectedLeaveTypesForYearEnd.map((lt) => {
+                          const base = getBaseCode(lt.code, lt.name);
+                          return (
+                            <th key={lt.id} className="px-4 py-3 text-right">
+                              <span>{lt.name}</span>
+                              <span className="ml-1 text-[10px] font-mono text-slate-400">({base})</span>
+                            </th>
+                          );
+                        })}
+                        {selectedLeaveTypesForYearEnd.length === 0 && (
+                          <th className="px-4 py-3 text-center text-slate-400">
+                            No Leave Types Selected
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedRowsForSummary.map((row) => (
+                        <tr key={row.employeeId} className="hover:bg-slate-50 transition-colors">
+                          <td className="whitespace-nowrap px-4 py-3 font-mono font-bold text-slate-700">
+                            {row.employeeId}
                           </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            {rec.leaveTypeCode} - {rec.leaveTypeName}
+                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-800">
+                            {row.employeeName}
                           </td>
-                          <td className="px-3 py-2 text-right font-bold text-emerald-700">
-                            {rec.carriedForwardDays > 0 ? `+${rec.carriedForwardDays}` : "0"}
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                            <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                              {row.stream}-{row.department}
+                            </span>
                           </td>
-                          <td className="px-3 py-2 text-right font-extrabold text-slate-900">
-                            {rec.carriedForwardDays > 0
-                              ? `${rec.entitlement ?? (rec.proposedOpeningBalance - rec.carriedForwardDays)} + ${rec.carriedForwardDays} days`
-                              : `${rec.proposedOpeningBalance} days`}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {rec.status === "SUCCESS" ? (
-                              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                                SUCCESS
-                              </span>
-                            ) : (
-                              <span
-                                title={rec.reason}
-                                className="inline-flex cursor-help rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800"
-                              >
-                                SKIPPED
-                              </span>
-                            )}
-                          </td>
+                          {selectedLeaveTypesForYearEnd.map((lt) => {
+                            const leafData = row.carryForwardLeaves[lt.id];
+                            const matchLt = leaveTypesList.find((x) => x.id === leafData?.leaveTypeId) || lt;
+                            const daysAllowed = matchLt.daysAllowed || leafData?.eligible || 10;
+                            // Dynamic reference to true current-year entitlement total - accounts for newly credited amount without improper compounding
+                            const currentEntitlementTotal = leafData?.total ?? Math.max(0, (leafData?.eligible ?? daysAllowed) - (leafData?.taken ?? 0));
+                            const taken = leafData?.taken ?? 0;
+
+                            return (
+                              <td key={lt.id} className="whitespace-nowrap px-4 py-3 text-right">
+                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-950 shadow-2xs">
+                                  <span>{taken} / {currentEntitlementTotal}</span>
+                                </span>
+                              </td>
+                            );
+                          })}
+                          {selectedLeaveTypesForYearEnd.length === 0 && (
+                            <td className="whitespace-nowrap px-4 py-3 text-center text-slate-400 italic">
+                              Select leave types above to carry forward
+                            </td>
+                          )}
                         </tr>
                       ))}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Declaration Checkbox Section */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 transition-all shadow-2xs">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isDeclarationConfirmed}
+                    onChange={(e) => setIsDeclarationConfirmed(e.target.checked)}
+                    className="mt-0.5 size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-700"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Declaration &amp; Acknowledgement
+                    </span>
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      I declare that I have reviewed the year-end leave rollover balances from current cycle{" "}
+                      <strong className="font-semibold text-slate-900">{currentCycleCode}</strong> to new cycle{" "}
+                      <strong className="font-semibold text-emerald-800">{nextCycleCode}</strong> for the{" "}
+                      <strong className="font-semibold text-slate-900">{selectedRowsForSummary.length} selected employee(s)</strong>.
+                      I confirm that these balances will be committed to the Leave Year-End and Entitlement records.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="mt-4 flex justify-end border-t border-slate-100 pt-3">
-              <button
-                type="button"
-                onClick={() => setCompletedSummary(null)}
-                className="rounded-xl bg-slate-800 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-slate-900"
-              >
-                Close Summary
-              </button>
+            {/* Footer with Save & Cancel buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-6 py-4">
+              <p className="text-xs text-slate-500">
+                {!isDeclarationConfirmed ? (
+                  <span className="font-medium text-amber-700">
+                    * Please check the declaration box above to enable the Save button.
+                  </span>
+                ) : (
+                  <span>
+                    Ready to save. Values will update on the Year-End Process table and Leave Entitlement table.
+                  </span>
+                )}
+              </p>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDeclarationConfirmed(false);
+                    setShowSummaryModal(false);
+                  }}
+                  disabled={isProcessing}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-wider text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!isDeclarationConfirmed || selectedRowsForSummary.length === 0 || isProcessing}
+                  onClick={() => void handleSaveYearEndProcess()}
+                  title={
+                    !isDeclarationConfirmed
+                      ? "Check the declaration checkbox above to enable Save"
+                      : "Click to save year-end process"
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 cursor-pointer"
+                >
+                  {isProcessing ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                  <span>{isProcessing ? "Saving..." : "Save"}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

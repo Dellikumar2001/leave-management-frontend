@@ -322,9 +322,15 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     [employees]
   );
 
-  // ── Step 2: Departments disabled until Stream is chosen
-  const isDepartmentDisabled = selectedStreams.length === 0;
+  // ── Step 2: Departments dynamically scoped to selected Streams, or all departments if none selected
   const departments = useMemo(() => {
+    const pool = selectedStreams.length > 0
+      ? employees.filter((e) => selectedStreams.includes(e.stream))
+      : employees;
+    return [...new Set(pool.map((e) => e.department))].filter(Boolean).sort();
+  }, [employees, selectedStreams]);
+
+  // ── Step 3: Employees matching current Stream & Department selections
     if (isDepartmentDisabled) return [];
     return [
       ...new Set(
@@ -356,27 +362,30 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   // ── Step 4: Employees disabled until Employee Type is chosen
   const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
   const availableEmployees = useMemo(() => {
-    if (isEmployeeDisabled) return [];
     return employees.filter(
       (e) =>
-        selectedStreams.includes(e.stream) &&
-        selectedDepartments.includes(e.department) &&
-        selectedEmployeeTypes.includes(e.employeeType || "Teaching")
+        (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
+        (!selectedDepartments.length || selectedDepartments.includes(e.department))
     );
-  }, [employees, isEmployeeDisabled, selectedDepartments, selectedStreams, selectedEmployeeTypes]);
+  }, [employees, selectedDepartments, selectedStreams]);
 
   const employeeNames = useMemo(
     () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
     [availableEmployees]
   );
 
-  // ── Cascading Handlers (auto-checks matching employees for table action checkboxes)
+  // ── Filter Handlers (dynamically auto-checks matching employees for table action checkboxes)
   const handleStreamChange = (newStreams: string[]) => {
     setSelectedStreams(newStreams);
     setSelectedDepartments([]);
     setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
-    setSelectedEmployeeIds([]);
+    const matching = employees.filter(
+      (e) =>
+        (!newStreams.length || newStreams.includes(e.stream)) &&
+        (!selectedDepartments.length || selectedDepartments.includes(e.department))
+    );
+    setSelectedEmployeeIds(newStreams.length || selectedDepartments.length ? matching.map((e) => e.employeeId) : []);
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
@@ -389,7 +398,12 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   const handleEmployeeTypeChange = (newTypes: string[]) => {
     setSelectedEmployeeTypes(newTypes);
     setSelectedEmployeeNames([]);
-    setSelectedEmployeeIds([]);
+    const matching = employees.filter(
+      (e) =>
+        (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
+        (!newDepts.length || newDepts.includes(e.department))
+    );
+    setSelectedEmployeeIds(selectedStreams.length || newDepts.length ? matching.map((e) => e.employeeId) : []);
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
@@ -400,17 +414,23 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
         .map((emp) => emp.employeeId);
       setSelectedEmployeeIds(chosenIds);
     } else {
-      setSelectedEmployeeIds([]);
+      setSelectedEmployeeIds(availableEmployees.map((emp) => emp.employeeId));
     }
   };
 
-  // Table only appears after the employee name is selected
-  const showEmployees = selectedEmployeeNames.length > 0;
+  // Table appears as soon as stream, department, or employee is selected
+  const showEmployees =
+    selectedStreams.length > 0 ||
+    selectedDepartments.length > 0 ||
+    selectedEmployeeNames.length > 0;
 
-  // Filter visible employees based on chosen names
+  // Filter visible employees based on chosen names or show all available
   const visibleEmployees = useMemo(() => {
     if (!showEmployees) return [];
-    return availableEmployees.filter((emp) => selectedEmployeeNames.includes(emp.name));
+    if (selectedEmployeeNames.length > 0) {
+      return availableEmployees.filter((emp) => selectedEmployeeNames.includes(emp.name));
+    }
+    return availableEmployees;
   }, [availableEmployees, selectedEmployeeNames, showEmployees]);
 
   const selectedEmployees = employees.filter(({ employeeId }) => selectedEmployeeIds.includes(employeeId));
@@ -444,11 +464,22 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mode === "block"
           ? { employeeIds: selectedEmployeeIds, startDate, endDate: endDate || startDate }
-          : { employeeIds: selectedEmployeeIds, credit: { category, days } }),
+          : {
+              streams: selectedStreams.length > 0 ? selectedStreams : "ALL",
+              departments: selectedDepartments.length > 0 ? selectedDepartments : "ALL",
+              employee_ids: selectedEmployeeIds,
+              credit: { category, days },
+            }),
       });
-      const result = await readJson<{ blockedCount: number; creditedCount: number }>(response);
+      const result = await readJson<{ blockedCount?: number; creditedCount?: number; skippedCount?: number }>(response);
       if (mode === "credit") {
-        setSuccess(`Credited leave for ${result.creditedCount} employee${result.creditedCount === 1 ? "" : "s"}.`);
+        const credited = result.creditedCount ?? 0;
+        const skipped = result.skippedCount ?? 0;
+        let msg = `Credited leave for ${credited} employee${credited === 1 ? "" : "s"}.`;
+        if (skipped > 0) {
+          msg += ` (${skipped} skipped - already credited for this cycle)`;
+        }
+        setSuccess(msg);
       } else {
         setSuccess("");
       }
@@ -582,7 +613,7 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
                 />
               </div>
 
-              {/* Step 2: Department Dropdown (Unlocked after Stream chosen) */}
+              {/* Step 2: Department Dropdown */}
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Department</span>
                 <MultiSelectDropdown
@@ -590,10 +621,10 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
                   options={departments}
                   selectedValues={selectedDepartments}
                   onChange={handleDepartmentChange}
-                  disabled={isDepartmentDisabled}
                 />
               </div>
 
+              {/* Step 3: Employee Name Dropdown */}
               {/* Step 3: Employee Type Dropdown */}
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
@@ -614,7 +645,6 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
                   options={employeeNames}
                   selectedValues={selectedEmployeeNames}
                   onChange={handleEmployeeNameChange}
-                  disabled={isEmployeeDisabled}
                 />
               </div>
 

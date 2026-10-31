@@ -118,16 +118,47 @@ function getLeaveRecord(
   leaveType?: LeaveType,
   allLeaveTypes?: LeaveType[]
 ): EmployeeLeaveRecord | undefined {
+  if (leaveType && allLeaveTypes) {
+    const cfg = getLeaveConfig(leaveType);
+    const stream = (employee.stream || "").toUpperCase();
+
+    // 1. First, find record matching displayCode and employee's stream (e.g. SFS -> CL_S, AIDED -> CL_A)
+    const streamMatched = employee.leaveRecords.find((item) => {
+      const t = allLeaveTypes.find((x) => x.id === item.leaveTypeId);
+      if (!t) return false;
+      const itemCfg = getLeaveConfig(t);
+      if (itemCfg.displayCode !== cfg.displayCode) return false;
+      if (stream === "SFS" && (t.code.toUpperCase().endsWith("_S") || t.leaveGroup?.toUpperCase().includes("SFS"))) return true;
+      if (stream === "AIDED" && (t.code.toUpperCase().endsWith("_A") || t.leaveGroup?.toUpperCase().includes("AIDED"))) return true;
+      // If leave type has no stream-specific suffix, it applies to any stream (e.g. MDL)
+      const hasStreamSuffix = t.code.toUpperCase().endsWith("_S") || t.code.toUpperCase().endsWith("_A");
+      if (!hasStreamSuffix) return true;
+      return false;
+    });
+    if (streamMatched) return streamMatched;
+
+    // 2. Second, find any record matching displayCode that has bf > 0
+    const bfMatched = employee.leaveRecords.find((item) => {
+      const t = allLeaveTypes.find((x) => x.id === item.leaveTypeId);
+      if (!t) return false;
+      const itemCfg = getLeaveConfig(t);
+      return itemCfg.displayCode === cfg.displayCode && (item.bf ?? 0) > 0;
+    });
+    if (bfMatched) return bfMatched;
+
+    // 3. Third, find any record matching displayCode that isEligible or has daysAllowed > 0
+    const codeMatched = employee.leaveRecords.find((item) => {
+      const t = allLeaveTypes.find((x) => x.id === item.leaveTypeId);
+      if (!t) return false;
+      const itemCfg = getLeaveConfig(t);
+      return itemCfg.displayCode === cfg.displayCode && (item.isEligible || (item.daysAllowed ?? 0) > 0);
+    });
+    if (codeMatched) return codeMatched;
+  }
+
   const direct = employee.leaveRecords.find((item) => item.leaveTypeId === leaveTypeId);
   if (direct) return direct;
-  if (!leaveType || !allLeaveTypes) return undefined;
-  const cfg = getLeaveConfig(leaveType);
-  return employee.leaveRecords.find((item) => {
-    const t = allLeaveTypes.find((x) => x.id === item.leaveTypeId);
-    if (!t) return false;
-    const itemCfg = getLeaveConfig(t);
-    return itemCfg.displayCode === cfg.displayCode;
-  });
+  return undefined;
 }
 
 function getLeaveConfig(lt: { code: string; name: string }) {
@@ -1012,9 +1043,9 @@ export default function LeaveEligibilityPage() {
                                 <EditableCell
                                   value={eligible}
                                   isEditMode={isEditMode}
-                                  isModified={isCellModified(employee.employeeId, lt.id, "daysAllowed")}
+                                  isModified={isCellModified(employee.employeeId, rec?.leaveTypeId ?? lt.id, "daysAllowed")}
                                   onChange={(newVal) =>
-                                    handleCellChange(employee.employeeId, lt.id, "daysAllowed", newVal)
+                                    handleCellChange(employee.employeeId, rec?.leaveTypeId ?? lt.id, "daysAllowed", newVal)
                                   }
                                 />
                               </td>
@@ -1025,9 +1056,9 @@ export default function LeaveEligibilityPage() {
                                   value={bf}
                                   isEditMode={isEditMode}
                                   isRedFocus={true}
-                                  isModified={isCellModified(employee.employeeId, lt.id, "bf")}
+                                  isModified={isCellModified(employee.employeeId, rec?.leaveTypeId ?? lt.id, "bf")}
                                   onChange={(newVal) =>
-                                    handleCellChange(employee.employeeId, lt.id, "bf", newVal)
+                                    handleCellChange(employee.employeeId, rec?.leaveTypeId ?? lt.id, "bf", newVal)
                                   }
                                 />
                               </td>
@@ -1037,9 +1068,9 @@ export default function LeaveEligibilityPage() {
                                 <EditableCell
                                   value={credit}
                                   isEditMode={isEditMode}
-                                  isModified={isCellModified(employee.employeeId, lt.id, "creditedDays")}
+                                  isModified={isCellModified(employee.employeeId, rec?.leaveTypeId ?? lt.id, "creditedDays")}
                                   onChange={(newVal) =>
-                                    handleCellChange(employee.employeeId, lt.id, "creditedDays", newVal)
+                                    handleCellChange(employee.employeeId, rec?.leaveTypeId ?? lt.id, "creditedDays", newVal)
                                   }
                                 />
                               </td>
@@ -1049,9 +1080,9 @@ export default function LeaveEligibilityPage() {
                                 <EditableCell
                                   value={earn}
                                   isEditMode={isEditMode}
-                                  isModified={isCellModified(employee.employeeId, lt.id, "earned")}
+                                  isModified={isCellModified(employee.employeeId, rec?.leaveTypeId ?? lt.id, "earned")}
                                   onChange={(newVal) =>
-                                    handleCellChange(employee.employeeId, lt.id, "earned", newVal)
+                                    handleCellChange(employee.employeeId, rec?.leaveTypeId ?? lt.id, "earned", newVal)
                                   }
                                 />
                               </td>
@@ -1083,9 +1114,9 @@ export default function LeaveEligibilityPage() {
                               <EditableCell
                                 value={balanceVal}
                                 isEditMode={isEditMode}
-                                isModified={isCellModified(employee.employeeId, lt.id, "leaveBalance")}
+                                isModified={isCellModified(employee.employeeId, rec?.leaveTypeId ?? lt.id, "leaveBalance")}
                                 onChange={(newVal) =>
-                                  handleCellChange(employee.employeeId, lt.id, "leaveBalance", newVal)
+                                  handleCellChange(employee.employeeId, rec?.leaveTypeId ?? lt.id, "leaveBalance", newVal)
                                 }
                               />
                             </td>

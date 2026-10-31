@@ -38,6 +38,7 @@ export async function GET(request: Request) {
               isEligible: true,
               leaveBalance: true,
               creditedDays: true,
+              bf: true,
               joiningDate: true,
               leaveType: {
                 select: {

@@ -40,6 +40,7 @@ export async function GET(request: Request) {
           daysAllowed: true,
           category: true,
           leaveGroup: true,
+          carryForward: true,
         },
       }),
       prisma.employeeLeaveApplication.findMany({
