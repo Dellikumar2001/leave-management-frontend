@@ -8,8 +8,10 @@ import {
   FileCheck,
   FileSpreadsheet,
   FileText,
+  Info,
   RefreshCw,
   Search,
+  X,
 } from "lucide-react";
 import DateInput, { formatDisplayDate } from "../../components/DateInput";
 import LeaveSidebar from "../../components/LeaveSidebar";
@@ -224,10 +226,20 @@ export default function LeaveStatusReportPage() {
   const [hasGenerated, setHasGenerated] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) setShowInfoModal(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   // ── Cascading Checkbox Filter States
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeFilters, setEmployeeFilters] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -274,30 +286,55 @@ export default function LeaveStatusReportPage() {
     ].filter(Boolean).sort();
   }, [allEmployees, isDepartmentDisabled, streamFilters]);
 
-  // ── Step 3: Employees disabled until Department is chosen
-  const isEmployeeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  // ── Step 3: Employee Types disabled until Department is chosen
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        allEmployees
+          .filter(
+            (e) =>
+              streamFilters.includes(e.stream) &&
+              departmentFilters.includes(e.department)
+          )
+          .map((e) => (e as { employeeType?: string | null }).employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [allEmployees, isEmployeeTypeDisabled, departmentFilters, streamFilters]);
+
+  // ── Step 4: Employees disabled until Employee Type is chosen
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
   const availableEmployees = useMemo(() => {
     if (isEmployeeDisabled) return [];
     return allEmployees.filter(
-      (e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department)
+      (e) =>
+        streamFilters.includes(e.stream) &&
+        departmentFilters.includes(e.department) &&
+        employeeTypeFilters.includes(
+          (e as { employeeType?: string | null }).employeeType || "Teaching"
+        )
     );
-  }, [allEmployees, isEmployeeDisabled, departmentFilters, streamFilters]);
+  }, [allEmployees, isEmployeeDisabled, departmentFilters, streamFilters, employeeTypeFilters]);
 
   const employeeNames = useMemo(
     () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
     [availableEmployees]
   );
 
-  // ── Step 4: Date accessible ONLY after selecting Stream, Department, and Employee
+  // ── Step 5: Date accessible ONLY after selecting Stream, Department, Employee Type, and Employee
   const isDateAccessible =
     streamFilters.length > 0 &&
     departmentFilters.length > 0 &&
+    employeeTypeFilters.length > 0 &&
     employeeFilters.length > 0;
 
   // ── Cascading Handlers
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeFilters([]);
     setStartDate("");
     setEndDate("");
@@ -306,6 +343,15 @@ export default function LeaveStatusReportPage() {
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
+    setEmployeeTypeFilters([]);
+    setEmployeeFilters([]);
+    setStartDate("");
+    setEndDate("");
+    setDateError("");
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
     setEmployeeFilters([]);
     setStartDate("");
     setEndDate("");
@@ -349,6 +395,7 @@ export default function LeaveStatusReportPage() {
       const params = new URLSearchParams();
       if (streamFilters.length > 0) params.set("stream", streamFilters.join(","));
       if (departmentFilters.length > 0) params.set("department", departmentFilters.join(","));
+      if (employeeTypeFilters.length > 0) params.set("employeeType", employeeTypeFilters.join(","));
       if (employeeFilters.length > 0) params.set("employeeNames", employeeFilters.join(","));
       if (statusFilter) params.set("status", statusFilter);
       if (startDate) params.set("startDate", startDate);
@@ -373,11 +420,19 @@ export default function LeaveStatusReportPage() {
     return reportEmployees.filter((e) => {
       if (streamFilters.length > 0 && !streamFilters.includes(e.stream)) return false;
       if (departmentFilters.length > 0 && !departmentFilters.includes(e.department)) return false;
+      if (
+        employeeTypeFilters.length > 0 &&
+        !employeeTypeFilters.includes(
+          (e as { employeeType?: string | null }).employeeType || "Teaching"
+        )
+      ) {
+        return false;
+      }
       if (employeeFilters.length > 0 && !employeeFilters.includes(e.name)) return false;
       if (statusFilter && e.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
       return true;
     });
-  }, [reportEmployees, streamFilters, departmentFilters, employeeFilters, statusFilter]);
+  }, [reportEmployees, streamFilters, departmentFilters, employeeTypeFilters, employeeFilters, statusFilter]);
 
 
 
@@ -582,9 +637,20 @@ export default function LeaveStatusReportPage() {
                 <span>/</span>
                 <span className="font-semibold text-slate-800">Leave Status Report</span>
               </div>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-800">
-                Leave Status Report
-              </h1>
+              <div className="mt-1 flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-slate-800">
+                  Leave Status Report
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setShowInfoModal(true)}
+                  title="About Leave Status Report"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700 shadow-sm transition hover:bg-sky-100 hover:text-sky-800"
+                  aria-label="About Leave Status Report"
+                >
+                  <Info size={15} />
+                </button>
+              </div>
             </div>
           </header>
 
@@ -593,7 +659,7 @@ export default function LeaveStatusReportPage() {
             aria-label="Report filters"
             className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(13,minmax(0,1fr))]">
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(15,minmax(0,1fr))]">
               {/* Step 1: Stream Dropdown (Checkbox format) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
@@ -621,7 +687,21 @@ export default function LeaveStatusReportPage() {
                 />
               </div>
 
-              {/* Step 3: Employee Names Dropdown (Checkbox format, unlocked after Department chosen) */}
+              {/* Step 3: Employee Type Dropdown */}
+              <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
+                <span className="text-[11px] font-semibold uppercase text-slate-500">
+                  Employee Type
+                </span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Names Dropdown (Checkbox format, unlocked after Employee Type chosen) */}
               <div className="flex min-w-0 flex-col gap-1 xl:col-span-2">
                 <span className="text-[11px] font-semibold uppercase text-slate-500">
                   Employee Names
@@ -849,6 +929,86 @@ export default function LeaveStatusReportPage() {
 
         </div>
       </div>
+
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={() => setShowInfoModal(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+                  <Info className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">About Leave Status Report</h3>
+                  <p className="text-xs text-slate-500">Institution-wide leave application & balance tracking</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="mt-4 space-y-4">
+              <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-sky-900">What is Leave Status Report?</h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-sky-950">
+                  A high-level administrative tracking report displaying employee leave applications, approval statuses, quota consumption, and net balances across departments.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+                    How it works
+                  </h5>
+                  <ul className="space-y-1.5 text-slate-600 list-disc list-inside">
+                    <li>Aggregates applied, approved, and remaining leave quotas.</li>
+                    <li>Supports multi-tier cascading filtering across streams and departments.</li>
+                    <li>Enables filtering by specific request statuses and date spans.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <h5 className="font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    How to use it
+                  </h5>
+                  <ol className="space-y-1.5 text-slate-600 list-decimal list-inside">
+                    <li>Select Stream, Department, and Employee Names.</li>
+                    <li>Specify Date Range and optional Status filter.</li>
+                    <li>Click <strong>Generate Report</strong> to inspect entries.</li>
+                    <li>Export via <strong>Excel, CSV, or PDF</strong>.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-700 transition"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

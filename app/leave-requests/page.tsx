@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, Eye, Pencil, Trash2, X, ChevronDown } from "lucide-react";
+import { Search, Plus, Eye, Pencil, Trash2, X, ChevronDown, Info } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 import LeaveCategoryMultiSelect from "../components/LeaveCategoryMultiSelect";
 
@@ -398,6 +398,8 @@ export default function StudentLeaveRequestsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL STATUS");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showLeaveGroupFormHelp, setShowLeaveGroupFormHelp] = useState(false);
   const [error, setError] = useState("");
   const [pageError, setPageError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -431,6 +433,16 @@ export default function StudentLeaveRequestsPage() {
       };
     }
   }, [isModalOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) {
+        setShowInfoModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -611,7 +623,18 @@ export default function StudentLeaveRequestsPage() {
         <div className="mx-auto max-w-[1400px]">
           {/* Header matched to Leave Eligibility banner */}
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800">LEAVE GROUP</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-800">LEAVE GROUP</h1>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(true)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                title="What is Leave Group and why is it used?"
+                aria-label="What is Leave Group and why is it used?"
+              >
+                <Info size={18} />
+              </button>
+            </div>
           </header>
 
           {/* Inline Filter & Action bar */}
@@ -797,17 +820,61 @@ export default function StudentLeaveRequestsPage() {
                 handleCreateGroup();
               }}
             >
-              <div className="flex items-center justify-between px-6 py-5">
-                <h2 className="text-[22px] font-bold uppercase text-slate-800">CREATE LEAVE GROUP</h2>
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-[22px] font-bold uppercase text-slate-800">CREATE LEAVE GROUP</h2>
+                    <button
+                      type="button"
+                      onClick={() => setShowLeaveGroupFormHelp((prev) => !prev)}
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 hover:text-blue-700 active:scale-95 cursor-pointer"
+                      title="Information about required leave group details"
+                      aria-label="Information about required leave group details"
+                    >
+                      <Info size={14} />
+                    </button>
+                  </div>
+                  <p className="mt-1 text-sm uppercase text-slate-500">ENTER THE LEAVE GROUP DETAILS BELOW.</p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setShowLeaveGroupFormHelp(false);
+                  }}
                   className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                   aria-label="Close modal"
                 >
                   <X size={20} />
                 </button>
               </div>
+
+              {showLeaveGroupFormHelp && (
+                <div className="border-b border-blue-100 bg-blue-50/70 px-6 py-3.5 text-xs normal-case text-slate-700 animate-in fade-in duration-150">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-blue-950 flex items-center gap-1.5 text-xs">
+                        <Info size={14} className="text-blue-600" /> Required Details &amp; Guidelines
+                      </p>
+                      <ul className="space-y-1 text-[11px] text-slate-600">
+                        <li><strong className="text-slate-900">Group Code:</strong> Mandatory unique short code up to 6 characters (e.g., <em>FAC, GEN, ADM</em>).</li>
+                        <li><strong className="text-slate-900">Group Name:</strong> Mandatory classification title (e.g., <em>Teaching Faculty, General Staff</em>).</li>
+                        <li><strong className="text-slate-900">Leave Category:</strong> Select master leave categories applicable to this staff cohort.</li>
+                        <li><strong className="text-slate-900">Effective From:</strong> Date from which this group structure becomes operational.</li>
+                        <li><strong className="text-slate-900">Status:</strong> Set to <em>ACTIVE</em> to allow assignment in eligibility and leave types.</li>
+                      </ul>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowLeaveGroupFormHelp(false)}
+                      className="rounded p-1 text-slate-400 hover:bg-blue-100 hover:text-slate-700"
+                      aria-label="Close help"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div role="alert" className="mx-6 mb-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm uppercase text-red-700">
@@ -953,7 +1020,10 @@ export default function StudentLeaveRequestsPage() {
                 <div className="mt-6 flex justify-end gap-3 uppercase">
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setShowLeaveGroupFormHelp(false);
+                    }}
                     className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium uppercase text-slate-700 transition hover:bg-slate-50"
                   >
                     CANCEL
@@ -1104,6 +1174,99 @@ export default function StudentLeaveRequestsPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Information Modal: Why and For What Leave Group is used */}
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowInfoModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="group-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                  <Info size={16} />
+                </div>
+                <div>
+                  <h2 id="group-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    About Leave Group
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Employee classification, cohorts, and policy targeting</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-blue-50/60 border border-blue-100 p-3">
+                <span className="font-semibold text-blue-950">What is it?</span>
+                <p className="mt-0.5 text-blue-900/90 text-[11px] leading-relaxed">
+                  A <strong>Leave Group</strong> classifies employees into policy cohorts (e.g. <em>Teaching Faculty, Non-Teaching Staff, Administrative Officers, Contractual Staff</em>) to govern which leave types and quotas they are entitled to.
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Role Cohort:</strong> Separates employees by role (e.g. Teaching Faculty vs General Staff).</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Policy Binding:</strong> Ensures staff can only apply for leave types assigned to their group.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">1.</span>
+                      <span>Click <strong>+ Create Leave Group</strong>, enter code (e.g. <em>FAC</em>) and name.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">2.</span>
+                      <span>Link applicable leave categories and map staff to this group under Leave Eligibility.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, LoaderCircle, Minus, Plus } from "lucide-react";
+import { CalendarDays, ChevronDown, LoaderCircle, Minus, Plus, Info, X } from "lucide-react";
 import LeaveSidebar from "../LeaveSidebar";
 import DateInput, { formatToDisplayDate } from "../DateInput";
 import EmployeeTable, { EmployeeRow } from "./EmployeeTable";
@@ -239,6 +239,7 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   // ── Sequential Cascading Filter States
   const [selectedStreams, setSelectedStreams] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedEmployeeTypes, setSelectedEmployeeTypes] = useState<string[]>([]);
   const [selectedEmployeeNames, setSelectedEmployeeNames] = useState<string[]>([]);
 
   // Checkbox selections inside EmployeeTable
@@ -255,6 +256,17 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [historyTarget, setHistoryTarget] = useState<HistoryTarget | null>(null);
   const [historyError, setHistoryError] = useState("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) {
+        setShowInfoModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   const loadData = useCallback(async () => {
     try {
@@ -319,6 +331,36 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   }, [employees, selectedStreams]);
 
   // ── Step 3: Employees matching current Stream & Department selections
+    if (isDepartmentDisabled) return [];
+    return [
+      ...new Set(
+        employees
+          .filter((e) => selectedStreams.includes(e.stream))
+          .map((e) => e.department)
+      ),
+    ].filter(Boolean).sort();
+  }, [employees, isDepartmentDisabled, selectedStreams]);
+
+  // ── Step 3: Employee Types disabled until Department is chosen
+  const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        employees
+          .filter(
+            (e) =>
+              selectedStreams.includes(e.stream) &&
+              selectedDepartments.includes(e.department)
+          )
+          .map((e) => e.employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [employees, isEmployeeTypeDisabled, selectedStreams, selectedDepartments]);
+
+  // ── Step 4: Employees disabled until Employee Type is chosen
+  const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
   const availableEmployees = useMemo(() => {
     return employees.filter(
       (e) =>
@@ -335,6 +377,8 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   // ── Filter Handlers (dynamically auto-checks matching employees for table action checkboxes)
   const handleStreamChange = (newStreams: string[]) => {
     setSelectedStreams(newStreams);
+    setSelectedDepartments([]);
+    setSelectedEmployeeTypes([]);
     setSelectedEmployeeNames([]);
     const matching = employees.filter(
       (e) =>
@@ -346,6 +390,13 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setSelectedDepartments(newDepts);
+    setSelectedEmployeeTypes([]);
+    setSelectedEmployeeNames([]);
+    setSelectedEmployeeIds([]);
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setSelectedEmployeeTypes(newTypes);
     setSelectedEmployeeNames([]);
     const matching = employees.filter(
       (e) =>
@@ -501,7 +552,18 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
         <div className="mx-auto max-w-[1400px]">
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Leave Admin</p>
-            <h1 className="text-3xl font-bold text-slate-800">{mode === "block" ? "Block Leave" : "Credit Leave"}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-slate-800">{mode === "block" ? "Block Leave" : "Credit Leave"}</h1>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(true)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                title={`What is ${mode === "block" ? "Block Leave" : "Credit Leave"} and how to use it?`}
+                aria-label={`What is ${mode === "block" ? "Block Leave" : "Credit Leave"} and how to use it?`}
+              >
+                <Info size={18} />
+              </button>
+            </div>
             <p className="mt-1 text-sm text-slate-500">
               {mode === "block" ? "Set dates when employees cannot submit leave requests." : "Add available annual or medical leave days to employee balances."}
             </p>
@@ -536,8 +598,8 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
             <div
               className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
                 mode === "block"
-                  ? "xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(170px,1.2fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
-                  : "xl:grid-cols-[minmax(140px,1fr)_minmax(150px,1.1fr)_minmax(180px,1.3fr)_minmax(150px,1fr)_auto]"
+                  ? "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
+                  : "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(150px,1fr)_auto]"
               }`}
             >
               {/* Step 1: Stream Dropdown */}
@@ -563,6 +625,19 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
               </div>
 
               {/* Step 3: Employee Name Dropdown */}
+              {/* Step 3: Employee Type Dropdown */}
+              <div className="min-w-0">
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={selectedEmployeeTypes}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Name Dropdown (Unlocked after Department chosen) */}
               <div className="min-w-0">
                 <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
                 <MultiSelectDropdown
@@ -765,6 +840,137 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
           onSave={(id, value) => manageRecord("PATCH", mode === "block" ? { id, date: value } : { id, days: value })}
           onDelete={(id) => manageRecord("DELETE", { id })}
         />
+      )}
+
+      {/* Information Modal: How it works & How to use it */}
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowInfoModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                  <Info size={16} />
+                </div>
+                <div>
+                  <h2 id="admin-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    {mode === "block" ? "About Block Leave" : "About Credit Leave"}
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    {mode === "block"
+                      ? "Restricted dates, blackout periods, and submission lock"
+                      : "Manual quota allotment, extra leave crediting, and on-duty adjustments"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+                <span className="font-semibold text-emerald-950">What is it?</span>
+                <p className="mt-0.5 text-emerald-900/90 text-[11px] leading-relaxed">
+                  {mode === "block" ? (
+                    <><strong>Block Leave</strong> is an administrative lock that restricts employees from applying for leaves during critical institutional event dates (e.g., examinations, inspections, audits).</>
+                  ) : (
+                    <><strong>Credit Leave</strong> is a manual allocation tool used by administrators to add extra leave days (e.g. compensatory off, special duty incentives) directly to employee balances.</>
+                  )}
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    {mode === "block" ? (
+                      <>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">•</span>
+                          <span><strong>Date Blackout:</strong> Locks specified dates across departments so requests are blocked.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">•</span>
+                          <span><strong>System Lock:</strong> Prevents staff from submitting leaves that overlap blocked intervals.</span>
+                        </li>
+                      </>
+                    ) : (
+                      <>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">•</span>
+                          <span><strong>Direct Balance Credit:</strong> Injects allowable days directly into the employee&apos;s live quota.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">•</span>
+                          <span><strong>Category Scoped:</strong> Balances increase under Annual/Earned or Medical leave accounts.</span>
+                        </li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    {mode === "block" ? (
+                      <>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">1.</span>
+                          <span>Filter staff by Stream/Department and check the employees or department to block.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">2.</span>
+                          <span>Select the Start &amp; End dates, review the day count, and click <strong>Block Leave</strong>.</span>
+                        </li>
+                      </>
+                    ) : (
+                      <>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">1.</span>
+                          <span>Select category (ANNUAL or MEDICAL) and check staff rows receiving extra credit.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <span className="text-emerald-600 font-bold">2.</span>
+                          <span>Select the date, click <strong>+ / -</strong> to set days, and click <strong>Credit Leave</strong>.</span>
+                        </li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

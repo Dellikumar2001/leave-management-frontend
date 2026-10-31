@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, Pencil, Eye, Trash2, X, ChevronDown } from "lucide-react";
+import { Plus, Search, Pencil, Eye, Trash2, X, ChevronDown, Info } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type LeaveCategory = {
@@ -137,6 +137,18 @@ export default function LeaveCategoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showCategoryFormHelp, setShowCategoryFormHelp] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) {
+        setShowInfoModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -188,6 +200,7 @@ export default function LeaveCategoryPage() {
     setActiveCategory(null);
     setForm(emptyForm);
     setError("");
+    setShowCategoryFormHelp(false);
   };
 
   const handleSave = async () => {
@@ -254,7 +267,18 @@ export default function LeaveCategoryPage() {
         <div className="mx-auto max-w-350 uppercase">
           {/* Header matched to Leave Eligibility banner */}
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800">LEAVE CATEGORY</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-800">LEAVE CATEGORY</h1>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(true)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                title="What is Leave Category and why is it used?"
+                aria-label="What is Leave Category and why is it used?"
+              >
+                <Info size={18} />
+              </button>
+            </div>
           </header>
 
           {/* Inline Filter & Action bar */}
@@ -362,13 +386,50 @@ export default function LeaveCategoryPage() {
             <form onSubmit={(event) => { event.preventDefault(); void handleSave(); }}>
               <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
                 <div>
-                  <h2 id="category-dialog-title" className="text-xl font-bold uppercase text-slate-800">
-                    {mode === "create" ? "CREATE LEAVE CATEGORY" : mode === "edit" ? "EDIT LEAVE CATEGORY" : "LEAVE CATEGORY DETAILS"}
-                  </h2>
+                  <div className="flex items-center gap-2.5">
+                    <h2 id="category-dialog-title" className="text-xl font-bold uppercase text-slate-800">
+                      {mode === "create" ? "CREATE LEAVE CATEGORY" : mode === "edit" ? "EDIT LEAVE CATEGORY" : "LEAVE CATEGORY DETAILS"}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryFormHelp((prev) => !prev)}
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 hover:text-blue-700 active:scale-95 cursor-pointer"
+                      title="Information about required category details"
+                      aria-label="Information about required category details"
+                    >
+                      <Info size={14} />
+                    </button>
+                  </div>
                   <p className="mt-1 text-sm uppercase text-slate-500">{mode === "view" ? "CATEGORY CONFIGURATION" : "ENTER THE CATEGORY DETAILS BELOW."}</p>
                 </div>
                 <button type="button" onClick={closeDialog} className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Close dialog"><X size={20} /></button>
               </div>
+
+              {showCategoryFormHelp && (
+                <div className="border-b border-blue-100 bg-blue-50/70 px-6 py-3.5 text-xs normal-case text-slate-700 animate-in fade-in duration-150">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-blue-950 flex items-center gap-1.5 text-xs">
+                        <Info size={14} className="text-blue-600" /> Required Details &amp; Guidelines
+                      </p>
+                      <ul className="space-y-1 text-[11px] text-slate-600">
+                        <li><strong className="text-slate-900">Category Name:</strong> Mandatory (e.g. <em>ANNUAL LEAVE</em>). Main policy category name.</li>
+                        <li><strong className="text-slate-900">Category Code:</strong> Mandatory unique identifier up to 12 chars (e.g. <em>ANNUAL</em>).</li>
+                        <li><strong className="text-slate-900">Payment Type:</strong> <em>PAID</em> (standard leave quota) or <em>UNPAID</em> (loss of pay/deduction).</li>
+                        <li><strong className="text-slate-900">Status:</strong> Set to <em>ACTIVE</em> so leave types can link to this category.</li>
+                      </ul>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryFormHelp(false)}
+                      className="rounded p-1 text-slate-400 hover:bg-blue-100 hover:text-slate-700"
+                      aria-label="Close help"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-5 px-6 py-6 sm:grid-cols-2">
                 <label className="space-y-1.5">
@@ -379,7 +440,8 @@ export default function LeaveCategoryPage() {
                     value={form.name}
                     readOnly={mode === "view"}
                     onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="SFS"
+                    placeholder="ANNUAL LEAVE"
+                    autoComplete="off"
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
                 </label>
@@ -391,7 +453,8 @@ export default function LeaveCategoryPage() {
                     value={form.code}
                     readOnly={mode === "view"}
                     onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
-                    placeholder="SFS"
+                    placeholder="ANNUAL"
+                    autoComplete="off"
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none focus:border-blue-300 read-only:text-slate-500"
                   />
                 </label>
@@ -449,6 +512,99 @@ export default function LeaveCategoryPage() {
               </div>
             </form>
           </section>
+        </div>
+      )}
+
+      {/* Information Modal: Why and For What Leave Category is used */}
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowInfoModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="category-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                  <Info size={16} />
+                </div>
+                <div>
+                  <h2 id="category-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    About Leave Category
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Purpose, governance, and system role</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-blue-50/60 border border-blue-100 p-3">
+                <span className="font-semibold text-blue-950">What is it?</span>
+                <p className="mt-0.5 text-blue-900/90 text-[11px] leading-relaxed">
+                  A <strong>Leave Category</strong> is the master classification tier that standardizes leave policies across the institution (e.g. <em>Annual, Casual, Medical, Special, Emergency</em>).
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Grouping:</strong> Standardizes leaves into master groups (e.g. Annual, Casual, Medical).</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Payroll Rule:</strong> Automatically defines whether days are <strong>PAID</strong> or <strong>UNPAID</strong>.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">1.</span>
+                      <span>Click <strong>+ Create Category</strong>, enter Code (e.g. <em>ANNUAL</em>) and Name.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">2.</span>
+                      <span>Link your leave types (CL, ML, EL) to this category so they inherit payment rules.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

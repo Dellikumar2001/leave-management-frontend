@@ -103,7 +103,7 @@
           <mxGeometry x="135" y="140" width="200" height="90" as="geometry" />
         </mxCell>
 
-        <mxCell id="wf-blockreject" value="&lt;b&gt;HTTP 409 Rejected&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;&quot;Can't take leave on this date, contact admin&quot;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#991b1b;strokeColor=#fca5a5;strokeWidth=2;fontColor=#ffffff;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
+        <mxCell id="wf-blockreject" value="&lt;b&gt;HTTP 409 Rejected&lt;/b&gt;&lt;br/&gt;&lt;span style=&quot;font-size:11px;&quot;&gt;&quot;Leaves are blocked for this date. Kindly select any other date or contact admin&quot;&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#991b1b;strokeColor=#fca5a5;strokeWidth=2;fontColor=#ffffff;align=center;fontFamily=Helvetica;" vertex="1" parent="lane-workflow">
           <mxGeometry x="120" y="270" width="230" height="50" as="geometry" />
         </mxCell>
 

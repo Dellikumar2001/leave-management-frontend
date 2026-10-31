@@ -451,7 +451,7 @@ export default function LeaveYearEndPage() {
       return {
         ...record,
         rule,
-        maxCarryForward: maxLimit,
+        carryForward: isCarryForward,
         carriedForwardDays,
         proposedOpeningBalance,
       };

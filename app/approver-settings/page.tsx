@@ -13,6 +13,7 @@ import {
   Check,
   AlertCircle,
   Users,
+  Info,
 } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
@@ -21,6 +22,7 @@ type Employee = {
   name: string;
   stream: string;
   department: string;
+  employeeType?: string | null;
   gender?: string | null;
   designation?: string | null;
   firstLevelApprover?: string | null;
@@ -691,11 +693,24 @@ export default function ApproverSettingsPage() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) {
+        setShowInfoModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   // Cascading Multi-Select Filters
   const [streamFilters, setStreamFilters] = useState<string[]>([]);
   const [departmentFilters, setDepartmentFilters] = useState<string[]>([]);
+  const [employeeTypeFilters, setEmployeeTypeFilters] = useState<string[]>([]);
   const [employeeNameFilters, setEmployeeNameFilters] = useState<string[]>([]);
+  const [, setHasAssigned] = useState<boolean>(false);
 
   // Checkbox row selection state
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
@@ -749,33 +764,49 @@ export default function ApproverSettingsPage() {
     return [...new Set(employees.map((e) => e.stream))].filter(Boolean).sort();
   }, [employees]);
 
-  // Departments (directly selectable! Filtered if stream is selected, otherwise all departments)
-  const departments = useMemo(() => {
-    if (streamFilters.length > 0) {
-      return [
-        ...new Set(
-          employees
-            .filter((e) => streamFilters.includes(e.stream))
-            .map((e) => e.department)
-        ),
-      ]
-        .filter(Boolean)
-        .sort();
-    }
-    return [...new Set(employees.map((e) => e.department))].filter(Boolean).sort();
-  }, [employees, streamFilters]);
+  // ── Sequential Cascading Enablement Flags
+  const isDepartmentDisabled = streamFilters.length === 0;
+  const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
+  const isEmployeeDisabled = isEmployeeTypeDisabled || employeeTypeFilters.length === 0;
 
-  // Employee names (directly selectable! Filtered if stream/dept selected, otherwise all employees)
+  // Departments (disabled until stream is chosen)
+  const departments = useMemo(() => {
+    if (isDepartmentDisabled) return [];
+    return [
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream))
+          .map((e) => e.department)
+      ),
+    ]
+      .filter(Boolean)
+      .sort();
+  }, [employees, isDepartmentDisabled, streamFilters]);
+
+  // Employee Types (disabled until department is chosen)
+  const employeeTypes = useMemo(() => {
+    if (isEmployeeTypeDisabled) return [];
+    const fromData = [
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream) && departmentFilters.includes(e.department))
+          .map((e) => e.employeeType)
+      ),
+    ].filter(Boolean) as string[];
+    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+  }, [employees, isEmployeeTypeDisabled, streamFilters, departmentFilters]);
+
+  // Employee names (disabled until employee type is chosen)
   const employeeNames = useMemo(() => {
-    let pool = employees;
-    if (streamFilters.length > 0) {
-      pool = pool.filter((e) => streamFilters.includes(e.stream));
-    }
-    if (departmentFilters.length > 0) {
-      pool = pool.filter((e) => departmentFilters.includes(e.department));
-    }
+    if (isEmployeeDisabled) return [];
+    const pool = employees.filter(
+      (e) =>
+        streamFilters.includes(e.stream) &&
+        departmentFilters.includes(e.department) &&
+        employeeTypeFilters.includes(e.employeeType || "Teaching")
+    );
     return [...new Set(pool.map((e) => e.name))].filter(Boolean).sort();
-  }, [employees, streamFilters, departmentFilters]);
+  }, [employees, isEmployeeDisabled, streamFilters, departmentFilters, employeeTypeFilters]);
 
   const clearApproverFields = () => {
     setFirstLevelApprover("");
@@ -784,19 +815,26 @@ export default function ApproverSettingsPage() {
     setFinalLevelBackupOfficer("");
   };
 
-  // Direct independent filter handlers
+  // Direct cascading filter handlers
   const handleStreamChange = (newStreams: string[]) => {
     setStreamFilters(newStreams);
-    if (newStreams.length === 0 && departmentFilters.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
-      clearApproverFields();
-    }
+    setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+    clearApproverFields();
   };
 
   const handleDepartmentChange = (newDepts: string[]) => {
     setDepartmentFilters(newDepts);
-    if (streamFilters.length === 0 && newDepts.length === 0 && employeeNameFilters.length === 0 && selectedRowIds.length === 0) {
-      clearApproverFields();
-    }
+    setEmployeeTypeFilters([]);
+    setEmployeeNameFilters([]);
+    clearApproverFields();
+  };
+
+  const handleEmployeeTypeChange = (newTypes: string[]) => {
+    setEmployeeTypeFilters(newTypes);
+    setEmployeeNameFilters([]);
+    clearApproverFields();
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
@@ -835,6 +873,7 @@ export default function ApproverSettingsPage() {
   const handleClearSelection = () => {
     setStreamFilters([]);
     setDepartmentFilters([]);
+    setEmployeeTypeFilters([]);
     setEmployeeNameFilters([]);
     setSelectedRowIds([]);
     clearApproverFields();
@@ -849,6 +888,11 @@ export default function ApproverSettingsPage() {
     const filtered = employees.filter((emp) => {
       if (streamFilters.length > 0 && !streamFilters.includes(emp.stream)) return false;
       if (departmentFilters.length > 0 && !departmentFilters.includes(emp.department)) return false;
+      if (
+        employeeTypeFilters.length > 0 &&
+        !employeeTypeFilters.includes(emp.employeeType || "Teaching")
+      )
+        return false;
       if (employeeNameFilters.length > 0 && !employeeNameFilters.includes(emp.name)) return false;
       return true;
     });
@@ -895,12 +939,13 @@ export default function ApproverSettingsPage() {
 
       return 0;
     });
-  }, [employees, streamFilters, departmentFilters, employeeNameFilters, sortField, sortDirection]);
+  }, [employees, streamFilters, departmentFilters, employeeTypeFilters, employeeNameFilters, sortField, sortDirection]);
 
   // Active selection flag: enabled if stream, department, employee name, or table rows are selected
   const isSelectionActive =
     streamFilters.length > 0 ||
     departmentFilters.length > 0 ||
+    employeeTypeFilters.length > 0 ||
     employeeNameFilters.length > 0 ||
     selectedRowIds.length > 0;
 
@@ -1035,6 +1080,7 @@ export default function ApproverSettingsPage() {
       // Return to normal page: Reset all filters, selections and approver fields
       setStreamFilters([]);
       setDepartmentFilters([]);
+      setEmployeeTypeFilters([]);
       setEmployeeNameFilters([]);
       setSelectedRowIds([]);
       setFirstLevelApprover("");
@@ -1095,9 +1141,20 @@ export default function ApproverSettingsPage() {
                 <ShieldCheck size={24} />
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-800">
-                  Approver settings
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-800">
+                    Approver settings
+                  </h1>
+                  <button
+                    type="button"
+                    onClick={() => setShowInfoModal(true)}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                    title="What is Approver Settings and why is it used?"
+                    aria-label="What is Approver Settings and why is it used?"
+                  >
+                    <Info size={16} />
+                  </button>
+                </div>
                 <p className="text-xs font-medium text-slate-500">
                   Configure HOD, vice principal, principal, and backup approvers for employees
                 </p>
@@ -1141,10 +1198,25 @@ export default function ApproverSettingsPage() {
                   options={departments}
                   selectedValues={departmentFilters}
                   onChange={handleDepartmentChange}
+                  disabled={isDepartmentDisabled}
                 />
               </div>
 
-              {/* Step 3: Employee Multi-Select Dropdown with checkboxes (ONLY NAMES, NO IDs) */}
+              {/* Step 3: Employee Type Multi-Select Dropdown with checkboxes */}
+              <div className="min-w-[160px] flex-1">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Employee Type
+                </label>
+                <MultiSelectDropdown
+                  label="Employee Types"
+                  options={employeeTypes}
+                  selectedValues={employeeTypeFilters}
+                  onChange={handleEmployeeTypeChange}
+                  disabled={isEmployeeTypeDisabled}
+                />
+              </div>
+
+              {/* Step 4: Employee Multi-Select Dropdown with checkboxes (ONLY NAMES, NO IDs) */}
               <div className="min-w-[160px] flex-1">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Employee Names
@@ -1154,6 +1226,7 @@ export default function ApproverSettingsPage() {
                   options={employeeNames}
                   selectedValues={employeeNameFilters}
                   onChange={handleEmployeeNameChange}
+                  disabled={isEmployeeDisabled}
                 />
               </div>
 
@@ -1493,6 +1566,99 @@ export default function ApproverSettingsPage() {
           </main>
         </div>
       </div>
+
+      {/* Information Modal: Why and For What Approver Settings is used */}
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowInfoModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="approver-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <h2 id="approver-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    About Approver Settings
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Routing hierarchy, multi-tier approvals, and backup officers</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+                <span className="font-semibold text-emerald-950">What is it?</span>
+                <p className="mt-0.5 text-emerald-900/90 text-[11px] leading-relaxed">
+                  <strong>Approver Settings</strong> defines the formal authorization hierarchy for employee leave requests, assigning First-Level Approvers (e.g., HOD), Final-Level Approvers (e.g., Principal/VP), and their corresponding Backup Officers.
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">•</span>
+                      <span><strong>Two-Tier Chain:</strong> Maps staff to a First Level (HOD) and Final Level (Principal) approver.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">•</span>
+                      <span><strong>Backup Proxy:</strong> Backup officers can act when primary approvers are away.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">1.</span>
+                      <span>Filter staff by Stream/Department and check the boxes for employees you want to assign.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">2.</span>
+                      <span>Select the First-Level and Final-Level approvers from the top dropdowns and click <strong>Assign</strong>.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

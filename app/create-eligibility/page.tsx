@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Plus, Save, Search, X } from "lucide-react";
+import { ChevronDown, Plus, Save, Search, X, Info } from "lucide-react";
 import LeaveSidebar from "../components/LeaveSidebar";
 
 type Eligibility = {
@@ -47,7 +47,19 @@ export default function CreateEligibilityPage() {
   const [isLoadingLeaveGroups, setIsLoadingLeaveGroups] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showEligibilityFormHelp, setShowEligibilityFormHelp] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showInfoModal) {
+        setShowInfoModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showInfoModal]);
 
   useEffect(() => {
     if (isModalOpen) {
@@ -159,7 +171,18 @@ export default function CreateEligibilityPage() {
       <div className="p-4 min-[801px]:ml-[175px] uppercase">
         <div className="mx-auto max-w-[1400px]">
           <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-800">CREATE LEAVE ELIGIBILITY</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-800">CREATE LEAVE ELIGIBILITY</h1>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(true)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+                title="What is Leave Eligibility and why is it used?"
+                aria-label="What is Leave Eligibility and why is it used?"
+              >
+                <Info size={18} />
+              </button>
+            </div>
           </header>
 
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -259,18 +282,59 @@ export default function CreateEligibilityPage() {
           <form onSubmit={handleSubmit} className="my-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] overscroll-contain">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-[22px] font-bold uppercase text-slate-800">CREATE LEAVE ELIGIBILITY</h2>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-[22px] font-bold uppercase text-slate-800">CREATE LEAVE ELIGIBILITY</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowEligibilityFormHelp((prev) => !prev)}
+                    className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 hover:text-blue-700 active:scale-95 cursor-pointer"
+                    title="Information about required eligibility details"
+                    aria-label="Information about required eligibility details"
+                  >
+                    <Info size={14} />
+                  </button>
+                </div>
                 <p className="mt-1 text-sm uppercase text-slate-500">ENTER THE ELIGIBILITY DETAILS BELOW.</p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setShowEligibilityFormHelp(false);
+                }}
                 className="rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close dialog"
               >
                 <X size={20} />
               </button>
             </div>
+
+            {showEligibilityFormHelp && (
+              <div className="border-b border-blue-100 bg-blue-50/70 px-6 py-3.5 text-xs normal-case text-slate-700 animate-in fade-in duration-150">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-blue-950 flex items-center gap-1.5 text-xs">
+                      <Info size={14} className="text-blue-600" /> Required Details &amp; Guidelines
+                    </p>
+                    <ul className="space-y-1 text-[11px] text-slate-600">
+                      <li><strong className="text-slate-900">Eligibility Name:</strong> Mandatory unique policy name (e.g., <em>ACADEMIC FACULTY ELIGIBILITY</em>).</li>
+                      <li><strong className="text-slate-900">Employee Type:</strong> Staff classification (e.g., <em>TEACHING</em> or <em>NON-TEACHING</em>).</li>
+                      <li><strong className="text-slate-900">Employment Type:</strong> Appointment term (e.g., <em>REGULAR / PROBATION / CONTRACT</em>).</li>
+                      <li><strong className="text-slate-900">Management Stream:</strong> Department / Stream scope (e.g., <em>AIDED / SELF-FINANCE</em>).</li>
+                      <li><strong className="text-slate-900">Leave Group:</strong> The leave group whose leave types and day allowances will be assigned.</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowEligibilityFormHelp(false)}
+                    className="rounded p-1 text-slate-400 hover:bg-blue-100 hover:text-slate-700"
+                    aria-label="Close help"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {error && (
               <p role="alert" className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm uppercase text-red-700">
@@ -417,7 +481,10 @@ export default function CreateEligibilityPage() {
             <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4 uppercase">
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setShowEligibilityFormHelp(false);
+                }}
                 className="h-10 rounded-xl border border-slate-300 px-5 text-sm font-medium uppercase text-slate-700 transition hover:bg-slate-50"
               >
                 CANCEL
@@ -432,6 +499,99 @@ export default function CreateEligibilityPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Information Modal: Why and For What Leave Eligibility is used */}
+      {showInfoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowInfoModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="eligibility-info-title"
+            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-xs">
+                  <Info size={16} />
+                </div>
+                <div>
+                  <h2 id="eligibility-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                    About Leave Eligibility
+                  </h2>
+                  <p className="text-[11px] text-slate-500">Employee group assignment, criteria matching, and quota mapping</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+              {/* 1. What it is */}
+              <div className="rounded-xl bg-blue-50/60 border border-blue-100 p-3">
+                <span className="font-semibold text-blue-950">What is it?</span>
+                <p className="mt-0.5 text-blue-900/90 text-[11px] leading-relaxed">
+                  <strong>Leave Eligibility</strong> sets organizational criteria (Employee Type, Employment Type, Stream) that link staff cohorts to an appropriate <em>Leave Group</em> to assign specific leave quotas automatically.
+                </p>
+              </div>
+
+              {/* 2. How it works & How to use it */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Profile Matching:</strong> Filters staff by Employee Type, Employment Type, and Stream.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">•</span>
+                      <span><strong>Auto-Allocation:</strong> Automatically provisions the linked Leave Group quotas to matching staff.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">1.</span>
+                      <span>Click <strong>+ Create Leave Eligibility</strong>, enter a descriptive Name.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-blue-600 font-bold">2.</span>
+                      <span>Select the Employee Type, Stream, and target <strong>Leave Group</strong>, then click <strong>Create</strong>.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
