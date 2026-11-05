@@ -437,8 +437,13 @@ export default function LeaveYearEndPage() {
 
     return previewRecords.map((record) => {
       const activeRule = ruleLookup.get(record.leaveTypeId);
-      const isTicked = selectedCarryForwardLeaveTypeIds.includes(record.leaveTypeId);
-      const rule = isTicked ? (activeRule?.rule || "CARRY_FORWARD") : "RESET";
+      const isCarryForward =
+        selectedCarryForwardLeaveTypeIds.includes(record.leaveTypeId) ||
+        Boolean(record.carryForward) ||
+        record.leaveTypeCode === "ML" ||
+        record.leaveTypeCode === "EL" ||
+        activeRule?.rule === "CARRY_FORWARD";
+      const rule: "CARRY_FORWARD" | "RESET" = isCarryForward ? (activeRule?.rule || "CARRY_FORWARD") : "RESET";
       const maxLimit = activeRule?.maxCarryForwardDays ?? null;
 
       let carriedForwardDays = 0;

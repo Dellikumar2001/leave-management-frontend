@@ -330,19 +330,8 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     return [...new Set(pool.map((e) => e.department))].filter(Boolean).sort();
   }, [employees, selectedStreams]);
 
-  // ── Step 3: Employees matching current Stream & Department selections
-    if (isDepartmentDisabled) return [];
-    return [
-      ...new Set(
-        employees
-          .filter((e) => selectedStreams.includes(e.stream))
-          .map((e) => e.department)
-      ),
-    ].filter(Boolean).sort();
-  }, [employees, isDepartmentDisabled, selectedStreams]);
-
   // ── Step 3: Employee Types disabled until Department is chosen
-  const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+  const isEmployeeTypeDisabled = selectedDepartments.length === 0;
   const employeeTypes = useMemo(() => {
     if (isEmployeeTypeDisabled) return [];
     const fromData = [
@@ -365,9 +354,10 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     return employees.filter(
       (e) =>
         (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
-        (!selectedDepartments.length || selectedDepartments.includes(e.department))
+        (!selectedDepartments.length || selectedDepartments.includes(e.department)) &&
+        (!selectedEmployeeTypes.length || (e.employeeType && selectedEmployeeTypes.includes(e.employeeType)))
     );
-  }, [employees, selectedDepartments, selectedStreams]);
+  }, [employees, selectedDepartments, selectedStreams, selectedEmployeeTypes]);
 
   const employeeNames = useMemo(
     () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
@@ -401,9 +391,10 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     const matching = employees.filter(
       (e) =>
         (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
-        (!newDepts.length || newDepts.includes(e.department))
+        (!selectedDepartments.length || selectedDepartments.includes(e.department)) &&
+        (!newTypes.length || (e.employeeType && newTypes.includes(e.employeeType)))
     );
-    setSelectedEmployeeIds(selectedStreams.length || newDepts.length ? matching.map((e) => e.employeeId) : []);
+    setSelectedEmployeeIds(selectedStreams.length || selectedDepartments.length || newTypes.length ? matching.map((e) => e.employeeId) : []);
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {

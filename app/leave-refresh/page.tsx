@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, RefreshCw, ChevronDown, Info, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import LeaveSidebar from "../components/LeaveSidebar";
