@@ -43,9 +43,9 @@ function employeeGroupLabel(
 ) {
   const scopedEmployees = selectedStreams.length || selectedDepartments.length
     ? allEmployees.filter((employee) =>
-        (!selectedStreams.length || selectedStreams.includes(employee.stream)) &&
-        (!selectedDepartments.length || selectedDepartments.includes(employee.department))
-      )
+      (!selectedStreams.length || selectedStreams.includes(employee.stream)) &&
+      (!selectedDepartments.length || selectedDepartments.includes(employee.department))
+    )
     : selectedEmployees;
   const pairs = [...new Set(scopedEmployees.map(({ department, stream }) => `${department} (${stream})`))].sort();
   if (pairs.length === 0) return "from the selected employees";
@@ -138,10 +138,10 @@ export function MultiSelectDropdown({
   const displayLabel = disabled
     ? `Select ${label}`
     : selectedValues.length === 0
-    ? `Select ${label}`
-    : selectedValues.length === 1
-    ? selectedValues[0]
-    : `${selectedValues.length} ${label} selected`;
+      ? `Select ${label}`
+      : selectedValues.length === 1
+        ? selectedValues[0]
+        : `${selectedValues.length} ${label} selected`;
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -152,20 +152,18 @@ export function MultiSelectDropdown({
           if (!isOpen) onOpen?.();
           setIsOpen((prev) => !prev);
         }}
-        className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${
-          disabled
-            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
-            : isOpen
+        className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${disabled
+          ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+          : isOpen
             ? "border-emerald-600 ring-2 ring-emerald-600/20 text-slate-800"
             : "border-slate-300 text-slate-600 hover:border-slate-400"
-        }`}
+          }`}
       >
         <span className="truncate">{displayLabel}</span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${isOpen ? "rotate-180" : ""
+            }`}
         />
       </button>
 
@@ -323,6 +321,7 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
   );
 
   // ── Step 2: Departments dynamically scoped to selected Streams, or all departments if none selected
+  const isDepartmentDisabled = selectedStreams.length === 0;
   const departments = useMemo(() => {
     const pool = selectedStreams.length > 0
       ? employees.filter((e) => selectedStreams.includes(e.stream))
@@ -330,70 +329,59 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     return [...new Set(pool.map((e) => e.department))].filter(Boolean).sort();
   }, [employees, selectedStreams]);
 
-  // ── Step 3: Employees matching current Stream & Department selections
-    if (isDepartmentDisabled) return [];
-    return [
-      ...new Set(
-        employees
-          .filter((e) => selectedStreams.includes(e.stream))
-          .map((e) => e.department)
-      ),
-    ].filter(Boolean).sort();
-  }, [employees, isDepartmentDisabled, selectedStreams]);
+// ── Step 3: Employee Types disabled until Department is chosen
+const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
+const employeeTypes = useMemo(() => {
+  if (isEmployeeTypeDisabled) return [];
+  const fromData = [
+    ...new Set(
+      employees
+        .filter(
+          (e) =>
+            selectedStreams.includes(e.stream) &&
+            selectedDepartments.includes(e.department)
+        )
+        .map((e) => e.employeeType)
+    ),
+  ].filter(Boolean) as string[];
+  return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
+}, [employees, isEmployeeTypeDisabled, selectedStreams, selectedDepartments]);
 
-  // ── Step 3: Employee Types disabled until Department is chosen
-  const isEmployeeTypeDisabled = isDepartmentDisabled || selectedDepartments.length === 0;
-  const employeeTypes = useMemo(() => {
-    if (isEmployeeTypeDisabled) return [];
-    const fromData = [
-      ...new Set(
-        employees
-          .filter(
-            (e) =>
-              selectedStreams.includes(e.stream) &&
-              selectedDepartments.includes(e.department)
-          )
-          .map((e) => e.employeeType)
-      ),
-    ].filter(Boolean) as string[];
-    return Array.from(new Set(["Teaching", "Non-Teaching", ...fromData])).sort();
-  }, [employees, isEmployeeTypeDisabled, selectedStreams, selectedDepartments]);
-
-  // ── Step 4: Employees disabled until Employee Type is chosen
-  const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
-  const availableEmployees = useMemo(() => {
-    return employees.filter(
-      (e) =>
-        (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
-        (!selectedDepartments.length || selectedDepartments.includes(e.department))
-    );
-  }, [employees, selectedDepartments, selectedStreams]);
-
-  const employeeNames = useMemo(
-    () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
-    [availableEmployees]
+// ── Step 4: Employees disabled until Employee Type is chosen
+const isEmployeeDisabled = isEmployeeTypeDisabled || selectedEmployeeTypes.length === 0;
+const availableEmployees = useMemo(() => {
+  return employees.filter(
+    (e) =>
+      (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
+      (!selectedDepartments.length || selectedDepartments.includes(e.department))
   );
+}, [employees, selectedDepartments, selectedStreams]);
 
-  // ── Filter Handlers (dynamically auto-checks matching employees for table action checkboxes)
-  const handleStreamChange = (newStreams: string[]) => {
-    setSelectedStreams(newStreams);
-    setSelectedDepartments([]);
-    setSelectedEmployeeTypes([]);
-    setSelectedEmployeeNames([]);
-    const matching = employees.filter(
-      (e) =>
-        (!newStreams.length || newStreams.includes(e.stream)) &&
-        (!selectedDepartments.length || selectedDepartments.includes(e.department))
-    );
-    setSelectedEmployeeIds(newStreams.length || selectedDepartments.length ? matching.map((e) => e.employeeId) : []);
-  };
+const employeeNames = useMemo(
+  () => [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort(),
+  [availableEmployees]
+);
 
-  const handleDepartmentChange = (newDepts: string[]) => {
-    setSelectedDepartments(newDepts);
-    setSelectedEmployeeTypes([]);
-    setSelectedEmployeeNames([]);
-    setSelectedEmployeeIds([]);
-  };
+// ── Filter Handlers (dynamically auto-checks matching employees for table action checkboxes)
+const handleStreamChange = (newStreams: string[]) => {
+  setSelectedStreams(newStreams);
+  setSelectedDepartments([]);
+  setSelectedEmployeeTypes([]);
+  setSelectedEmployeeNames([]);
+  const matching = employees.filter(
+    (e) =>
+      (!newStreams.length || newStreams.includes(e.stream)) &&
+      (!selectedDepartments.length || selectedDepartments.includes(e.department))
+  );
+  setSelectedEmployeeIds(newStreams.length || selectedDepartments.length ? matching.map((e) => e.employeeId) : []);
+};
+
+const handleDepartmentChange = (newDepts: string[]) => {
+  setSelectedDepartments(newDepts);
+  setSelectedEmployeeTypes([]);
+  setSelectedEmployeeNames([]);
+  setSelectedEmployeeIds([]);
+};
 
   const handleEmployeeTypeChange = (newTypes: string[]) => {
     setSelectedEmployeeTypes(newTypes);
@@ -401,9 +389,9 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
     const matching = employees.filter(
       (e) =>
         (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
-        (!newDepts.length || newDepts.includes(e.department))
+        (!selectedDepartments.length || selectedDepartments.includes(e.department))
     );
-    setSelectedEmployeeIds(selectedStreams.length || newDepts.length ? matching.map((e) => e.employeeId) : []);
+    setSelectedEmployeeIds(selectedStreams.length || selectedDepartments.length ? matching.map((e) => e.employeeId) : []);
   };
 
   const handleEmployeeNameChange = (newNames: string[]) => {
@@ -414,564 +402,567 @@ export default function LeaveAdministrationPage({ mode }: { mode: Mode }) {
         .map((emp) => emp.employeeId);
       setSelectedEmployeeIds(chosenIds);
     } else {
-      setSelectedEmployeeIds(availableEmployees.map((emp) => emp.employeeId));
+      const matching = employees.filter(
+        (e) =>
+          (!selectedStreams.length || selectedStreams.includes(e.stream)) &&
+          (!selectedDepartments.length || selectedDepartments.includes(e.department))
+      );
+      setSelectedEmployeeIds(selectedStreams.length || selectedDepartments.length ? matching.map((e) => e.employeeId) : []);
     }
   };
 
-  // Table appears as soon as stream, department, or employee is selected
-  const showEmployees =
-    selectedStreams.length > 0 ||
-    selectedDepartments.length > 0 ||
-    selectedEmployeeNames.length > 0;
+// Table appears as soon as stream, department, or employee is selected
+const showEmployees =
+  selectedStreams.length > 0 ||
+  selectedDepartments.length > 0 ||
+  selectedEmployeeNames.length > 0;
 
-  // Filter visible employees based on chosen names or show all available
-  const visibleEmployees = useMemo(() => {
-    if (!showEmployees) return [];
-    if (selectedEmployeeNames.length > 0) {
-      return availableEmployees.filter((emp) => selectedEmployeeNames.includes(emp.name));
+// Filter visible employees based on chosen names or show all available
+const visibleEmployees = useMemo(() => {
+  if (!showEmployees) return [];
+  if (selectedEmployeeNames.length > 0) {
+    return availableEmployees.filter((emp) => selectedEmployeeNames.includes(emp.name));
+  }
+  return availableEmployees;
+}, [availableEmployees, selectedEmployeeNames, showEmployees]);
+
+const selectedEmployees = employees.filter(({ employeeId }) => selectedEmployeeIds.includes(employeeId));
+const daysToBlock = totalDays(startDate, endDate || startDate);
+const canSubmit = selectedEmployeeIds.length > 0 && (mode === "block" ? daysToBlock > 0 : days > 0);
+const showSummary = selectedEmployees.length > 0 && (mode === "credit" || daysToBlock > 0);
+const groupLabel = employeeGroupLabel(selectedEmployees, employees, selectedStreams, selectedDepartments);
+
+const summary = mode === "block"
+  ? `${daysToBlock} day${daysToBlock === 1 ? "" : "s"}, from ${formatDate(startDate)} to ${formatDate(endDate || startDate)}, will be blocked for ${selectedEmployees.length} employee${selectedEmployees.length === 1 ? "" : "s"} (${groupLabel}).`
+  : `${days} day${days === 1 ? "" : "s"} will be credited for ${selectedEmployees.length} employee${selectedEmployees.length === 1 ? "" : "s"} (${groupLabel}).`;
+
+const employeeRows = useMemo(() => visibleEmployees.map((employee) => ({
+  ...employee,
+  blockedLeaveCount: blockedLeaves.filter((item) => item.employeeId === employee.employeeId).length,
+  creditCount: credits.filter((item) => item.employeeId === employee.employeeId).length,
+})), [blockedLeaves, credits, visibleEmployees]);
+
+const historyRecords = historyTarget
+  ? mode === "block"
+    ? blockedLeaves.filter((record) => record.employeeId === historyTarget.employee.employeeId)
+    : credits.filter((record) => record.employeeId === historyTarget.employee.employeeId)
+  : [];
+
+const handleAction = async () => {
+  setIsSaving(true);
+  setError("");
+  try {
+    const response = await fetch(mode === "block" ? "/api/block-leave" : "/api/leave-credit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(mode === "block"
+        ? { employeeIds: selectedEmployeeIds, startDate, endDate: endDate || startDate }
+        : {
+          streams: selectedStreams.length > 0 ? selectedStreams : "ALL",
+          departments: selectedDepartments.length > 0 ? selectedDepartments : "ALL",
+          employee_ids: selectedEmployeeIds,
+          credit: { category, days },
+        }),
+    });
+    const result = await readJson<{ blockedCount?: number; creditedCount?: number; skippedCount?: number }>(response);
+    if (mode === "credit") {
+      const credited = result.creditedCount ?? 0;
+      const skipped = result.skippedCount ?? 0;
+      let msg = `Credited leave for ${credited} employee${credited === 1 ? "" : "s"}.`;
+      if (skipped > 0) {
+        msg += ` (${skipped} skipped - already credited for this cycle)`;
+      }
+      setSuccess(msg);
+    } else {
+      setSuccess("");
     }
-    return availableEmployees;
-  }, [availableEmployees, selectedEmployeeNames, showEmployees]);
+    setSelectedEmployeeIds([]);
+    setConfirmOpen(false);
+    setIsLoading(true);
+    await loadData();
+  } catch (saveError) {
+    setError(saveError instanceof Error ? saveError.message : "Unable to save leave administration changes.");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
-  const selectedEmployees = employees.filter(({ employeeId }) => selectedEmployeeIds.includes(employeeId));
-  const daysToBlock = totalDays(startDate, endDate || startDate);
-  const canSubmit = selectedEmployeeIds.length > 0 && (mode === "block" ? daysToBlock > 0 : days > 0);
-  const showSummary = selectedEmployees.length > 0 && (mode === "credit" || daysToBlock > 0);
-  const groupLabel = employeeGroupLabel(selectedEmployees, employees, selectedStreams, selectedDepartments);
-
-  const summary = mode === "block"
-    ? `${daysToBlock} day${daysToBlock === 1 ? "" : "s"}, from ${formatDate(startDate)} to ${formatDate(endDate || startDate)}, will be blocked for ${selectedEmployees.length} employee${selectedEmployees.length === 1 ? "" : "s"} (${groupLabel}).`
-    : `${days} day${days === 1 ? "" : "s"} will be credited for ${selectedEmployees.length} employee${selectedEmployees.length === 1 ? "" : "s"} (${groupLabel}).`;
-
-  const employeeRows = useMemo(() => visibleEmployees.map((employee) => ({
-    ...employee,
-    blockedLeaveCount: blockedLeaves.filter((item) => item.employeeId === employee.employeeId).length,
-    creditCount: credits.filter((item) => item.employeeId === employee.employeeId).length,
-  })), [blockedLeaves, credits, visibleEmployees]);
-
-  const historyRecords = historyTarget
-    ? mode === "block"
-      ? blockedLeaves.filter((record) => record.employeeId === historyTarget.employee.employeeId)
-      : credits.filter((record) => record.employeeId === historyTarget.employee.employeeId)
-    : [];
-
-  const handleAction = async () => {
-    setIsSaving(true);
-    setError("");
-    try {
-      const response = await fetch(mode === "block" ? "/api/block-leave" : "/api/leave-credit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mode === "block"
-          ? { employeeIds: selectedEmployeeIds, startDate, endDate: endDate || startDate }
-          : {
-              streams: selectedStreams.length > 0 ? selectedStreams : "ALL",
-              departments: selectedDepartments.length > 0 ? selectedDepartments : "ALL",
-              employee_ids: selectedEmployeeIds,
-              credit: { category, days },
-            }),
-      });
-      const result = await readJson<{ blockedCount?: number; creditedCount?: number; skippedCount?: number }>(response);
-      if (mode === "credit") {
-        const credited = result.creditedCount ?? 0;
-        const skipped = result.skippedCount ?? 0;
-        let msg = `Credited leave for ${credited} employee${credited === 1 ? "" : "s"}.`;
-        if (skipped > 0) {
-          msg += ` (${skipped} skipped - already credited for this cycle)`;
+const manageRecord = async (method: "PATCH" | "DELETE", body: object) => {
+  setIsSaving(true);
+  setHistoryError("");
+  try {
+    const response = await fetch(mode === "block" ? "/api/block-leave" : "/api/leave-credit", {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      let message = "Unable to update the leave record.";
+      try {
+        const result = await response.json();
+        if (result && typeof result === "object" && "error" in result && typeof (result as Record<string, unknown>).error === "string") {
+          message = (result as { error: string }).error;
         }
-        setSuccess(msg);
+      } catch { }
+      throw new Error(message);
+    }
+    if (method === "DELETE" && "id" in body && typeof (body as { id?: unknown }).id === "number") {
+      const targetId = (body as { id: number }).id;
+      if (mode === "block") {
+        setBlockedLeaves((prev) => prev.filter((item) => item.id !== targetId));
       } else {
-        setSuccess("");
+        setCredits((prev) => prev.filter((item) => item.id !== targetId));
       }
-      setSelectedEmployeeIds([]);
-      setConfirmOpen(false);
-      setIsLoading(true);
-      await loadData();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unable to save leave administration changes.");
-    } finally {
-      setIsSaving(false);
     }
-  };
+    setHistoryTarget(null);
+    setIsLoading(true);
+    await loadData();
+  } catch (saveError) {
+    setHistoryError(saveError instanceof Error ? saveError.message : "Unable to update the leave record.");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
-  const manageRecord = async (method: "PATCH" | "DELETE", body: object) => {
-    setIsSaving(true);
-    setHistoryError("");
-    try {
-      const response = await fetch(mode === "block" ? "/api/block-leave" : "/api/leave-credit", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        let message = "Unable to update the leave record.";
-        try {
-          const result = await response.json();
-          if (result && typeof result === "object" && "error" in result && typeof (result as Record<string, unknown>).error === "string") {
-            message = (result as { error: string }).error;
-          }
-        } catch {}
-        throw new Error(message);
-      }
-      if (method === "DELETE" && "id" in body && typeof (body as { id?: unknown }).id === "number") {
-        const targetId = (body as { id: number }).id;
-        if (mode === "block") {
-          setBlockedLeaves((prev) => prev.filter((item) => item.id !== targetId));
-        } else {
-          setCredits((prev) => prev.filter((item) => item.id !== targetId));
-        }
-      }
-      setHistoryTarget(null);
-      setIsLoading(true);
-      await loadData();
-    } catch (saveError) {
-      setHistoryError(saveError instanceof Error ? saveError.message : "Unable to update the leave record.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
+const toggleEmployee = (employeeId: string) => {
+  setSelectedEmployeeIds((current) => current.includes(employeeId)
+    ? current.filter((id) => id !== employeeId)
+    : [...current, employeeId]);
+};
 
-  const toggleEmployee = (employeeId: string) => {
-    setSelectedEmployeeIds((current) => current.includes(employeeId)
-      ? current.filter((id) => id !== employeeId)
-      : [...current, employeeId]);
-  };
+const toggleVisibleEmployees = () => {
+  const shownIds = employeeRows.map(({ employeeId }) => employeeId);
+  const allSelected = shownIds.length > 0 && shownIds.every((id) => selectedEmployeeIds.includes(id));
+  setSelectedEmployeeIds((current) => allSelected
+    ? current.filter((id) => !shownIds.includes(id))
+    : [...new Set([...current, ...shownIds])]);
+};
 
-  const toggleVisibleEmployees = () => {
-    const shownIds = employeeRows.map(({ employeeId }) => employeeId);
-    const allSelected = shownIds.length > 0 && shownIds.every((id) => selectedEmployeeIds.includes(id));
-    setSelectedEmployeeIds((current) => allSelected
-      ? current.filter((id) => !shownIds.includes(id))
-      : [...new Set([...current, ...shownIds])]);
-  };
-
-  return (
-    <div className="min-h-screen bg-[#e9edf3] text-slate-800">
-      <LeaveSidebar activePage={mode === "block" ? "block-leave" : "credit-leave"} />
-      <main className="p-4 min-[801px]:ml-[175px]">
-        <div className="mx-auto max-w-[1400px]">
-          <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Leave Admin</p>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-slate-800">{mode === "block" ? "Block Leave" : "Credit Leave"}</h1>
-              <button
-                type="button"
-                onClick={() => setShowInfoModal(true)}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
-                title={`What is ${mode === "block" ? "Block Leave" : "Credit Leave"} and how to use it?`}
-                aria-label={`What is ${mode === "block" ? "Block Leave" : "Credit Leave"} and how to use it?`}
-              >
-                <Info size={18} />
-              </button>
-            </div>
-            <p className="mt-1 text-sm text-slate-500">
-              {mode === "block" ? "Set dates when employees cannot submit leave requests." : "Add available annual or medical leave days to employee balances."}
-            </p>
-          </header>
-
-          {mode === "credit" && (
-            <nav aria-label="Credit leave category" className="mt-4 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-              {(["ANNUAL", "MEDICAL"] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    if (category === value) return;
-                    setCategory(value);
-                    setSelectedEmployeeIds([]);
-                    setSuccess("");
-                    setError("");
-                    setIsLoading(true);
-                  }}
-                  aria-current={category === value ? "page" : undefined}
-                  className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${
-                    category === value ? "bg-emerald-700 text-white" : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  Credit {value === "ANNUAL" ? "Annual" : "Medical"} Leave
-                </button>
-              ))}
-            </nav>
-          )}
-
-          <section aria-label="Employee filters and leave controls" className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div
-              className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
-                mode === "block"
-                  ? "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
-                  : "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(150px,1fr)_auto]"
-              }`}
+return (
+  <div className="min-h-screen bg-[#e9edf3] text-slate-800">
+    <LeaveSidebar activePage={mode === "block" ? "block-leave" : "credit-leave"} />
+    <main className="p-4 min-[801px]:ml-[175px]">
+      <div className="mx-auto max-w-[1400px]">
+        <header className="rounded-xl border border-slate-200 bg-[#f5f7fa] px-6 py-5 shadow-sm">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Leave Admin</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-slate-800">{mode === "block" ? "Block Leave" : "Credit Leave"}</h1>
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(true)}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 active:scale-95 cursor-pointer"
+              title={`What is ${mode === "block" ? "Block Leave" : "Credit Leave"} and how to use it?`}
+              aria-label={`What is ${mode === "block" ? "Block Leave" : "Credit Leave"} and how to use it?`}
             >
-              {/* Step 1: Stream Dropdown */}
-              <div className="min-w-0">
-                <span className="mb-1.5 block text-xs font-medium text-slate-600">Stream</span>
-                <MultiSelectDropdown
-                  label="Streams"
-                  options={streams}
-                  selectedValues={selectedStreams}
-                  onChange={handleStreamChange}
-                />
-              </div>
+              <Info size={18} />
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            {mode === "block" ? "Set dates when employees cannot submit leave requests." : "Add available annual or medical leave days to employee balances."}
+          </p>
+        </header>
 
-              {/* Step 2: Department Dropdown */}
-              <div className="min-w-0">
-                <span className="mb-1.5 block text-xs font-medium text-slate-600">Department</span>
-                <MultiSelectDropdown
-                  label="Departments"
-                  options={departments}
-                  selectedValues={selectedDepartments}
-                  onChange={handleDepartmentChange}
-                />
-              </div>
-
-              {/* Step 3: Employee Name Dropdown */}
-              {/* Step 3: Employee Type Dropdown */}
-              <div className="min-w-0">
-                <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
-                <MultiSelectDropdown
-                  label="Employee Types"
-                  options={employeeTypes}
-                  selectedValues={selectedEmployeeTypes}
-                  onChange={handleEmployeeTypeChange}
-                  disabled={isEmployeeTypeDisabled}
-                />
-              </div>
-
-              {/* Step 4: Employee Name Dropdown (Unlocked after Department chosen) */}
-              <div className="min-w-0">
-                <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
-                <MultiSelectDropdown
-                  label="Employee Names"
-                  options={employeeNames}
-                  selectedValues={selectedEmployeeNames}
-                  onChange={handleEmployeeNameChange}
-                />
-              </div>
-
-              {mode === "block" ? (
-                <>
-                  <div className="min-w-0">
-                    <span className="mb-1.5 block text-xs font-medium text-slate-600">Set Date</span>
-                    <DateInput
-                      id="block-start-date"
-                      value={startDate}
-                      onChange={(val) => {
-                        setStartDate(val);
-                        if (endDate && val && endDate < val) setEndDate(val);
-                      }}
-                      aria-label="Set leave block start date"
-                      placeholder="dd / mm / yyyy"
-                      className="h-11 rounded-lg"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="mb-1.5 block text-xs font-medium text-slate-600">End Date</span>
-                    <DateInput
-                      id="block-end-date"
-                      min={startDate || undefined}
-                      value={endDate}
-                      onChange={(val) => setEndDate(val)}
-                      aria-label="Set leave block end date"
-                      placeholder="dd / mm / yyyy"
-                      className="h-11 rounded-lg"
-                    />
-                  </div>
-                </>
-              ) : (
-                <div ref={counterRef} className={`relative min-w-0 ${counterOpen ? "z-30" : ""}`}>
-                  <span className="mb-1.5 block text-xs font-medium text-slate-600">Number of days</span>
-                  <button
-                    type="button"
-                    aria-expanded={counterOpen}
-                    onClick={() => setCounterOpen((open) => !open)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === "Escape") {
-                        event.preventDefault();
-                        setCounterOpen(false);
-                      }
-                    }}
-                    className="flex h-11 w-full items-center justify-between rounded-lg border border-slate-300 px-3 text-sm hover:border-slate-400"
-                  >
-                    {days} day{days === 1 ? "" : "s"} <ChevronDown size={16} />
-                  </button>
-                  {counterOpen && (
-                    <div className="absolute left-0 top-[calc(100%+4px)] z-40 w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          aria-label="Decrease days"
-                          onClick={() => setDays((value) => Math.max(0, value - 1))}
-                          className="grid size-10 place-items-center rounded-lg border border-slate-300 hover:bg-slate-50"
-                        >
-                          <Minus size={18} />
-                        </button>
-                        <input
-                          type="number"
-                          min={0}
-                          value={days}
-                          aria-label="Credit days"
-                          onChange={(event) => setDays(Math.max(0, Number(event.target.value) || 0))}
-                          onKeyDown={(event) => {
-                            if (event.key === "ArrowUp") {
-                              event.preventDefault();
-                              setDays((value) => value + 1);
-                            } else if (event.key === "ArrowDown") {
-                              event.preventDefault();
-                              setDays((value) => Math.max(0, value - 1));
-                            } else if (event.key === "Enter" || event.key === "Escape") {
-                              setCounterOpen(false);
-                            }
-                          }}
-                          className="h-12 w-24 appearance-none rounded-lg border border-slate-300 text-center text-xl font-semibold outline-none focus:border-emerald-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        />
-                        <button
-                          type="button"
-                          aria-label="Increase days"
-                          onClick={() => setDays((value) => value + 1)}
-                          className="grid size-10 place-items-center rounded-lg border border-slate-300 hover:bg-slate-50"
-                        >
-                          <Plus size={18} />
-                        </button>
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        {([["+5 days", 5], ["+10 days", 10], ["+1 week", 7]] as const).map(([label, amount]) => (
-                          <button
-                            key={label}
-                            type="button"
-                            onClick={() => setDays((value) => value + amount)}
-                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
+        {mode === "credit" && (
+          <nav aria-label="Credit leave category" className="mt-4 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+            {(["ANNUAL", "MEDICAL"] as const).map((value) => (
               <button
+                key={value}
                 type="button"
-                disabled={!canSubmit}
-                onClick={() => setConfirmOpen(true)}
-                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 transition-colors"
+                onClick={() => {
+                  if (category === value) return;
+                  setCategory(value);
+                  setSelectedEmployeeIds([]);
+                  setSuccess("");
+                  setError("");
+                  setIsLoading(true);
+                }}
+                aria-current={category === value ? "page" : undefined}
+                className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${category === value ? "bg-emerald-700 text-white" : "text-slate-600 hover:bg-slate-50"
+                  }`}
               >
-                <CalendarDays size={16} aria-hidden="true" />
-                {mode === "block" ? "Block Leaves" : "Credit Leave"}
+                Credit {value === "ANNUAL" ? "Annual" : "Medical"} Leave
               </button>
-            </div>
-          </section>
+            ))}
+          </nav>
+        )}
 
-          {showSummary && (
-            <p aria-live="polite" className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
-              {summary}
-            </p>
-          )}
-          {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-          {mode !== "block" && success && <p role="status" className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</p>}
-          {isLoading && (
-            <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-10 text-sm text-slate-500">
-              <LoaderCircle size={17} className="animate-spin" />
-              Loading leave administration data...
-            </div>
-          )}
-
-          {/* Table with checkboxes renders strictly after Employee selection */}
-          {showEmployees && !isLoading && (
-            <EmployeeTable
-              employees={employeeRows}
-              selectedIds={selectedEmployeeIds}
-              onToggleEmployee={toggleEmployee}
-              onToggleVisible={toggleVisibleEmployees}
-              onHistory={(employee, action) => {
-                setHistoryError("");
-                setHistoryTarget({ employee, action });
-              }}
-              mode={mode}
-            />
-          )}
-        </div>
-      </main>
-
-      {confirmOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !isSaving) setConfirmOpen(false);
-          }}
-        >
-          <section role="dialog" aria-modal="true" aria-label={`Confirm ${mode === "block" ? "block leave" : "credit leave"}`} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-slate-800">Confirm {mode === "block" ? "block leave" : "credit leave"}</h2>
-            <p className="mt-4 text-sm leading-6 text-slate-600">{summary}</p>
-            {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
-            <footer className="mt-6 flex justify-end gap-2 border-t border-slate-200 pt-4">
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => setConfirmOpen(false)}
-                className="h-10 rounded-lg border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                CANCEL
-              </button>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => void handleAction()}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
-              >
-                {isSaving && <LoaderCircle size={15} className="animate-spin" />}
-                {isSaving ? (mode === "block" ? "BLOCKING..." : "CREDITING...") : (mode === "block" ? "BLOCK LEAVE" : "CREDIT LEAVE")}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
-
-      {historyTarget && (
-        <LeaveRecordDialog
-          mode={mode}
-          action={historyTarget.action}
-          category={category}
-          employee={historyTarget.employee}
-          records={historyRecords}
-          error={historyError}
-          saving={isSaving}
-          onClose={() => setHistoryTarget(null)}
-          onSave={(id, value) => manageRecord("PATCH", mode === "block" ? { id, date: value } : { id, days: value })}
-          onDelete={(id) => manageRecord("DELETE", { id })}
-        />
-      )}
-
-      {/* Information Modal: How it works & How to use it */}
-      {showInfoModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowInfoModal(false);
-          }}
-        >
+        <section aria-label="Employee filters and leave controls" className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="admin-info-title"
-            className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${mode === "block"
+              ? "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(130px,0.9fr)_minmax(130px,0.9fr)_auto]"
+              : "xl:grid-cols-[minmax(130px,1fr)_minmax(140px,1.1fr)_minmax(140px,1fr)_minmax(160px,1.2fr)_minmax(150px,1fr)_auto]"
+              }`}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
-                  <Info size={16} />
-                </div>
-                <div>
-                  <h2 id="admin-info-title" className="text-base font-bold text-slate-900 leading-tight">
-                    {mode === "block" ? "About Block Leave" : "About Credit Leave"}
-                  </h2>
-                  <p className="text-[11px] text-slate-500">
-                    {mode === "block"
-                      ? "Restricted dates, blackout periods, and submission lock"
-                      : "Manual quota allotment, extra leave crediting, and on-duty adjustments"}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowInfoModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
-                aria-label="Close dialog"
-              >
-                <X size={18} />
-              </button>
+            {/* Step 1: Stream Dropdown */}
+            <div className="min-w-0">
+              <span className="mb-1.5 block text-xs font-medium text-slate-600">Stream</span>
+              <MultiSelectDropdown
+                label="Streams"
+                options={streams}
+                selectedValues={selectedStreams}
+                onChange={handleStreamChange}
+              />
             </div>
 
-            {/* Content Body */}
-            <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
-              {/* 1. What it is */}
-              <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
-                <span className="font-semibold text-emerald-950">What is it?</span>
-                <p className="mt-0.5 text-emerald-900/90 text-[11px] leading-relaxed">
-                  {mode === "block" ? (
-                    <><strong>Block Leave</strong> is an administrative lock that restricts employees from applying for leaves during critical institutional event dates (e.g., examinations, inspections, audits).</>
-                  ) : (
-                    <><strong>Credit Leave</strong> is a manual allocation tool used by administrators to add extra leave days (e.g. compensatory off, special duty incentives) directly to employee balances.</>
-                  )}
+            {/* Step 2: Department Dropdown */}
+            <div className="min-w-0">
+              <span className="mb-1.5 block text-xs font-medium text-slate-600">Department</span>
+              <MultiSelectDropdown
+                label="Departments"
+                options={departments}
+                selectedValues={selectedDepartments}
+                onChange={handleDepartmentChange}
+              />
+            </div>
+
+            {/* Step 3: Employee Name Dropdown */}
+            {/* Step 3: Employee Type Dropdown */}
+            <div className="min-w-0">
+              <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee Type</span>
+              <MultiSelectDropdown
+                label="Employee Types"
+                options={employeeTypes}
+                selectedValues={selectedEmployeeTypes}
+                onChange={handleEmployeeTypeChange}
+                disabled={isEmployeeTypeDisabled}
+              />
+            </div>
+
+            {/* Step 4: Employee Name Dropdown (Unlocked after Department chosen) */}
+            <div className="min-w-0">
+              <span className="mb-1.5 block text-xs font-medium text-slate-600">Employee</span>
+              <MultiSelectDropdown
+                label="Employee Names"
+                options={employeeNames}
+                selectedValues={selectedEmployeeNames}
+                onChange={handleEmployeeNameChange}
+              />
+            </div>
+
+            {mode === "block" ? (
+              <>
+                <div className="min-w-0">
+                  <span className="mb-1.5 block text-xs font-medium text-slate-600">Set Date</span>
+                  <DateInput
+                    id="block-start-date"
+                    value={startDate}
+                    onChange={(val) => {
+                      setStartDate(val);
+                      if (endDate && val && endDate < val) setEndDate(val);
+                    }}
+                    aria-label="Set leave block start date"
+                    placeholder="dd / mm / yyyy"
+                    className="h-11 rounded-lg"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <span className="mb-1.5 block text-xs font-medium text-slate-600">End Date</span>
+                  <DateInput
+                    id="block-end-date"
+                    min={startDate || undefined}
+                    value={endDate}
+                    onChange={(val) => setEndDate(val)}
+                    aria-label="Set leave block end date"
+                    placeholder="dd / mm / yyyy"
+                    className="h-11 rounded-lg"
+                  />
+                </div>
+              </>
+            ) : (
+              <div ref={counterRef} className={`relative min-w-0 ${counterOpen ? "z-30" : ""}`}>
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Number of days</span>
+                <button
+                  type="button"
+                  aria-expanded={counterOpen}
+                  onClick={() => setCounterOpen((open) => !open)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === "Escape") {
+                      event.preventDefault();
+                      setCounterOpen(false);
+                    }
+                  }}
+                  className="flex h-11 w-full items-center justify-between rounded-lg border border-slate-300 px-3 text-sm hover:border-slate-400"
+                >
+                  {days} day{days === 1 ? "" : "s"} <ChevronDown size={16} />
+                </button>
+                {counterOpen && (
+                  <div className="absolute left-0 top-[calc(100%+4px)] z-40 w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        aria-label="Decrease days"
+                        onClick={() => setDays((value) => Math.max(0, value - 1))}
+                        className="grid size-10 place-items-center rounded-lg border border-slate-300 hover:bg-slate-50"
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={days}
+                        aria-label="Credit days"
+                        onChange={(event) => setDays(Math.max(0, Number(event.target.value) || 0))}
+                        onKeyDown={(event) => {
+                          if (event.key === "ArrowUp") {
+                            event.preventDefault();
+                            setDays((value) => value + 1);
+                          } else if (event.key === "ArrowDown") {
+                            event.preventDefault();
+                            setDays((value) => Math.max(0, value - 1));
+                          } else if (event.key === "Enter" || event.key === "Escape") {
+                            setCounterOpen(false);
+                          }
+                        }}
+                        className="h-12 w-24 appearance-none rounded-lg border border-slate-300 text-center text-xl font-semibold outline-none focus:border-emerald-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Increase days"
+                        onClick={() => setDays((value) => value + 1)}
+                        className="grid size-10 place-items-center rounded-lg border border-slate-300 hover:bg-slate-50"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {([["+5 days", 5], ["+10 days", 10], ["+1 week", 7]] as const).map(([label, amount]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => setDays((value) => value + amount)}
+                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={!canSubmit}
+              onClick={() => setConfirmOpen(true)}
+              className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 transition-colors"
+            >
+              <CalendarDays size={16} aria-hidden="true" />
+              {mode === "block" ? "Block Leaves" : "Credit Leave"}
+            </button>
+          </div>
+        </section>
+
+        {showSummary && (
+          <p aria-live="polite" className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
+            {summary}
+          </p>
+        )}
+        {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+        {mode !== "block" && success && <p role="status" className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</p>}
+        {isLoading && (
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-10 text-sm text-slate-500">
+            <LoaderCircle size={17} className="animate-spin" />
+            Loading leave administration data...
+          </div>
+        )}
+
+        {/* Table with checkboxes renders strictly after Employee selection */}
+        {showEmployees && !isLoading && (
+          <EmployeeTable
+            employees={employeeRows}
+            selectedIds={selectedEmployeeIds}
+            onToggleEmployee={toggleEmployee}
+            onToggleVisible={toggleVisibleEmployees}
+            onHistory={(employee, action) => {
+              setHistoryError("");
+              setHistoryTarget({ employee, action });
+            }}
+            mode={mode}
+          />
+        )}
+      </div>
+    </main>
+
+    {confirmOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !isSaving) setConfirmOpen(false);
+        }}
+      >
+        <section role="dialog" aria-modal="true" aria-label={`Confirm ${mode === "block" ? "block leave" : "credit leave"}`} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+          <h2 className="text-xl font-bold text-slate-800">Confirm {mode === "block" ? "block leave" : "credit leave"}</h2>
+          <p className="mt-4 text-sm leading-6 text-slate-600">{summary}</p>
+          {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+          <footer className="mt-6 flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => setConfirmOpen(false)}
+              className="h-10 rounded-lg border border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              CANCEL
+            </button>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => void handleAction()}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-700 px-5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+            >
+              {isSaving && <LoaderCircle size={15} className="animate-spin" />}
+              {isSaving ? (mode === "block" ? "BLOCKING..." : "CREDITING...") : (mode === "block" ? "BLOCK LEAVE" : "CREDIT LEAVE")}
+            </button>
+          </footer>
+        </section>
+      </div>
+    )}
+
+    {historyTarget && (
+      <LeaveRecordDialog
+        mode={mode}
+        action={historyTarget.action}
+        category={category}
+        employee={historyTarget.employee}
+        records={historyRecords}
+        error={historyError}
+        saving={isSaving}
+        onClose={() => setHistoryTarget(null)}
+        onSave={(id, value) => manageRecord("PATCH", mode === "block" ? { id, date: value } : { id, days: value })}
+        onDelete={(id) => manageRecord("DELETE", { id })}
+      />
+    )}
+
+    {/* Information Modal: How it works & How to use it */}
+    {showInfoModal && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-[2px] normal-case"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowInfoModal(false);
+        }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-info-title"
+          className="relative my-auto w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                <Info size={16} />
+              </div>
+              <div>
+                <h2 id="admin-info-title" className="text-base font-bold text-slate-900 leading-tight">
+                  {mode === "block" ? "About Block Leave" : "About Credit Leave"}
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  {mode === "block"
+                    ? "Restricted dates, blackout periods, and submission lock"
+                    : "Manual quota allotment, extra leave crediting, and on-duty adjustments"}
                 </p>
               </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(false)}
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors cursor-pointer"
+              aria-label="Close dialog"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
-              {/* 2. How it works & How to use it */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
-                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
-                    {mode === "block" ? (
-                      <>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">•</span>
-                          <span><strong>Date Blackout:</strong> Locks specified dates across departments so requests are blocked.</span>
-                        </li>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">•</span>
-                          <span><strong>System Lock:</strong> Prevents staff from submitting leaves that overlap blocked intervals.</span>
-                        </li>
-                      </>
-                    ) : (
-                      <>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">•</span>
-                          <span><strong>Direct Balance Credit:</strong> Injects allowable days directly into the employee&apos;s live quota.</span>
-                        </li>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">•</span>
-                          <span><strong>Category Scoped:</strong> Balances increase under Annual/Earned or Medical leave accounts.</span>
-                        </li>
-                      </>
-                    )}
-                  </ul>
-                </div>
+          {/* Content Body */}
+          <div className="p-5 space-y-3 text-xs text-slate-700 leading-relaxed">
+            {/* 1. What it is */}
+            <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+              <span className="font-semibold text-emerald-950">What is it?</span>
+              <p className="mt-0.5 text-emerald-900/90 text-[11px] leading-relaxed">
+                {mode === "block" ? (
+                  <><strong>Block Leave</strong> is an administrative lock that restricts employees from applying for leaves during critical institutional event dates (e.g., examinations, inspections, audits).</>
+                ) : (
+                  <><strong>Credit Leave</strong> is a manual allocation tool used by administrators to add extra leave days (e.g. compensatory off, special duty incentives) directly to employee balances.</>
+                )}
+              </p>
+            </div>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                  <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
-                  <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
-                    {mode === "block" ? (
-                      <>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">1.</span>
-                          <span>Filter staff by Stream/Department and check the employees or department to block.</span>
-                        </li>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">2.</span>
-                          <span>Select the Start &amp; End dates, review the day count, and click <strong>Block Leave</strong>.</span>
-                        </li>
-                      </>
-                    ) : (
-                      <>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">1.</span>
-                          <span>Select category (ANNUAL or MEDICAL) and check staff rows receiving extra credit.</span>
-                        </li>
-                        <li className="flex items-start gap-1.5">
-                          <span className="text-emerald-600 font-bold">2.</span>
-                          <span>Select the date, click <strong>+ / -</strong> to set days, and click <strong>Credit Leave</strong>.</span>
-                        </li>
-                      </>
-                    )}
-                  </ul>
-                </div>
+            {/* 2. How it works & How to use it */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How it works</span>
+                <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                  {mode === "block" ? (
+                    <>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>Date Blackout:</strong> Locks specified dates across departments so requests are blocked.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>System Lock:</strong> Prevents staff from submitting leaves that overlap blocked intervals.</span>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>Direct Balance Credit:</strong> Injects allowable days directly into the employee&apos;s live quota.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>Category Scoped:</strong> Balances increase under Annual/Earned or Medical leave accounts.</span>
+                      </li>
+                    </>
+                  )}
+                </ul>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                <span className="font-bold text-slate-900 text-[11px] uppercase tracking-wide">How to use it</span>
+                <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                  {mode === "block" ? (
+                    <>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">1.</span>
+                        <span>Filter staff by Stream/Department and check the employees or department to block.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">2.</span>
+                        <span>Select the Start &amp; End dates, review the day count, and click <strong>Block Leave</strong>.</span>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">1.</span>
+                        <span>Select category (ANNUAL or MEDICAL) and check staff rows receiving extra credit.</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">2.</span>
+                        <span>Select the date, click <strong>+ / -</strong> to set days, and click <strong>Credit Leave</strong>.</span>
+                      </li>
+                    </>
+                  )}
+                </ul>
               </div>
             </div>
+          </div>
 
-            {/* Footer */}
-            <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowInfoModal(false)}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Got It
-              </button>
-            </div>
+          {/* Footer */}
+          <div className="border-t border-slate-100 bg-slate-50/80 px-5 py-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(false)}
+              className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Got It
+            </button>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    )}
+  </div>
+);
 }

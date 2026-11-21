@@ -53,21 +53,31 @@ export async function GET(request: NextRequest) {
       }),
       (prisma.leaveYearEndProcess
         ? prisma.leaveYearEndProcess.findMany({
-            orderBy: { processedAt: "desc" },
-            take: 5,
-            include: {
-              records: {
-                take: 20,
-              },
+          orderBy: { processedAt: "desc" },
+          take: 5,
+          include: {
+            records: {
+              take: 20,
             },
-          })
+          },
+        })
         : Promise.resolve([])),
       (prisma.leaveYearEndRecord
         ? prisma.leaveYearEndRecord.findMany({
-            where: { nextCycle: nextCycle.code },
-            select: { employeeId: true, leaveTypeId: true, status: true },
-          })
+          where: { nextCycle: nextCycle.code },
+          select: { employeeId: true, leaveTypeId: true, status: true },
+        })
         : Promise.resolve([])),
+      prisma.employeeLeaveApplication.findMany({
+        where: {
+          status: { equals: "Approved", mode: "insensitive" },
+        },
+        select: {
+          employeeId: true,
+          leaveTypeId: true,
+          daysCount: true,
+        },
+      }),
     ]);
 
     const processedMap = new Set(
@@ -111,6 +121,7 @@ export async function GET(request: NextRequest) {
         const entitlement = isEligible ? (eligibility?.daysAllowed ?? lt.daysAllowed) : 0;
         const bf = isEligible ? (eligibility?.bf ?? 0) : 0;
         const credited = isEligible ? (eligibility?.creditedDays ?? 0) : 0;
+        const earn = isEligible ? (eligibility?.earned ?? 0) : 0;
 
         // Calculate leave used in the current cycle
         const matchingApps = employee.employeeLeaveApplications.filter(
@@ -134,17 +145,16 @@ export async function GET(request: NextRequest) {
 
         // Rule calculation
         const ruleConfig = rules.find((r) => r.leaveTypeId === lt.id);
-        const rule = ruleConfig?.rule || (lt.carryForward ? "CARRY_FORWARD" : "RESET");
         const maxLimit = ruleConfig?.maxCarryForwardDays ?? null;
 
         // Approved days taken matching the Entitlement table
         const taken = approvedDaysMap.get(`${employee.employeeId}:${lt.id}`) ?? 0;
 
         // Entitlement table Total for this leave type: Math.max(0, eligible + bf + credit + earn - taken)
-        const entitlementTotal = Math.max(0, entitlement + bf + credit + earn - taken);
+        const entitlementTotal = Math.max(0, entitlement + bf + credited + earn - taken);
 
         // Rule calculation: carry forward enabled for ML & EL or whenever carryForward flag is true
-        const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL";
+        const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL" || ruleConfig?.rule === "CARRY_FORWARD";
         const rule = isCarryForward ? "CARRY_FORWARD" : "RESET";
 
         // Fetch Total from the Entitlement table for carry-forward leaves (ML & EL)
@@ -292,6 +302,13 @@ export async function POST(request: NextRequest) {
       }),
     ]);
 
+    // Index approved applications by composite key (employeeId:leaveTypeId) matching Entitlement table
+    const approvedDaysMap = new Map<string, number>();
+    for (const app of approvedApplications ?? []) {
+      const key = `${app.employeeId}:${app.leaveTypeId}`;
+      approvedDaysMap.set(key, (approvedDaysMap.get(key) ?? 0) + (app.daysCount ?? 0));
+    }
+
     // Helper to get base leave group/category (e.g. CL_A and CL_S both map to "CL")
     const getBaseCode = (code: string, name: string): string => {
       const c = (code || "").toUpperCase();
@@ -308,6 +325,7 @@ export async function POST(request: NextRequest) {
     const ruleMap = new Map<number, { rule: "CARRY_FORWARD" | "RESET"; maxCarryForwardDays: number | null }>();
     leaveTypes.forEach((lt) => {
       const base = getBaseCode(lt.code, lt.name);
+      const isCarryForward = Boolean(lt.carryForward) || lt.code === "ML" || lt.code === "EL";
       // Check direct rule or sibling stream rule
       const direct = customRules?.find((r) => r.leaveTypeId === lt.id);
       const siblingRule = direct || customRules?.find((r) => {
@@ -393,8 +411,16 @@ export async function POST(request: NextRequest) {
           const totalDays = Math.max(1, Math.round((appEnd.getTime() - appStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
           const clampedDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
+          const days = app.daysCount ? Math.min(app.daysCount, Math.round(app.daysCount * (clampedDays / totalDays))) : clampedDays;
+          return sum + days;
+        }, 0) : 0;
+
         // Approved days taken matching the Entitlement table
         const taken = approvedDaysMap.get(`${employee.employeeId}:${lt.id}`) ?? 0;
+
+        // Entitlement table Total for this leave type
+        const earn = isEligible ? (eligibility?.earned ?? 0) : 0;
+        const entitlementTotal = Math.max(0, entitlement + bf + credited + earn - taken);
 
         const availableBalance = isEligible ? Math.max(0, (entitlement + bf + credited) - leaveUsed) : 0;
 

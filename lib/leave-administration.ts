@@ -2,6 +2,7 @@ import type { LeaveCategory, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const blockedLeaveMessage = "Leaves are blocked for this date. Kindly select any other date or contact admin";
+export const holidayLeaveMessage = "Can't apply leave on a holiday";
 
 export function parseDateOnly(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -100,9 +101,9 @@ export async function findBalanceLeaveType(
     const medicalType = leaveTypes.find(
       (lt) =>
         (lt.code.toUpperCase() === "ML" ||
-         lt.name.toUpperCase() === "MEDICAL LEAVE" ||
-         lt.name.toUpperCase().includes("MEDICAL") ||
-         lt.code.toUpperCase().includes("MED")) &&
+          lt.name.toUpperCase() === "MEDICAL LEAVE" ||
+          lt.name.toUpperCase().includes("MEDICAL") ||
+          lt.code.toUpperCase().includes("MED")) &&
         !lt.name.toUpperCase().includes("MATERNITY")
     );
     if (medicalType) return medicalType;

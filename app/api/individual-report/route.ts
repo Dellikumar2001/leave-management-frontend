@@ -135,7 +135,8 @@ export async function GET(request: Request) {
         user: { select: { email: true, firstName: true, lastName: true, name: true } },
       },
     });
-    const [requests, credits, holidays] = await Promise.all([
+    const studentIds = students.map((s) => s.id);
+    const [requests, usages, credits, holidays] = await Promise.all([
       studentIds.length
         ? prisma.studentLeaveRequest.findMany({
           where: {
@@ -192,7 +193,7 @@ export async function GET(request: Request) {
       isTaken(record.status.toString().toUpperCase(), record.endDate, today),
     ).map((record) => {
       const status = record.status.toString().toUpperCase();
-      const approver = record.reviewedBy?.trim() || null;
+      const approver = record.reviewer?.name || record.reviewer?.firstName || null;
       return {
         id: record.id,
         startDate: record.startDate,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, RefreshCw, ChevronDown, Info, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import LeaveSidebar from "../components/LeaveSidebar";
@@ -87,10 +87,10 @@ function MultiSelectDropdown({
   const displayLabel = disabled
     ? `Select ${label}`
     : selectedValues.length === 0
-    ? `All ${label}`
-    : selectedValues.length === 1
-    ? selectedValues[0]
-    : `${selectedValues.length} ${label} selected`;
+      ? `All ${label}`
+      : selectedValues.length === 1
+        ? selectedValues[0]
+        : `${selectedValues.length} ${label} selected`;
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -98,20 +98,18 @@ function MultiSelectDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${
-          disabled
-            ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
-            : isOpen
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 text-sm normal-case transition-colors ${disabled
+          ? "cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200"
+          : isOpen
             ? "border-blue-500 ring-2 ring-blue-500/20 text-slate-800"
             : "border-slate-300 text-slate-600 hover:border-slate-400"
-        }`}
+          }`}
       >
         <span className="truncate">{displayLabel}</span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-slate-400 transition-transform duration-150 ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`shrink-0 text-slate-400 transition-transform duration-150 ${isOpen ? "rotate-180" : ""
+            }`}
         />
       </button>
 
@@ -209,12 +207,12 @@ export default function LeaveRefreshPage() {
   const departments = isDepartmentDisabled
     ? []
     : [
-        ...new Set(
-          employees
-            .filter((e) => streamFilters.includes(e.stream))
-            .map((e) => e.department)
-        ),
-      ].filter(Boolean).sort();
+      ...new Set(
+        employees
+          .filter((e) => streamFilters.includes(e.stream))
+          .map((e) => e.department)
+      ),
+    ].filter(Boolean).sort();
 
   // ── Step 3: Employee Types disabled until Department is chosen
   const isEmployeeTypeDisabled = isDepartmentDisabled || departmentFilters.length === 0;
@@ -235,11 +233,11 @@ export default function LeaveRefreshPage() {
   const availableEmployees = isEmployeeDisabled
     ? []
     : employees.filter(
-        (e) =>
-          streamFilters.includes(e.stream) &&
-          departmentFilters.includes(e.department) &&
-          employeeTypeFilters.includes(e.employeeType || "Teaching")
-      );
+      (e) =>
+        streamFilters.includes(e.stream) &&
+        departmentFilters.includes(e.department) &&
+        employeeTypeFilters.includes(e.employeeType || "Teaching")
+    );
 
   const employeeNames = [...new Set(availableEmployees.map((e) => e.name))].filter(Boolean).sort();
 
@@ -519,18 +517,18 @@ export default function LeaveRefreshPage() {
                   <tr>
                     {leaveTypes.length > 0
                       ? leaveTypes.map((lt) => (
-                          <th key={`elig-${lt.id}`} className="whitespace-nowrap bg-green-100/60 px-5 py-3 font-medium">
-                            {lt.code}
-                          </th>
-                        ))
+                        <th key={`elig-${lt.id}`} className="whitespace-nowrap bg-green-100/60 px-5 py-3 font-medium">
+                          {lt.code}
+                        </th>
+                      ))
                       : <th className="px-5 py-3 font-normal text-slate-400">No leave types</th>
                     }
                     {leaveTypes.length > 0
                       ? leaveTypes.map((lt) => (
-                          <th key={`bal-${lt.id}`} className="whitespace-nowrap bg-yellow-100/50 px-5 py-3 font-medium">
-                            {lt.code}
-                          </th>
-                        ))
+                        <th key={`bal-${lt.id}`} className="whitespace-nowrap bg-yellow-100/50 px-5 py-3 font-medium">
+                          {lt.code}
+                        </th>
+                      ))
                       : <th className="px-5 py-3 font-normal text-slate-400">No leave types</th>
                     }
                   </tr>
@@ -604,11 +602,10 @@ export default function LeaveRefreshPage() {
                         ? `Recalculate leave balances for ${visibleEmployees.length} filtered employee(s)`
                         : "Select at least one filter (Stream, Department, or Employee Name) to enable recalculation"
                     }
-                    className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${
-                      canRecalculate
-                        ? "bg-emerald-700 text-white shadow-md hover:bg-emerald-800 active:scale-[0.98]"
-                        : "cursor-not-allowed bg-slate-200 text-slate-400"
-                    }`}
+                    className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${canRecalculate
+                      ? "bg-emerald-700 text-white shadow-md hover:bg-emerald-800 active:scale-[0.98]"
+                      : "cursor-not-allowed bg-slate-200 text-slate-400"
+                      }`}
                   >
                     <RefreshCw
                       size={15}

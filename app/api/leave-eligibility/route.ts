@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [employees, leaveTypes, yearEndRecords, approvedApplications] = await Promise.all([
+    const [employees, leaveTypes, approvedApplications, yearEndRecords] = await Promise.all([
       prisma.employee.findMany({
         orderBy: { employeeId: "asc" },
         include: {

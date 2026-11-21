@@ -196,10 +196,10 @@ function SortHeaderButton({
       type="button"
       onClick={() => onSort(columnKey)}
       className={`group inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors uppercase tracking-tight cursor-pointer select-none ${align === "right"
-          ? "justify-end w-full"
-          : align === "center"
-            ? "justify-center w-full"
-            : "justify-start text-left"
+        ? "justify-end w-full"
+        : align === "center"
+          ? "justify-center w-full"
+          : "justify-start text-left"
         }`}
       title={
         !isCurrent || !sortDirection
@@ -439,6 +439,7 @@ export default function LeaveYearEndPage() {
       const activeRule = ruleLookup.get(record.leaveTypeId);
       const isTicked = selectedCarryForwardLeaveTypeIds.includes(record.leaveTypeId);
       const rule = isTicked ? (activeRule?.rule || "CARRY_FORWARD") : "RESET";
+      const isCarryForward = rule === "CARRY_FORWARD";
       const maxLimit = activeRule?.maxCarryForwardDays ?? null;
 
       let carriedForwardDays = 0;
@@ -1151,11 +1152,10 @@ export default function LeaveYearEndPage() {
                           setIsEmployeeDropdownOpen(false);
                           setCurrentPage(1);
                         }}
-                        className={`w-full px-3 py-2 text-left text-xs transition hover:bg-emerald-50 hover:text-emerald-900 ${
-                          selectedEmployeeFilter === "ALL" && !employeeSearchTerm
-                            ? "bg-emerald-50/70 font-bold text-emerald-800"
-                            : "text-slate-700"
-                        }`}
+                        className={`w-full px-3 py-2 text-left text-xs transition hover:bg-emerald-50 hover:text-emerald-900 ${selectedEmployeeFilter === "ALL" && !employeeSearchTerm
+                          ? "bg-emerald-50/70 font-bold text-emerald-800"
+                          : "text-slate-700"
+                          }`}
                       >
                         All Employees
                       </button>
@@ -1176,11 +1176,10 @@ export default function LeaveYearEndPage() {
                                 setIsEmployeeDropdownOpen(false);
                                 setCurrentPage(1);
                               }}
-                              className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition hover:bg-emerald-50 hover:text-emerald-900 ${
-                                isSelected
-                                  ? "bg-emerald-50/70 font-bold text-emerald-800"
-                                  : "text-slate-700"
-                              }`}
+                              className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition hover:bg-emerald-50 hover:text-emerald-900 ${isSelected
+                                ? "bg-emerald-50/70 font-bold text-emerald-800"
+                                : "text-slate-700"
+                                }`}
                             >
                               <span className="font-medium">
                                 <strong className="font-mono">{emp.employeeId}</strong> - {emp.name}
@@ -1230,11 +1229,10 @@ export default function LeaveYearEndPage() {
                     return (
                       <label
                         key={lt.id}
-                        className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2 text-xs font-semibold transition ${
-                          isChecked
-                            ? "border-emerald-300 bg-emerald-50/70 text-emerald-900 shadow-xs"
-                            : "border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100"
-                        }`}
+                        className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2 text-xs font-semibold transition ${isChecked
+                          ? "border-emerald-300 bg-emerald-50/70 text-emerald-900 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 text-slate-600 hover:bg-slate-100"
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -1473,8 +1471,8 @@ export default function LeaveYearEndPage() {
                                   rolledBackEmployeeIds.includes(row.employeeId)
                                     ? "Already rolled back"
                                     : canRollback
-                                    ? `Rollback year-end process for ${row.employeeName}`
-                                    : "Rollback is available for processed employees"
+                                      ? `Rollback year-end process for ${row.employeeName}`
+                                      : "Rollback is available for processed employees"
                                 }
                               >
                                 {isRollingBackThis ? (
@@ -1556,8 +1554,8 @@ export default function LeaveYearEndPage() {
                             type="button"
                             onClick={() => setCurrentPage(page)}
                             className={`flex size-8 items-center justify-center rounded-lg text-xs font-semibold shadow-sm transition ${page === clampedCurrentPage
-                                ? "bg-emerald-700 text-white"
-                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              ? "bg-emerald-700 text-white"
+                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                               }`}
                           >
                             {page}
